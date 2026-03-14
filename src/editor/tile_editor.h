@@ -15,6 +15,7 @@ class SpriteBatch;
 class TextureAtlas;
 class Texture;
 class TextRenderer;
+class Renderer;
 class Camera;
 struct InputState;
 
@@ -73,6 +74,7 @@ public:
     void set_text_renderer(TextRenderer* text, VkDescriptorSet font_desc);
     void set_object_stamps(const std::vector<ObjectStamp>* stamps) { object_stamps_ = stamps; }
     void set_game_state(GameState* game) { game_state_ = game; }
+    void set_renderer(eb::Renderer* r) { renderer_ = r; }
 
     void update(const InputState& input, Camera& camera, float dt,
                 int screen_w, int screen_h);
@@ -196,6 +198,7 @@ private:
     VkDescriptorSet tileset_desc_ = VK_NULL_HANDLE;
     const std::vector<ObjectStamp>* object_stamps_ = nullptr;
     GameState* game_state_ = nullptr;
+    Renderer* renderer_ = nullptr;
 
     // ImGui texture ID for tileset previews
     void* imgui_tileset_id_ = nullptr;
@@ -232,6 +235,13 @@ private:
     std::string status_msg_;
     float status_timer_ = 0.0f;
     void set_status(const std::string& msg);
+
+    // Deferred file dialog (must not run during Vulkan rendering)
+    enum class PendingDialog { None, Save, Load };
+    PendingDialog pending_dialog_ = PendingDialog::None;
+public:
+    void process_pending_dialog();
+private:
 };
 
 } // namespace eb

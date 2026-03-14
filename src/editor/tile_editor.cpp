@@ -185,11 +185,46 @@ void TileEditor::redo() {
 
 // ── Update ──
 
+void TileEditor::process_pending_dialog() {
+#ifndef EB_ANDROID
+    if (pending_dialog_ == PendingDialog::None || !game_state_) return;
+
+    PendingDialog action = pending_dialog_;
+    pending_dialog_ = PendingDialog::None;
+
+    // Wait for GPU to finish all work before blocking the thread with a dialog.
+    // This prevents Vulkan semaphore/fence corruption.
+    if (renderer_) {
+        renderer_->vulkan_context().wait_idle();
+    }
+
+    const char* filters[] = {"*.json"};
+    const char* result = nullptr;
+
+    if (action == PendingDialog::Save) {
+        result = tinyfd_saveFileDialog(
+            "Save Map", "assets/maps/current.json", 1, filters, "Map Files");
+        if (result) {
+            std::string path(result);
+            save_map_file(*game_state_, path.c_str()) ? set_status("Saved") : set_status("Failed!");
+        }
+    } else if (action == PendingDialog::Load) {
+        result = tinyfd_openFileDialog(
+            "Load Map", "assets/maps/", 1, filters, "Map Files", 0);
+        if (result) {
+            std::string path(result);
+            load_map(path.c_str()) ? set_status("Loaded") : set_status("Failed!");
+        }
+    }
+#endif
+}
+
 void TileEditor::update(const InputState& input, Camera& camera, float dt,
                          int screen_w, int screen_h) {
     if (!active_ || !map_) return;
     if (!panels_initialized_) init_panels(screen_w, screen_h);
 
+    // Note: process_pending_dialog() is called from main.cpp before this
     mouse_x_ = input.mouse.x;
     mouse_y_ = input.mouse.y;
     if (status_timer_ > 0) status_timer_ -= dt;
@@ -338,6 +373,7 @@ void TileEditor::handle_shortcuts(const InputState& input) {
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_C)) copy_selection();
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_V) && clipboard_.has_data) { tool_ = EditorTool::Paint; set_status("Click to paste"); }
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_S)) {
+        // Quick save (no dialog, no Vulkan conflict)
         if (game_state_) { save_map_file(*game_state_, "assets/maps/current.json") ? set_status("Saved") : set_status("Failed!"); }
         else { save_map("assets/maps/current.json") ? set_status("Saved") : set_status("Failed!"); }
     }
@@ -909,25 +945,13 @@ void TileEditor::render_imgui(GameState& game) {
         ImGui::Separator();
         ImGui::Text("Map: %dx%d", map_->width(), map_->height());
         if (ImGui::Button("Save As...", ImVec2(90,0))) {
-#ifndef EB_ANDROID
-            const char* filters[] = {"*.json"};
-            const char* result = tinyfd_saveFileDialog("Save Map", "assets/maps/current.json",
-                                                        1, filters, "Map Files (*.json)");
-            if (result && game_state_) {
-                save_map_file(*game_state_, result) ? set_status("Saved") : set_status("Failed!");
-            }
-#endif
+            pending_dialog_ = PendingDialog::Save;
+            std::printf("[Editor] Save button clicked, pending_dialog set\n");
         }
         ImGui::SameLine();
         if (ImGui::Button("Load...", ImVec2(70,0))) {
-#ifndef EB_ANDROID
-            const char* filters[] = {"*.json"};
-            const char* result = tinyfd_openFileDialog("Load Map", "assets/maps/",
-                                                        1, filters, "Map Files (*.json)", 0);
-            if (result) {
-                load_map(result) ? set_status("Loaded") : set_status("Failed!");
-            }
-#endif
+            pending_dialog_ = PendingDialog::Load;
+            std::printf("[Editor] Load button clicked, pending_dialog set\n");
         }
         // Quick save (no dialog)
         if (ImGui::Button("Quick Save (Ctrl+S)", ImVec2(-1,0))) {

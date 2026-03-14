@@ -90,11 +90,44 @@ add_library(tw_engine STATIC
     src/game/overworld/camera.cpp
     src/game/overworld/tile_map.cpp
     src/game/game.cpp
+    src/engine/scripting/script_engine.cpp
     src/engine/graphics/text_renderer.cpp
     src/game/dialogue/dialogue_box.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp
 )
+
+
+# ── SageLang scripting engine (embedded interpreter) ──
+set(SAGELANG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/sagelang)
+set(SAGELANG_SOURCES
+    ${SAGELANG_DIR}/src/c/ast.c
+    ${SAGELANG_DIR}/src/c/lexer.c
+    ${SAGELANG_DIR}/src/c/parser.c
+    ${SAGELANG_DIR}/src/c/interpreter.c
+    ${SAGELANG_DIR}/src/c/env.c
+    ${SAGELANG_DIR}/src/c/value.c
+    ${SAGELANG_DIR}/src/c/gc.c
+    ${SAGELANG_DIR}/src/c/stdlib.c
+    ${SAGELANG_DIR}/src/c/module.c
+    ${SAGELANG_DIR}/src/c/diagnostic.c
+    ${SAGELANG_DIR}/src/c/typecheck.c
+    ${SAGELANG_DIR}/src/c/pass.c
+    ${SAGELANG_DIR}/src/c/constfold.c
+    ${SAGELANG_DIR}/src/c/dce.c
+    ${SAGELANG_DIR}/src/c/inline.c
+    ${SAGELANG_DIR}/src/c/formatter.c
+    ${SAGELANG_DIR}/src/c/linter.c
+    ${SAGELANG_DIR}/src/c/sage_thread.c
+)
+add_library(sagelang STATIC ${SAGELANG_SOURCES})
+target_include_directories(sagelang PUBLIC ${SAGELANG_DIR}/include)
+target_compile_options(sagelang PRIVATE -w) # Suppress warnings from third-party code
+if(UNIX AND NOT APPLE AND NOT CMAKE_CROSSCOMPILING)
+    target_link_libraries(sagelang PUBLIC dl pthread m)
+elseif(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    target_compile_definitions(sagelang PRIVATE SAGE_NO_FFI=1 SAGE_NO_THREADS=1 SAGE_NO_NET=1)
+endif()
 
 if(NOT EB_ANDROID)
     target_sources(tw_engine PRIVATE
@@ -125,6 +158,7 @@ target_include_directories(tw_engine PUBLIC
 target_link_libraries(tw_engine PUBLIC
     Vulkan::Vulkan
     glm::glm
+    sagelang
 )
 
 if(NOT EB_ANDROID)

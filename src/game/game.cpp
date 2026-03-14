@@ -1,4 +1,5 @@
 #include "game/game.h"
+#include "engine/resource/file_io.h"
 #include <fstream>
 #include <sstream>
 
@@ -174,8 +175,9 @@ std::vector<eb::DialogueLine> DialogueScript::get_lines(const std::string& name)
 }
 
 bool load_dialogue_file(DialogueScript& script, const std::string& path) {
-    std::ifstream f(path);
-    if (!f.is_open()) {
+    // Use FileIO for cross-platform reading (works with Android AAssetManager)
+    auto data = eb::FileIO::read_file(path);
+    if (data.empty()) {
         std::fprintf(stderr, "[Dialogue] Failed to load: %s\n", path.c_str());
         return false;
     }
@@ -184,8 +186,11 @@ bool load_dialogue_file(DialogueScript& script, const std::string& path) {
     script.functions.clear();
     DialogueFunction* current = nullptr;
 
+    // Parse line by line from the byte buffer
+    std::string content(data.begin(), data.end());
+    std::istringstream stream(content);
     std::string line;
-    while (std::getline(f, line)) {
+    while (std::getline(stream, line)) {
         // Trim whitespace
         size_t start = line.find_first_not_of(" \t\r\n");
         if (start == std::string::npos) continue;
@@ -502,6 +507,7 @@ void setup_npcs(GameState& game) {
     bobby.dir = 0; bobby.sprite_atlas_id = 0;
     bobby.move_speed = 30.0f; bobby.wander_interval = 4.0f;
     bobby.dialogue = bobby_dlg.get_lines("greeting");
+    if (bobby.dialogue.empty()) bobby.dialogue = {{"Bobby", "Hey there."}};
     game.npcs.push_back(bobby);
 
     NPC stranger;
@@ -510,6 +516,7 @@ void setup_npcs(GameState& game) {
     stranger.dir = 1; stranger.sprite_atlas_id = 1;
     stranger.move_speed = 25.0f; stranger.wander_interval = 5.0f;
     stranger.dialogue = stranger_dlg.get_lines("greeting");
+    if (stranger.dialogue.empty()) stranger.dialogue = {{"???", "..."}};
     game.npcs.push_back(stranger);
 
     NPC vampire;
@@ -517,6 +524,8 @@ void setup_npcs(GameState& game) {
     vampire.home_pos = vampire.position; vampire.wander_target = vampire.position;
     vampire.dir = 2; vampire.sprite_atlas_id = 2;
     vampire.dialogue = vampire_dlg.get_lines("encounter");
+    if (vampire.dialogue.empty()) vampire.dialogue = {{"Vampire", "..."}};
+
     vampire.has_battle = true;
     vampire.battle_enemy_name = "Vampire";
     vampire.battle_enemy_hp = 60; vampire.battle_enemy_atk = 15;
@@ -530,6 +539,7 @@ void setup_npcs(GameState& game) {
     azazel.dir = 0; azazel.sprite_atlas_id = 3;
     azazel.move_speed = 20.0f; azazel.wander_interval = 6.0f;
     azazel.dialogue = azazel_dlg.get_lines("greeting");
+    if (azazel.dialogue.empty()) azazel.dialogue = {{"Azazel", "..."}};
     game.npcs.push_back(azazel);
 }
 

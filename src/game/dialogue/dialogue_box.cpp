@@ -12,6 +12,7 @@ void DialogueBox::set_portrait(const std::string& speaker, VkDescriptorSet portr
 }
 
 void DialogueBox::start(const std::vector<DialogueLine>& lines) {
+    if (lines.empty()) return; // Don't start empty dialogue
     lines_ = lines;
     current_line_ = 0;
     visible_chars_ = 0;
@@ -78,7 +79,8 @@ int DialogueBox::update(float dt, bool confirm_pressed, bool up_pressed, bool do
 void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
                           VkDescriptorSet font_desc, VkDescriptorSet white_desc,
                           float screen_width, float screen_height) {
-    if (!active_) return;
+    if (!active_ || lines_.empty()) return;
+    if (current_line_ >= (int)lines_.size()) { active_ = false; return; }
 
     float box_h = screen_height * BOX_HEIGHT_FRAC;
     float box_x = BOX_MARGIN;

@@ -46,6 +46,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         editor.set_text_renderer(&text_renderer, game.font_desc);
         editor.set_object_stamps(&game.object_stamps);
         editor.set_game_state(&game);
+        editor.set_renderer(&engine.renderer());
 
         // ImGui for editor UI
         eb::ImGuiIntegration imgui;
@@ -87,6 +88,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
             if (editor.is_active()) {
                 float sw = (float)engine.platform().get_width();
                 float sh = (float)engine.platform().get_height();
+
+                // Always process deferred dialogs (runs before Vulkan frame)
+                editor.process_pending_dialog();
 
                 // Only pass input to editor if ImGui doesn't want it
                 if (!imgui.wants_mouse() && !imgui.wants_keyboard()) {
