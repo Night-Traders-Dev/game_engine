@@ -103,7 +103,7 @@ void TextRenderer::draw_text(SpriteBatch& batch, VkDescriptorSet font_desc,
         if (c < 32 || c >= 128) continue;
         const auto& g = glyphs_[(int)c];
         if (g.width == 0) {
-            cursor_x += g.advance * scale;
+            cursor_x += g.advance * scale + letter_spacing_ * scale;
             continue;
         }
 
@@ -114,7 +114,7 @@ void TextRenderer::draw_text(SpriteBatch& batch, VkDescriptorSet font_desc,
         Vec2 uv_max = {g.uv_x1, g.uv_y1};
 
         batch.draw_quad(pos, size, uv_min, uv_max, color);
-        cursor_x += g.advance * scale;
+        cursor_x += g.advance * scale + letter_spacing_ * scale;
     }
 }
 
@@ -131,10 +131,10 @@ Vec2 TextRenderer::measure_text(const std::string& text, float scale) const {
             continue;
         }
         if (c < 32 || c >= 128) continue;
-        cursor_x += glyphs_[(int)c].advance * scale;
+        cursor_x += glyphs_[(int)c].advance * scale + letter_spacing_ * scale;
     }
     max_w = std::max(max_w, cursor_x);
-    return {max_w, lines * line_height_ * scale};
+    return Vec2(max_w, lines * line_height_ * scale);
 }
 
 void TextRenderer::draw_text_wrapped(SpriteBatch& batch, VkDescriptorSet font_desc,
@@ -166,7 +166,7 @@ void TextRenderer::draw_text_wrapped(SpriteBatch& batch, VkDescriptorSet font_de
                     Vec2 sz = {g.width * scale, g.height * scale};
                     batch.draw_quad(pos, sz, {g.uv_x0, g.uv_y0}, {g.uv_x1, g.uv_y1}, color);
                 }
-                lx += g.advance * scale;
+                lx += g.advance * scale + letter_spacing_ * scale;
             }
             cursor_y += line_height_ * scale;
             cursor_x = 0.0f;
@@ -175,7 +175,7 @@ void TextRenderer::draw_text_wrapped(SpriteBatch& batch, VkDescriptorSet font_de
             continue;
         }
 
-        float char_advance = glyphs_[(int)c].advance * scale;
+        float char_advance = glyphs_[(int)c].advance * scale + letter_spacing_ * scale;
         if (cursor_x + char_advance > max_width && cursor_x > 0) {
             // Word wrap
             size_t wrap_at = (last_space != std::string::npos && last_space > line_start)
@@ -192,7 +192,7 @@ void TextRenderer::draw_text_wrapped(SpriteBatch& batch, VkDescriptorSet font_de
                     Vec2 sz = {g.width * scale, g.height * scale};
                     batch.draw_quad(pos, sz, {g.uv_x0, g.uv_y0}, {g.uv_x1, g.uv_y1}, color);
                 }
-                lx += g.advance * scale;
+                lx += g.advance * scale + letter_spacing_ * scale;
             }
 
             cursor_y += line_height_ * scale;
@@ -217,7 +217,7 @@ int TextRenderer::chars_that_fit(const std::string& text, float max_width, float
     for (int i = 0; i < (int)text.size(); i++) {
         char c = text[i];
         if (c < 32 || c >= 128) continue;
-        w += glyphs_[(int)c].advance * scale;
+        w += glyphs_[(int)c].advance * scale + letter_spacing_ * scale;
         if (w > max_width) return i;
     }
     return (int)text.size();

@@ -56,9 +56,10 @@ case "${1}" in
         # Copy game assets preserving the assets/ prefix so paths match desktop
         if [ -d "${PROJECT_DIR}/assets" ]; then
             echo "Copying game assets..."
-            mkdir -p "${ASSETS_DIR}/assets/textures" "${ASSETS_DIR}/assets/maps"
+            mkdir -p "${ASSETS_DIR}/assets/textures" "${ASSETS_DIR}/assets/maps" "${ASSETS_DIR}/assets/fonts"
             cp -ru "${PROJECT_DIR}/assets/textures/"* "${ASSETS_DIR}/assets/textures/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/maps/"* "${ASSETS_DIR}/assets/maps/" 2>/dev/null || true
+            cp -ru "${PROJECT_DIR}/assets/fonts/"* "${ASSETS_DIR}/assets/fonts/" 2>/dev/null || true
         fi
 
         echo "Building Android APK (Debug)..."

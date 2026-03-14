@@ -3,6 +3,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
+#include <algorithm>
 
 namespace eb {
 
@@ -10,18 +11,29 @@ void TouchControls::begin_frame(int screen_w, int screen_h) {
     screen_w_ = screen_w;
     screen_h_ = screen_h;
 
+    // Scale controls based on the shorter screen dimension (height in landscape)
+    // Base reference: 720px height
+    float short_side = static_cast<float>(std::min(screen_w, screen_h));
+    scale_ = std::max(1.0f, short_side / 720.0f);
+
+    dpad_radius_ = BASE_DPAD_RADIUS * scale_;
+    dpad_dead_zone_ = BASE_DPAD_DEAD_ZONE * scale_;
+    button_radius_ = BASE_BUTTON_RADIUS * scale_;
+    margin_ = BASE_MARGIN * scale_;
+
     // D-pad: bottom-left
-    dpad_center_ = {MARGIN + DPAD_RADIUS + 20.0f,
-                    screen_h - MARGIN - DPAD_RADIUS - 20.0f};
+    dpad_center_ = {margin_ + dpad_radius_ + 20.0f * scale_,
+                    screen_h - margin_ - dpad_radius_ - 20.0f * scale_};
 
     // Buttons: bottom-right, A lower-right, B upper-left of A
-    float btn_base_x = screen_w - MARGIN - BUTTON_RADIUS - 20.0f;
-    float btn_base_y = screen_h - MARGIN - BUTTON_RADIUS - 30.0f;
+    float btn_base_x = screen_w - margin_ - button_radius_ - 20.0f * scale_;
+    float btn_base_y = screen_h - margin_ - button_radius_ - 30.0f * scale_;
     btn_a_center_ = {btn_base_x, btn_base_y};
-    btn_b_center_ = {btn_base_x - BUTTON_RADIUS * 2.5f, btn_base_y - BUTTON_RADIUS * 1.2f};
+    btn_b_center_ = {btn_base_x - button_radius_ * 2.5f, btn_base_y - button_radius_ * 1.2f};
 
     // Menu button: top-right corner
-    btn_menu_center_ = {static_cast<float>(screen_w) - MARGIN - 25.0f, MARGIN + 25.0f};
+    float menu_r = 25.0f * scale_;
+    btn_menu_center_ = {static_cast<float>(screen_w) - margin_ - menu_r, margin_ + menu_r};
 
     // Reset per-frame flags
     a_pressed_ = false;
@@ -30,28 +42,33 @@ void TouchControls::begin_frame(int screen_w, int screen_h) {
 }
 
 TouchZone TouchControls::zone_at(float x, float y) const {
+    float touch_pad = 20.0f * scale_; // Extra touch area padding
+
     // Check d-pad (circular region, generous)
     float dx = x - dpad_center_.x;
     float dy = y - dpad_center_.y;
-    if (dx * dx + dy * dy < (DPAD_RADIUS + 40.0f) * (DPAD_RADIUS + 40.0f))
+    float dpad_touch = dpad_radius_ + touch_pad;
+    if (dx * dx + dy * dy < dpad_touch * dpad_touch)
         return TouchZone::DPad;
 
     // Check button A
     dx = x - btn_a_center_.x;
     dy = y - btn_a_center_.y;
-    if (dx * dx + dy * dy < (BUTTON_RADIUS + 20.0f) * (BUTTON_RADIUS + 20.0f))
+    float btn_touch = button_radius_ + touch_pad;
+    if (dx * dx + dy * dy < btn_touch * btn_touch)
         return TouchZone::ButtonA;
 
     // Check button B
     dx = x - btn_b_center_.x;
     dy = y - btn_b_center_.y;
-    if (dx * dx + dy * dy < (BUTTON_RADIUS + 20.0f) * (BUTTON_RADIUS + 20.0f))
+    if (dx * dx + dy * dy < btn_touch * btn_touch)
         return TouchZone::ButtonB;
 
     // Check menu button
     dx = x - btn_menu_center_.x;
     dy = y - btn_menu_center_.y;
-    if (dx * dx + dy * dy < 50.0f * 50.0f)
+    float menu_touch = 30.0f * scale_;
+    if (dx * dx + dy * dy < menu_touch * menu_touch)
         return TouchZone::ButtonMenu;
 
     return TouchZone::None;
@@ -134,23 +151,18 @@ void TouchControls::update_dpad(int pointer_id) {
     float dy = f.y - dpad_center_.y;
     float len = std::sqrt(dx * dx + dy * dy);
 
-    if (len < DPAD_DEAD_ZONE) {
+    if (len < dpad_dead_zone_) {
         dpad_dir_ = {0.0f, 0.0f};
     } else {
-        // Normalize and clamp to unit circle
         float nx = dx / len;
         float ny = dy / len;
-
-        // Snap to 8 directions for cleaner movement
         float angle = std::atan2(ny, nx);
-        // Round to nearest 45 degrees
         float snap = std::round(angle / (3.14159265f / 4.0f)) * (3.14159265f / 4.0f);
         dpad_dir_ = {std::cos(snap), std::sin(snap)};
     }
 }
 
 void TouchControls::apply_to(InputState& input) const {
-    // D-pad directions
     int up = static_cast<int>(InputAction::MoveUp);
     int down = static_cast<int>(InputAction::MoveDown);
     int left = static_cast<int>(InputAction::MoveLeft);
@@ -161,7 +173,6 @@ void TouchControls::apply_to(InputState& input) const {
     input.actions[left] = dpad_dir_.x < -0.3f;
     input.actions[right] = dpad_dir_.x > 0.3f;
 
-    // Buttons
     int confirm = static_cast<int>(InputAction::Confirm);
     int cancel = static_cast<int>(InputAction::Cancel);
     int menu = static_cast<int>(InputAction::Menu);
@@ -176,67 +187,42 @@ void TouchControls::apply_to(InputState& input) const {
 
 // ── Rendering ──
 
-static void draw_circle(SpriteBatch& batch, Vec2 center, float radius,
-                        Vec4 color, int segments = 24) {
-    // Approximate circle with small quads along the perimeter, plus fill
-    // For simplicity, draw a filled diamond/rounded rect approximation
+static void draw_circle(SpriteBatch& batch, Vec2 center, float radius, Vec4 color) {
     float r = radius;
-    // Center fill
     batch.draw_quad({center.x - r * 0.7f, center.y - r * 0.7f},
                     {r * 1.4f, r * 1.4f}, color);
-    // Top/bottom caps
     batch.draw_quad({center.x - r * 0.5f, center.y - r},
                     {r, r * 0.3f}, color);
     batch.draw_quad({center.x - r * 0.5f, center.y + r * 0.7f},
                     {r, r * 0.3f}, color);
-    // Left/right caps
     batch.draw_quad({center.x - r, center.y - r * 0.5f},
                     {r * 0.3f, r}, color);
     batch.draw_quad({center.x + r * 0.7f, center.y - r * 0.5f},
                     {r * 0.3f, r}, color);
 }
 
-static void draw_arrow(SpriteBatch& batch, Vec2 center, Vec2 dir,
-                       float size, Vec4 color) {
-    // Draw a small arrow pointing in dir
-    float hs = size * 0.5f;
-    Vec2 tip = {center.x + dir.x * hs, center.y + dir.y * hs};
-    // Arrow as a small triangle approximation (quad rotated)
-    float w = size * 0.35f;
-    if (std::abs(dir.x) > std::abs(dir.y)) {
-        // Horizontal arrow
-        batch.draw_quad({tip.x - w * 0.5f, tip.y - w * 0.5f}, {w, w}, color);
-    } else {
-        // Vertical arrow
-        batch.draw_quad({tip.x - w * 0.5f, tip.y - w * 0.5f}, {w, w}, color);
-    }
-}
-
 void TouchControls::render(SpriteBatch& batch, int screen_w, int screen_h) const {
-    // Set screen-space projection
     Mat4 proj = glm::ortho(0.0f, static_cast<float>(screen_w),
                            0.0f, static_cast<float>(screen_h),
                            -1.0f, 1.0f);
     batch.set_projection(proj);
 
-    Vec4 bg_color = {0.2f, 0.2f, 0.2f, 0.3f};
-    Vec4 active_color = {0.5f, 0.5f, 0.5f, 0.5f};
     Vec4 arrow_color = {0.9f, 0.9f, 0.9f, 0.5f};
     Vec4 arrow_active = {1.0f, 1.0f, 1.0f, 0.8f};
 
     // ── D-Pad base ──
-    draw_circle(batch, dpad_center_, DPAD_RADIUS, bg_color);
+    draw_circle(batch, dpad_center_, dpad_radius_, {0.2f, 0.2f, 0.2f, 0.3f});
 
-    // D-pad directional arrows
-    float arrow_dist = DPAD_RADIUS * 0.55f;
-    float arrow_sz = DPAD_RADIUS * 0.45f;
+    // D-pad directional arrows (scaled)
+    float arrow_dist = dpad_radius_ * 0.55f;
+    float arrow_sz = dpad_radius_ * 0.4f;
 
     struct DirDef { Vec2 dir; bool active; };
     DirDef dirs[] = {
-        {{0, -1}, dpad_dir_.y < -0.3f},  // Up
-        {{0,  1}, dpad_dir_.y > 0.3f},   // Down
-        {{-1, 0}, dpad_dir_.x < -0.3f},  // Left
-        {{ 1, 0}, dpad_dir_.x > 0.3f},   // Right
+        {{0, -1}, dpad_dir_.y < -0.3f},
+        {{0,  1}, dpad_dir_.y > 0.3f},
+        {{-1, 0}, dpad_dir_.x < -0.3f},
+        {{ 1, 0}, dpad_dir_.x > 0.3f},
     };
     for (const auto& d : dirs) {
         Vec2 pos = {dpad_center_.x + d.dir.x * arrow_dist - arrow_sz * 0.35f,
@@ -245,45 +231,45 @@ void TouchControls::render(SpriteBatch& batch, int screen_w, int screen_h) const
         batch.draw_quad(pos, sz, d.active ? arrow_active : arrow_color);
     }
 
-    // D-pad knob showing current direction
+    // D-pad knob
     if (dpad_dir_.x != 0.0f || dpad_dir_.y != 0.0f) {
-        float knob_dist = DPAD_RADIUS * 0.35f;
+        float knob_dist = dpad_radius_ * 0.35f;
         Vec2 knob = {dpad_center_.x + dpad_dir_.x * knob_dist,
                      dpad_center_.y + dpad_dir_.y * knob_dist};
-        draw_circle(batch, knob, 14.0f, {0.8f, 0.8f, 0.9f, 0.6f});
+        draw_circle(batch, knob, 14.0f * scale_, {0.8f, 0.8f, 0.9f, 0.6f});
     }
 
-    // ── Button A (Confirm) — green-ish ──
+    // ── Button A (Confirm) — green ──
     Vec4 a_bg = a_held_ ? Vec4(0.2f, 0.7f, 0.3f, 0.6f) : Vec4(0.15f, 0.5f, 0.2f, 0.35f);
-    draw_circle(batch, btn_a_center_, BUTTON_RADIUS, a_bg);
-    // "A" label (small centered quad as placeholder)
-    batch.draw_quad({btn_a_center_.x - 6, btn_a_center_.y - 8}, {12, 3},
+    draw_circle(batch, btn_a_center_, button_radius_, a_bg);
+    // "A" label (scaled)
+    float ls = scale_;
+    batch.draw_quad({btn_a_center_.x - 6*ls, btn_a_center_.y - 8*ls}, {12*ls, 3*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
-    batch.draw_quad({btn_a_center_.x - 8, btn_a_center_.y - 5}, {3, 13},
+    batch.draw_quad({btn_a_center_.x - 8*ls, btn_a_center_.y - 5*ls}, {3*ls, 13*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
-    batch.draw_quad({btn_a_center_.x + 5, btn_a_center_.y - 5}, {3, 13},
+    batch.draw_quad({btn_a_center_.x + 5*ls, btn_a_center_.y - 5*ls}, {3*ls, 13*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
 
-    // ── Button B (Cancel) — red-ish ──
+    // ── Button B (Cancel) — red ──
     Vec4 b_bg = b_held_ ? Vec4(0.7f, 0.2f, 0.2f, 0.6f) : Vec4(0.5f, 0.15f, 0.15f, 0.35f);
-    draw_circle(batch, btn_b_center_, BUTTON_RADIUS, b_bg);
-    // "B" label
-    batch.draw_quad({btn_b_center_.x - 6, btn_b_center_.y - 8}, {10, 3},
+    draw_circle(batch, btn_b_center_, button_radius_, b_bg);
+    batch.draw_quad({btn_b_center_.x - 6*ls, btn_b_center_.y - 8*ls}, {10*ls, 3*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
-    batch.draw_quad({btn_b_center_.x - 6, btn_b_center_.y - 1}, {10, 3},
+    batch.draw_quad({btn_b_center_.x - 6*ls, btn_b_center_.y - 1*ls}, {10*ls, 3*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
-    batch.draw_quad({btn_b_center_.x - 6, btn_b_center_.y + 5}, {10, 3},
+    batch.draw_quad({btn_b_center_.x - 6*ls, btn_b_center_.y + 5*ls}, {10*ls, 3*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
-    batch.draw_quad({btn_b_center_.x - 8, btn_b_center_.y - 8}, {3, 16},
+    batch.draw_quad({btn_b_center_.x - 8*ls, btn_b_center_.y - 8*ls}, {3*ls, 16*ls},
                     {1.0f, 1.0f, 1.0f, 0.7f});
 
-    // ── Menu button — small circle top-right ──
+    // ── Menu button — top-right ──
+    float menu_r = 25.0f * scale_;
     Vec4 menu_bg = menu_held_ ? Vec4(0.6f, 0.6f, 0.3f, 0.6f) : Vec4(0.4f, 0.4f, 0.2f, 0.3f);
-    draw_circle(batch, btn_menu_center_, 22.0f, menu_bg);
-    // Three horizontal lines (hamburger)
+    draw_circle(batch, btn_menu_center_, menu_r, menu_bg);
     for (int i = 0; i < 3; i++) {
-        float ly = btn_menu_center_.y - 8 + i * 8;
-        batch.draw_quad({btn_menu_center_.x - 10, ly}, {20, 2},
+        float ly = btn_menu_center_.y - 8*ls + i * 8*ls;
+        batch.draw_quad({btn_menu_center_.x - 10*ls, ly}, {20*ls, 2*ls},
                         {1.0f, 1.0f, 1.0f, 0.6f});
     }
 }

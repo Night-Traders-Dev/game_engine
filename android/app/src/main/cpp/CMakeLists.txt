@@ -43,9 +43,13 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/engine/resource/file_io.cpp
     ${ENGINE_ROOT}/src/engine/platform/platform_android.cpp
     ${ENGINE_ROOT}/src/engine/platform/touch_controls.cpp
+    ${ENGINE_ROOT}/src/engine/graphics/text_renderer.cpp
     ${ENGINE_ROOT}/src/game/overworld/camera.cpp
     ${ENGINE_ROOT}/src/game/overworld/tile_map.cpp
+    ${ENGINE_ROOT}/src/game/game.cpp
+    ${ENGINE_ROOT}/src/game/dialogue/dialogue_box.cpp
     ${ENGINE_ROOT}/src/third_party/stb_image_impl.cpp
+    ${ENGINE_ROOT}/src/third_party/stb_truetype_impl.cpp
 )
 
 # ── Build as shared library (required for Android NativeActivity) ──

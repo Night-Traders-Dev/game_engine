@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <string>
 #include <vector>
-#include <functional>
+#include <unordered_map>
 
 namespace eb {
 
@@ -18,24 +18,25 @@ struct DialogueLine {
 
 struct DialogueChoice {
     std::string text;
-    int result; // Returned when selected
+    int result;
 };
 
 class DialogueBox {
 public:
     DialogueBox() = default;
 
-    // Start a dialogue sequence
-    void start(const std::vector<DialogueLine>& lines);
+    // Set the dialog background texture (Dialog.png)
+    void set_background(VkDescriptorSet bg_desc) { bg_desc_ = bg_desc; }
 
-    // Start a choice menu
+    // Register a portrait for a speaker name
+    void set_portrait(const std::string& speaker, VkDescriptorSet portrait_desc);
+
+    void start(const std::vector<DialogueLine>& lines);
     void start_choice(const std::string& prompt, const std::vector<DialogueChoice>& choices);
 
-    // Update typewriter effect and handle input
-    // Returns: -1 if still active, 0+ if dialogue ended (choice result for choices, 0 for normal)
+    // Returns: -1 if active, 0+ if ended
     int update(float dt, bool confirm_pressed, bool up_pressed, bool down_pressed);
 
-    // Render the dialogue box
     void render(SpriteBatch& batch, TextRenderer& text,
                 VkDescriptorSet font_desc, VkDescriptorSet white_desc,
                 float screen_width, float screen_height);
@@ -46,26 +47,28 @@ private:
     bool active_ = false;
     bool is_choice_ = false;
 
-    // Dialogue state
     std::vector<DialogueLine> lines_;
     int current_line_ = 0;
 
-    // Typewriter
     float char_timer_ = 0.0f;
     int visible_chars_ = 0;
     bool line_complete_ = false;
     static constexpr float CHARS_PER_SEC = 35.0f;
 
-    // Choice state
     std::string choice_prompt_;
     std::vector<DialogueChoice> choices_;
     int selected_choice_ = 0;
 
-    // Visual
-    static constexpr float BOX_MARGIN = 20.0f;
-    static constexpr float BOX_HEIGHT = 150.0f;
-    static constexpr float BOX_PADDING = 16.0f;
+    static constexpr float BOX_MARGIN = 16.0f;
+    static constexpr float BOX_HEIGHT = 180.0f;
+    static constexpr float BOX_PADDING = 20.0f;
     static constexpr float TEXT_SCALE = 1.0f;
+    static constexpr float PORTRAIT_W = 100.0f;
+    static constexpr float PORTRAIT_H = 140.0f;
+
+    // Textures
+    VkDescriptorSet bg_desc_ = VK_NULL_HANDLE;
+    std::unordered_map<std::string, VkDescriptorSet> portraits_;
 };
 
 } // namespace eb

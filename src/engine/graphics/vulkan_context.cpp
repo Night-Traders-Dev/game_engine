@@ -342,6 +342,14 @@ void VulkanContext::create_swapchain(int width, int height) {
                                    support.capabilities.minImageExtent.height,
                                    support.capabilities.maxImageExtent.height);
     }
+    // On Android in landscape, the surface may report portrait-ordered dimensions
+    // if preTransform includes rotation. Since we use IDENTITY, ensure width > height.
+#ifdef __ANDROID__
+    if (extent.height > extent.width) {
+        std::swap(extent.width, extent.height);
+        VLOGI("Swapped extent to landscape: %ux%u", extent.width, extent.height);
+    }
+#endif
 
     uint32_t image_count = support.capabilities.minImageCount + 1;
     if (support.capabilities.maxImageCount > 0 && image_count > support.capabilities.maxImageCount) {
@@ -367,7 +375,13 @@ void VulkanContext::create_swapchain(int width, int height) {
         create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    create_info.preTransform = support.capabilities.currentTransform;
+    // On Android, the surface may have a rotation transform (portrait device in landscape).
+    // Use IDENTITY so we render in the orientation we want — the compositor handles rotation.
+    if (support.capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        create_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    } else {
+        create_info.preTransform = support.capabilities.currentTransform;
+    }
 
     // Pick a supported composite alpha mode (Android often lacks OPAQUE)
     VkCompositeAlphaFlagBitsKHR composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;

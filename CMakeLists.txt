@@ -89,8 +89,8 @@ add_library(tw_engine STATIC
     src/engine/resource/file_io.cpp
     src/game/overworld/camera.cpp
     src/game/overworld/tile_map.cpp
+    src/game/game.cpp
     src/engine/graphics/text_renderer.cpp
-    src/editor/tile_editor.cpp
     src/game/dialogue/dialogue_box.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp
@@ -99,6 +99,7 @@ add_library(tw_engine STATIC
 if(NOT EB_ANDROID)
     target_sources(tw_engine PRIVATE
         src/engine/platform/platform_desktop.cpp
+        src/editor/tile_editor.cpp
     )
 endif()
 

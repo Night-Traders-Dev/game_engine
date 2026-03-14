@@ -21,7 +21,7 @@ struct SpriteVertex {
 
 class SpriteBatch {
 public:
-    static constexpr uint32_t MAX_QUADS = 10000;
+    static constexpr uint32_t MAX_QUADS = 20000;
     static constexpr uint32_t MAX_VERTICES = MAX_QUADS * 4;
     static constexpr uint32_t MAX_INDICES = MAX_QUADS * 6;
 

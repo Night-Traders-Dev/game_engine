@@ -3,8 +3,13 @@
 #include "engine/graphics/text_renderer.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace eb {
+
+void DialogueBox::set_portrait(const std::string& speaker, VkDescriptorSet portrait_desc) {
+    portraits_[speaker] = portrait_desc;
+}
 
 void DialogueBox::start(const std::vector<DialogueLine>& lines) {
     lines_ = lines;
@@ -40,27 +45,22 @@ int DialogueBox::update(float dt, bool confirm_pressed, bool up_pressed, bool do
         return -1;
     }
 
-    // Typewriter effect
     if (!line_complete_) {
         char_timer_ += dt;
         int new_chars = (int)(char_timer_ * CHARS_PER_SEC);
-        if (new_chars > visible_chars_) {
-            visible_chars_ = new_chars;
-        }
-        const auto& text = lines_[current_line_].text;
-        if (visible_chars_ >= (int)text.size()) {
+        if (new_chars > visible_chars_) visible_chars_ = new_chars;
+        const auto& t = lines_[current_line_].text;
+        if (visible_chars_ >= (int)t.size()) {
             line_complete_ = true;
-            visible_chars_ = (int)text.size();
+            visible_chars_ = (int)t.size();
         }
     }
 
     if (confirm_pressed) {
         if (!line_complete_) {
-            // Skip typewriter — show full line
             visible_chars_ = (int)lines_[current_line_].text.size();
             line_complete_ = true;
         } else {
-            // Advance to next line
             current_line_++;
             if (current_line_ >= (int)lines_.size()) {
                 active_ = false;
@@ -80,38 +80,68 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
                           float screen_width, float screen_height) {
     if (!active_) return;
 
-    // Box dimensions
     float box_x = BOX_MARGIN;
     float box_y = screen_height - BOX_HEIGHT - BOX_MARGIN;
     float box_w = screen_width - BOX_MARGIN * 2.0f;
 
-    // Draw box background (dark semi-transparent)
-    batch.set_texture(white_desc);
-    batch.draw_quad({box_x, box_y}, {box_w, BOX_HEIGHT},
-                    {0.0f, 0.0f}, {1.0f, 1.0f},
-                    {0.05f, 0.05f, 0.15f, 0.9f});
+    // Draw Dialog.png background (or fallback solid color)
+    if (bg_desc_ != VK_NULL_HANDLE) {
+        batch.set_texture(bg_desc_);
+        batch.draw_quad({box_x, box_y}, {box_w, BOX_HEIGHT},
+                        {0.0f, 0.0f}, {1.0f, 1.0f},
+                        {1.0f, 1.0f, 1.0f, 0.95f});
+    } else {
+        batch.set_texture(white_desc);
+        batch.draw_quad({box_x, box_y}, {box_w, BOX_HEIGHT},
+                        {0.0f, 0.0f}, {1.0f, 1.0f},
+                        {0.05f, 0.05f, 0.15f, 0.9f});
+        float border = 2.0f;
+        batch.draw_quad({box_x, box_y}, {box_w, border}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+        batch.draw_quad({box_x, box_y+BOX_HEIGHT-border}, {box_w, border}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+        batch.draw_quad({box_x, box_y}, {border, BOX_HEIGHT}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+        batch.draw_quad({box_x+box_w-border, box_y}, {border, BOX_HEIGHT}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+    }
 
-    // Draw box border
-    float border = 2.0f;
-    batch.draw_quad({box_x, box_y}, {box_w, border}, {0.0f, 0.0f}, {1.0f, 1.0f},
-                    {0.6f, 0.6f, 0.8f, 1.0f});
-    batch.draw_quad({box_x, box_y + BOX_HEIGHT - border}, {box_w, border}, {0.0f, 0.0f}, {1.0f, 1.0f},
-                    {0.6f, 0.6f, 0.8f, 1.0f});
-    batch.draw_quad({box_x, box_y}, {border, BOX_HEIGHT}, {0.0f, 0.0f}, {1.0f, 1.0f},
-                    {0.6f, 0.6f, 0.8f, 1.0f});
-    batch.draw_quad({box_x + box_w - border, box_y}, {border, BOX_HEIGHT}, {0.0f, 0.0f}, {1.0f, 1.0f},
-                    {0.6f, 0.6f, 0.8f, 1.0f});
+    // Dialog.png layout (measured from 1536x1024 source):
+    //   Chalkboard text area: ~(55,250) to (900,770)  = u 0.036-0.586, v 0.244-0.752
+    //   Portrait frame inner: ~(1016,319) to (1351,679) = u 0.661-0.880, v 0.312-0.663
 
-    float text_x = box_x + BOX_PADDING;
-    float text_y = box_y + BOX_PADDING;
-    float text_area_w = box_w - BOX_PADDING * 2.0f;
+    // Text area in screen coords
+    float text_x = box_x + box_w * 0.045f;
+    float text_y = box_y + BOX_HEIGHT * 0.28f;
+    float text_area_w = box_w * 0.53f;
+
+    // Portrait area in screen coords (matching the frame in Dialog.png)
+    float port_x = box_x + box_w * 0.661f;
+    float port_y = box_y + BOX_HEIGHT * 0.312f;
+    float port_w = box_w * 0.218f;
+    float port_h = BOX_HEIGHT * 0.351f;
+
+    // Find current speaker's portrait
+    std::string current_speaker;
+    if (!is_choice_ && current_line_ < (int)lines_.size()) {
+        current_speaker = lines_[current_line_].speaker;
+    }
+
+    bool has_portrait = false;
+    if (!current_speaker.empty()) {
+        auto it = portraits_.find(current_speaker);
+        if (it != portraits_.end()) {
+            has_portrait = true;
+            batch.set_texture(it->second);
+            batch.draw_quad({port_x, port_y}, {port_w, port_h},
+                            {0.0f, 0.0f}, {1.0f, 1.0f});
+        }
+    }
+
+    // If no portrait, use more width for text
+    if (!has_portrait) {
+        text_area_w = box_w * 0.85f;
+    }
 
     if (is_choice_) {
-        // Draw prompt
         text.draw_text(batch, font_desc, choice_prompt_,
                        {text_x, text_y}, {1.0f, 1.0f, 1.0f, 1.0f}, TEXT_SCALE);
-
-        // Draw choices
         float choice_y = text_y + text.line_height() * TEXT_SCALE + 4.0f;
         for (int i = 0; i < (int)choices_.size(); i++) {
             Vec4 color = (i == selected_choice_)
@@ -123,12 +153,13 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
             choice_y += text.line_height() * TEXT_SCALE;
         }
     } else {
-        // Speaker name
         const auto& line = lines_[current_line_];
+
+        // Speaker name
         if (!line.speaker.empty()) {
             text.draw_text(batch, font_desc, line.speaker,
                            {text_x, text_y}, {0.4f, 0.8f, 1.0f, 1.0f}, TEXT_SCALE);
-            text_y += text.line_height() * TEXT_SCALE + 10.0f;
+            text_y += text.line_height() * TEXT_SCALE + 8.0f;
         }
 
         // Dialogue text with typewriter
@@ -139,12 +170,11 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
 
         // Blinking advance indicator
         if (line_complete_) {
-            float indicator_x = box_x + box_w - BOX_PADDING - 12.0f;
-            float indicator_y = box_y + BOX_HEIGHT - BOX_PADDING - 12.0f;
-            // Simple triangle indicator (drawn as small quad)
+            float ind_x = text_x + text_area_w - 12.0f;
+            float ind_y = box_y + BOX_HEIGHT * 0.75f;
             batch.set_texture(white_desc);
             float blink = std::fmod(char_timer_ + visible_chars_ * 0.03f, 0.8f) < 0.5f ? 1.0f : 0.0f;
-            batch.draw_quad({indicator_x, indicator_y}, {8.0f, 8.0f},
+            batch.draw_quad({ind_x, ind_y}, {8.0f, 8.0f},
                             {0.0f, 0.0f}, {1.0f, 1.0f},
                             {1.0f, 1.0f, 1.0f, blink});
         }

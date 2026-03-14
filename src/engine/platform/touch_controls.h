@@ -29,10 +29,11 @@ struct TouchFinger {
 class TouchControls {
 public:
     static constexpr int MAX_FINGERS = 5;
-    static constexpr float DPAD_RADIUS = 80.0f;
-    static constexpr float DPAD_DEAD_ZONE = 15.0f;
-    static constexpr float BUTTON_RADIUS = 36.0f;
-    static constexpr float MARGIN = 30.0f;
+    // Base sizes for 720p height — scaled dynamically in begin_frame()
+    static constexpr float BASE_DPAD_RADIUS = 80.0f;
+    static constexpr float BASE_DPAD_DEAD_ZONE = 15.0f;
+    static constexpr float BASE_BUTTON_RADIUS = 40.0f;
+    static constexpr float BASE_MARGIN = 30.0f;
 
     TouchControls() = default;
 
@@ -59,6 +60,13 @@ private:
 
     int screen_w_ = 0;
     int screen_h_ = 0;
+    float scale_ = 1.0f; // DPI scale factor
+
+    // Scaled sizes (computed in begin_frame)
+    float dpad_radius_ = BASE_DPAD_RADIUS;
+    float dpad_dead_zone_ = BASE_DPAD_DEAD_ZONE;
+    float button_radius_ = BASE_BUTTON_RADIUS;
+    float margin_ = BASE_MARGIN;
 
     // Layout positions (computed in begin_frame)
     Vec2 dpad_center_ = {};

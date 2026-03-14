@@ -6,6 +6,7 @@
 #include <vulkan/vulkan_android.h>
 #include <stdexcept>
 #include <cmath>
+#include <algorithm>
 
 #define LOG_TAG "TWEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -25,10 +26,10 @@ PlatformAndroid::~PlatformAndroid() = default;
 
 void PlatformAndroid::poll_events() {
     input_.clear_frame();
-    touch_controls_.begin_frame(width_, height_);
-    // Re-apply current touch state after clearing frame
-    // (events were already processed by handle_input() in the event loop)
+    // Apply touch state BEFORE begin_frame clears the pressed flags
     touch_controls_.apply_to(input_);
+    // Now reset pressed flags for next frame
+    touch_controls_.begin_frame(width_, height_);
 }
 
 bool PlatformAndroid::should_close() const {

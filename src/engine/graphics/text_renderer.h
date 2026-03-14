@@ -48,6 +48,10 @@ public:
     float line_height() const { return line_height_; }
     float font_size() const { return font_size_; }
 
+    // Extra pixels between each character (default 0)
+    void set_letter_spacing(float spacing) { letter_spacing_ = spacing; }
+    float letter_spacing() const { return letter_spacing_; }
+
 private:
     void bake_atlas(const std::string& font_path, float font_size);
 
@@ -57,6 +61,7 @@ private:
     float font_size_;
     float line_height_;
     float ascent_;
+    float letter_spacing_ = 0.0f;
 };
 
 } // namespace eb
