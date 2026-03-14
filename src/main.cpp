@@ -232,7 +232,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
         game.editor.set_tileset(game.tileset_atlas.get(), tileset_desc);
 
         // Create maps directory
+#ifdef _WIN32
+        mkdir("assets/maps");
+#else
         mkdir("assets/maps", 0755);
+#endif
 
         // --- Update ---
         engine.on_update = [&](float dt) {

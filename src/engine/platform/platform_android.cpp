@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <cmath>
 
-#define LOG_TAG "EBEngine"
+#define LOG_TAG "TWEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
@@ -21,12 +21,11 @@ PlatformAndroid::PlatformAndroid(ANativeWindow* window) : window_(window) {
     LOGI("PlatformAndroid created (%dx%d)", width_, height_);
 }
 
-PlatformAndroid::~PlatformAndroid() {
-    // We don't own the window, so don't release it
-}
+PlatformAndroid::~PlatformAndroid() = default;
 
 void PlatformAndroid::poll_events() {
     input_.clear_frame();
+    touch_controls_.begin_frame(width_, height_);
     // Events are pushed from android_main's event loop via handle_input()
 }
 
@@ -116,72 +115,51 @@ int32_t PlatformAndroid::handle_input(AInputEvent* event) {
 void PlatformAndroid::process_touch(AInputEvent* event) {
     int32_t action = AMotionEvent_getAction(event);
     int32_t action_masked = action & AMOTION_EVENT_ACTION_MASK;
-
-    float x = AMotionEvent_getX(event, 0);
-    float y = AMotionEvent_getY(event, 0);
-
-    float screen_w = static_cast<float>(width_);
-    float screen_h = static_cast<float>(height_);
+    int32_t pointer_index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
+                            >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
 
     switch (action_masked) {
-        case AMOTION_EVENT_ACTION_DOWN: {
-            primary_touch_.active = true;
-            primary_touch_.x = x;
-            primary_touch_.y = y;
-
-            // Left side of screen = virtual d-pad area
-            // Right side = action buttons
-            if (x > screen_w * 0.6f) {
-                // Right side: bottom = confirm, top = cancel
-                if (y > screen_h * 0.5f) {
-                    int idx = static_cast<int>(InputAction::Confirm);
-                    input_.actions[idx] = true;
-                    input_.actions_pressed[idx] = true;
-                } else {
-                    int idx = static_cast<int>(InputAction::Cancel);
-                    input_.actions[idx] = true;
-                    input_.actions_pressed[idx] = true;
-                }
-            }
+        case AMOTION_EVENT_ACTION_DOWN:
+        case AMOTION_EVENT_ACTION_POINTER_DOWN: {
+            int32_t id = AMotionEvent_getPointerId(event, pointer_index);
+            float x = AMotionEvent_getX(event, pointer_index);
+            float y = AMotionEvent_getY(event, pointer_index);
+            touch_controls_.touch_down(id, x, y);
             break;
         }
         case AMOTION_EVENT_ACTION_MOVE: {
-            if (primary_touch_.active && x < screen_w * 0.5f) {
-                // Virtual d-pad: compute direction from initial touch
-                float dx = x - primary_touch_.x;
-                float dy = y - primary_touch_.y;
-                float dead_zone = screen_w * 0.03f;
-
-                // Reset directional actions
-                for (int i = static_cast<int>(InputAction::MoveUp);
-                     i <= static_cast<int>(InputAction::MoveRight); i++) {
-                    input_.actions[i] = false;
-                }
-
-                if (std::abs(dx) > dead_zone || std::abs(dy) > dead_zone) {
-                    if (std::abs(dx) > std::abs(dy)) {
-                        int idx = static_cast<int>(dx > 0 ? InputAction::MoveRight : InputAction::MoveLeft);
-                        input_.actions[idx] = true;
-                    } else {
-                        int idx = static_cast<int>(dy > 0 ? InputAction::MoveDown : InputAction::MoveUp);
-                        input_.actions[idx] = true;
-                    }
-                }
+            // Update all active pointers
+            int32_t count = AMotionEvent_getPointerCount(event);
+            for (int32_t i = 0; i < count; i++) {
+                int32_t id = AMotionEvent_getPointerId(event, i);
+                float x = AMotionEvent_getX(event, i);
+                float y = AMotionEvent_getY(event, i);
+                touch_controls_.touch_move(id, x, y);
             }
             break;
         }
         case AMOTION_EVENT_ACTION_UP:
+        case AMOTION_EVENT_ACTION_POINTER_UP: {
+            int32_t id = AMotionEvent_getPointerId(event, pointer_index);
+            touch_controls_.touch_up(id);
+            break;
+        }
         case AMOTION_EVENT_ACTION_CANCEL: {
-            primary_touch_.active = false;
-            // Release all held actions
-            for (int i = 0; i < InputState::ACTION_COUNT; i++) {
-                if (input_.actions[i]) {
-                    input_.actions[i] = false;
-                    input_.actions_released[i] = true;
-                }
+            // Release all fingers
+            for (int i = 0; i < TouchControls::MAX_FINGERS; i++) {
+                touch_controls_.touch_up(i);
             }
             break;
         }
+    }
+
+    // Apply touch controls to input state
+    touch_controls_.apply_to(input_);
+
+    // Also update mouse state from primary touch for compatibility
+    if (AMotionEvent_getPointerCount(event) > 0) {
+        input_.mouse.x = AMotionEvent_getX(event, 0);
+        input_.mouse.y = AMotionEvent_getY(event, 0);
     }
 }
 

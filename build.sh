@@ -61,7 +61,7 @@ case "${1}" in
             APK="${ANDROID_DIR}/app/build/outputs/apk/debug/app-debug.apk"
         else
             ./gradlew assembleRelease -Pndkdir="${ANDROID_NDK_HOME}"
-            APK="${ANDROID_DIR}/app/build/outputs/apk/release/app-release-unsigned.apk"
+            APK="${ANDROID_DIR}/app/build/outputs/apk/release/app-release.apk"
         fi
 
         if [ -f "${APK}" ]; then
@@ -82,13 +82,13 @@ case "${1}" in
         echo "=== Building all platforms ==="
         echo ""
         echo "── Linux ──"
-        "$0" linux "${BUILD_TYPE}"
+        "${PROJECT_DIR}/build.sh" linux "${BUILD_TYPE}"
         echo ""
         echo "── Windows (win64) ──"
-        "$0" win64 "${BUILD_TYPE}"
+        "${PROJECT_DIR}/build.sh" win64 "${BUILD_TYPE}"
         echo ""
         echo "── Android ──"
-        "$0" android "${BUILD_TYPE}"
+        "${PROJECT_DIR}/build.sh" android "${BUILD_TYPE}"
         echo ""
         echo "=== All platforms built ==="
         ;;

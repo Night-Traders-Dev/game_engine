@@ -23,13 +23,22 @@ android {
         }
     }
 
+    signingConfigs {
+        debug {
+            // Uses default debug keystore (~/.android/debug.keystore)
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            // Sign with debug key for development; replace with real key for store release
+            signingConfig signingConfigs.debug
         }
         debug {
             debuggable true
             jniDebuggable true
+            signingConfig signingConfigs.debug
         }
     }
 

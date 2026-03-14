@@ -3,6 +3,7 @@
 #ifdef __ANDROID__
 
 #include "engine/platform/platform.h"
+#include "engine/platform/touch_controls.h"
 
 #include <android/native_activity.h>
 #include <android/native_window.h>
@@ -35,6 +36,10 @@ public:
     int32_t handle_input(AInputEvent* event);
     void handle_resize(int width, int height);
 
+    // Access touch controls for rendering
+    TouchControls& touch_controls() { return touch_controls_; }
+    const TouchControls& touch_controls() const { return touch_controls_; }
+
 private:
     void process_touch(AInputEvent* event);
 
@@ -45,13 +50,7 @@ private:
     bool should_close_ = false;
     InputState input_;
 
-    // Virtual d-pad touch tracking
-    struct TouchState {
-        bool active = false;
-        float x = 0.0f;
-        float y = 0.0f;
-    };
-    TouchState primary_touch_;
+    TouchControls touch_controls_;
 };
 
 } // namespace eb

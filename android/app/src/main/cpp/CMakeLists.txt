@@ -38,7 +38,12 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/engine/graphics/sprite_batch.cpp
     ${ENGINE_ROOT}/src/engine/graphics/texture.cpp
     ${ENGINE_ROOT}/src/engine/graphics/pipeline.cpp
+    ${ENGINE_ROOT}/src/engine/graphics/texture_atlas.cpp
+    ${ENGINE_ROOT}/src/engine/resource/resource_manager.cpp
     ${ENGINE_ROOT}/src/engine/platform/platform_android.cpp
+    ${ENGINE_ROOT}/src/engine/platform/touch_controls.cpp
+    ${ENGINE_ROOT}/src/game/overworld/camera.cpp
+    ${ENGINE_ROOT}/src/game/overworld/tile_map.cpp
     ${ENGINE_ROOT}/src/third_party/stb_image_impl.cpp
 )
 
