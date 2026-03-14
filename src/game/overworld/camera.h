@@ -15,7 +15,7 @@ public:
     void clear_bounds();
 
     // Follow offset: shifts where the player appears on screen
-    // e.g., {0, -60} puts the player 60px below center (EarthBound style)
+    // e.g., {0, -60} puts the player 60px below center (Twilight style)
     void set_follow_offset(Vec2 offset) { follow_offset_ = offset; }
 
     void follow(Vec2 target, float speed = 5.0f);

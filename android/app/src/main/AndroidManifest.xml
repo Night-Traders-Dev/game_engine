@@ -25,7 +25,7 @@
 
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="earthbound_rpg" />
+                android:value="twilight_game" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

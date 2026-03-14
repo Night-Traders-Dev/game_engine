@@ -33,7 +33,7 @@ void Camera::clear_bounds() {
 }
 
 void Camera::follow(Vec2 target, float speed) {
-    // Apply follow offset so player appears below center (EarthBound style)
+    // Apply follow offset so player appears below center (Twilight style)
     target_ = {target.x + follow_offset_.x, target.y + follow_offset_.y};
     following_ = true;
     follow_speed_ = speed;

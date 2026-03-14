@@ -5,6 +5,7 @@
 #include "game/overworld/camera.h"
 
 #include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
@@ -132,10 +133,12 @@ void TileEditor::handle_shortcuts(const InputState& input) {
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_C)) {
         copy_selection();
     }
-    // Ctrl+V: paste
+    // Ctrl+V: paste — actual paste happens on next map click via handle_map_click()
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_V)) {
-        Vec2 world = screen_to_world(mouse_x_, mouse_y_, *static_cast<Camera*>(nullptr));
-        // Paste handled on next click instead
+        if (clipboard_.has_data) {
+            tool_ = EditorTool::Paint;
+            std::printf("[Editor] Paste ready — click to place\n");
+        }
     }
     // Ctrl+S: save
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_S)) {
@@ -275,13 +278,14 @@ void TileEditor::flood_fill(int tx, int ty, int new_tile) {
     if (old_tile == new_tile) return;
 
     std::queue<Vec2i> q;
-    q.push({tx, ty});
+    q.push(Vec2i(tx, ty));
 
     int w = map_->width(), h = map_->height();
     std::vector<bool> visited(w * h, false);
 
     while (!q.empty()) {
-        auto [cx, cy] = q.front();
+        Vec2i cur = q.front();
+        int cx = cur.x, cy = cur.y;
         q.pop();
         if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
         int idx = cy * w + cx;
@@ -291,10 +295,10 @@ void TileEditor::flood_fill(int tx, int ty, int new_tile) {
         visited[idx] = true;
         map_->set_tile(active_layer_, cx, cy, new_tile);
 
-        q.push({cx - 1, cy});
-        q.push({cx + 1, cy});
-        q.push({cx, cy - 1});
-        q.push({cx, cy + 1});
+        q.push(Vec2i(cx - 1, cy));
+        q.push(Vec2i(cx + 1, cy));
+        q.push(Vec2i(cx, cy - 1));
+        q.push(Vec2i(cx, cy + 1));
     }
 }
 

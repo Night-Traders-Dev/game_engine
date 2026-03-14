@@ -88,6 +88,7 @@ add_library(tw_engine STATIC
     src/engine/resource/resource_manager.cpp
     src/game/overworld/camera.cpp
     src/game/overworld/tile_map.cpp
+    src/editor/tile_editor.cpp
     src/third_party/stb_image_impl.cpp
 )
 

@@ -2,6 +2,7 @@
 
 #include "engine/core/types.h"
 #include "game/overworld/tile_map.h"
+#include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
 

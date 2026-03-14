@@ -78,8 +78,22 @@ case "${1}" in
         rm -f "${PROJECT_DIR}"/shaders/*.spv
         echo "Build directories cleaned."
         ;;
+    all)
+        echo "=== Building all platforms ==="
+        echo ""
+        echo "── Linux ──"
+        "$0" linux "${BUILD_TYPE}"
+        echo ""
+        echo "── Windows (win64) ──"
+        "$0" win64 "${BUILD_TYPE}"
+        echo ""
+        echo "── Android ──"
+        "$0" android "${BUILD_TYPE}"
+        echo ""
+        echo "=== All platforms built ==="
+        ;;
     *)
-        echo "Usage: $0 {linux|win64|android|clean} [Debug|Release]"
+        echo "Usage: $0 {linux|win64|android|all|clean} [Debug|Release]"
         exit 1
         ;;
 esac
