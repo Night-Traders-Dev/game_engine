@@ -1,4 +1,229 @@
 #include "game/game.h"
+#include <fstream>
+#include <sstream>
+
+// ─── Map file save/load ───
+
+static std::string esc(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if (c == '"') out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else if (c == '\n') out += "\\n";
+        else out += c;
+    }
+    return out;
+}
+
+bool save_map_file(const GameState& game, const std::string& path) {
+    std::ofstream f(path);
+    if (!f.is_open()) return false;
+
+    const auto& map = game.tile_map;
+    int w = map.width(), h = map.height();
+
+    f << "{\n";
+    f << "  \"format\": \"twilight_map\",\n";
+    f << "  \"version\": 2,\n";
+
+    // ── Metadata ──
+    f << "  \"metadata\": {\n";
+    f << "    \"name\": \"untitled\",\n";
+    f << "    \"width\": " << w << ",\n";
+    f << "    \"height\": " << h << ",\n";
+    f << "    \"tile_size\": " << map.tile_size() << ",\n";
+    f << "    \"tileset\": \"" << esc(map.tileset_path()) << "\",\n";
+    f << "    \"player_start_x\": " << game.player_pos.x << ",\n";
+    f << "    \"player_start_y\": " << game.player_pos.y << "\n";
+    f << "  },\n";
+
+    // ── Tile layers ──
+    f << "  \"layers\": [\n";
+    for (int li = 0; li < map.layer_count(); li++) {
+        const auto& layer = map.layers()[li];
+        f << "    {\"name\": \"" << esc(layer.name) << "\", \"data\": [";
+        for (int i = 0; i < (int)layer.data.size(); i++) {
+            if (i > 0) f << ",";
+            if (i % w == 0) f << "\n      ";
+            f << layer.data[i];
+        }
+        f << "\n    ]}";
+        if (li + 1 < map.layer_count()) f << ",";
+        f << "\n";
+    }
+    f << "  ],\n";
+
+    // ── Collision ──
+    f << "  \"collision\": [";
+    const auto& col = map.collision_types();
+    for (int i = 0; i < (int)col.size(); i++) {
+        if (i > 0) f << ",";
+        if (i % w == 0) f << "\n    ";
+        f << (int)col[i];
+    }
+    f << "\n  ],\n";
+
+    // ── Portals ──
+    f << "  \"portals\": [";
+    for (int pi = 0; pi < (int)map.portals().size(); pi++) {
+        auto& p = map.portals()[pi];
+        if (pi > 0) f << ",";
+        f << "\n    {\"x\":" << p.tile_x << ",\"y\":" << p.tile_y
+          << ",\"target_map\":\"" << esc(p.target_map) << "\""
+          << ",\"target_x\":" << p.target_x << ",\"target_y\":" << p.target_y
+          << ",\"label\":\"" << esc(p.label) << "\"}";
+    }
+    f << "\n  ],\n";
+
+    // ── World objects ──
+    f << "  \"objects\": [\n";
+    for (int oi = 0; oi < (int)game.world_objects.size(); oi++) {
+        auto& obj = game.world_objects[oi];
+        if (oi > 0) f << ",\n";
+        // Store the atlas region info so we can reconstruct
+        if (obj.sprite_id < (int)game.object_regions.size()) {
+            auto& r = game.object_regions[obj.sprite_id];
+            auto& d = game.object_defs[obj.sprite_id];
+            f << "    {\"x\":" << obj.position.x << ",\"y\":" << obj.position.y
+              << ",\"src_x\":" << r.pixel_x << ",\"src_y\":" << r.pixel_y
+              << ",\"src_w\":" << r.pixel_w << ",\"src_h\":" << r.pixel_h
+              << ",\"render_w\":" << d.render_size.x << ",\"render_h\":" << d.render_size.y
+              << "}";
+        }
+    }
+    f << "\n  ],\n";
+
+    // ── NPCs ──
+    f << "  \"npcs\": [\n";
+    for (int ni = 0; ni < (int)game.npcs.size(); ni++) {
+        auto& npc = game.npcs[ni];
+        if (ni > 0) f << ",\n";
+        f << "    {\"name\":\"" << esc(npc.name) << "\""
+          << ",\"x\":" << npc.position.x << ",\"y\":" << npc.position.y
+          << ",\"dir\":" << npc.dir
+          << ",\"sprite_atlas_id\":" << npc.sprite_atlas_id
+          << ",\"interact_radius\":" << npc.interact_radius
+          << ",\"hostile\":" << (npc.hostile ? "true" : "false")
+          << ",\"aggro_range\":" << npc.aggro_range
+          << ",\"attack_range\":" << npc.attack_range
+          << ",\"move_speed\":" << npc.move_speed
+          << ",\"wander_interval\":" << npc.wander_interval
+          << ",\"has_battle\":" << (npc.has_battle ? "true" : "false");
+        if (npc.has_battle) {
+            f << ",\"battle_enemy\":\"" << esc(npc.battle_enemy_name) << "\""
+              << ",\"battle_hp\":" << npc.battle_enemy_hp
+              << ",\"battle_atk\":" << npc.battle_enemy_atk;
+        }
+        // Dialogue lines
+        f << ",\"dialogue\":[";
+        for (int di = 0; di < (int)npc.dialogue.size(); di++) {
+            if (di > 0) f << ",";
+            f << "{\"speaker\":\"" << esc(npc.dialogue[di].speaker) << "\""
+              << ",\"text\":\"" << esc(npc.dialogue[di].text) << "\"}";
+        }
+        f << "]}";
+    }
+    f << "\n  ]\n";
+
+    f << "}\n";
+
+    std::printf("[Map] Saved: %s (%dx%d, %d objects, %d npcs)\n",
+                path.c_str(), w, h, (int)game.world_objects.size(), (int)game.npcs.size());
+    return true;
+}
+
+bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& path) {
+    // For now, use the existing TileMap loader for tile data,
+    // then parse the extended fields manually.
+    // Full JSON parsing is complex — use the existing minimal parser approach.
+
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        std::fprintf(stderr, "[Map] Failed to load: %s\n", path.c_str());
+        return false;
+    }
+
+    std::string json((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+
+    // Check format version
+    if (json.find("\"twilight_map\"") != std::string::npos) {
+        // New format v2 — load via TileMap first for tiles/collision/portals
+        game.tile_map.load_json(path);
+
+        // Parse objects and NPCs from the extended fields
+        // TODO: Full v2 parser for objects/NPCs
+        // For now, the tile data is the most important part
+        std::printf("[Map] Loaded v2 map: %s\n", path.c_str());
+        return true;
+    } else {
+        // Legacy format v1
+        return game.tile_map.load_json(path);
+    }
+}
+
+// ─── Dialogue file I/O ───
+
+const DialogueFunction* DialogueScript::get(const std::string& name) const {
+    for (auto& f : functions) if (f.name == name) return &f;
+    return nullptr;
+}
+
+std::vector<eb::DialogueLine> DialogueScript::get_lines(const std::string& name) const {
+    auto* f = get(name);
+    return f ? f->lines : std::vector<eb::DialogueLine>{};
+}
+
+bool load_dialogue_file(DialogueScript& script, const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        std::fprintf(stderr, "[Dialogue] Failed to load: %s\n", path.c_str());
+        return false;
+    }
+
+    script.filename = path;
+    script.functions.clear();
+    DialogueFunction* current = nullptr;
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // Trim whitespace
+        size_t start = line.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos) continue;
+        line = line.substr(start);
+
+        // Skip comments
+        if (line[0] == '#') continue;
+
+        // Function declaration
+        if (line[0] == '@') {
+            script.functions.push_back({});
+            current = &script.functions.back();
+            current->name = line.substr(1);
+            // Trim trailing whitespace from name
+            size_t end = current->name.find_last_not_of(" \t\r\n");
+            if (end != std::string::npos) current->name = current->name.substr(0, end + 1);
+            continue;
+        }
+
+        // Dialogue line: Speaker: Text
+        if (current) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos && colon > 0) {
+                std::string speaker = line.substr(0, colon);
+                std::string text = line.substr(colon + 1);
+                // Trim
+                size_t ts = text.find_first_not_of(" \t");
+                if (ts != std::string::npos) text = text.substr(ts);
+                size_t se = speaker.find_last_not_of(" \t");
+                if (se != std::string::npos) speaker = speaker.substr(0, se + 1);
+                current->lines.push_back({speaker, text});
+            }
+        }
+    }
+
+    std::printf("[Dialogue] Loaded %s: %d functions\n", path.c_str(), (int)script.functions.size());
+    return true;
+}
 
 // ─── Tile hash for deterministic pseudo-random placement ───
 static float tile_hash(int x, int y, int seed) {
@@ -10,19 +235,167 @@ static float tile_hash(int x, int y, int seed) {
 // ─── Atlas region helpers ───
 
 void define_tileset_regions(eb::TextureAtlas& atlas) {
-    atlas.add_region(126, 96,  63, 53);  atlas.add_region(189, 96,  64, 53);
-    atlas.add_region(126, 149, 63, 53);  atlas.add_region(189, 149, 64, 53);
-    atlas.add_region(275, 129, 50, 35);  atlas.add_region(325, 129, 48, 35);
-    atlas.add_region(275, 164, 50, 38);  atlas.add_region(325, 164, 48, 38);
-    atlas.add_region(570, 175, 50, 50);  atlas.add_region(720, 100, 50, 50);
-    atlas.add_region(705, 175, 60, 60);  atlas.add_region(570, 100, 55, 55);
-    atlas.add_region(830, 100, 55, 55);  atlas.add_region(570, 270, 55, 55);
-    atlas.add_region(830, 270, 55, 55);  atlas.add_region(660, 155, 40, 40);
-    atlas.add_region(140, 560, 50, 50);  atlas.add_region(200, 530, 50, 50);
-    atlas.add_region(250, 510, 60, 50);  atlas.add_region(200, 575, 50, 40);
-    atlas.add_region(392, 152, 60, 25);  atlas.add_region(392, 177, 60, 25);
-    atlas.add_region(126, 303, 74, 43);  atlas.add_region(200, 303, 74, 43);
-    atlas.add_region(126, 346, 74, 43);  atlas.add_region(200, 346, 74, 43);
+    // All tile regions from New_Tileset.png (1536x1024)
+    // ORDER MUST match the Tile enum exactly (1-indexed)
+
+    // Grass (1-4)
+    atlas.add_region(125, 95, 62, 53);    // 1: TILE_GRASS_PURE
+    atlas.add_region(192, 95, 63, 53);    // 2: TILE_GRASS_LIGHT
+    atlas.add_region(125, 152, 62, 53);   // 3: TILE_GRASS_FLOWERS
+    atlas.add_region(192, 152, 63, 53);   // 4: TILE_GRASS_DARK
+    // Dirt (5-8)
+    atlas.add_region(278, 95, 45, 53);    // 5: TILE_DIRT_BROWN
+    atlas.add_region(328, 95, 45, 53);    // 6: TILE_DIRT_DARK
+    atlas.add_region(278, 152, 45, 53);   // 7: TILE_DIRT_MUD
+    atlas.add_region(328, 152, 45, 53);   // 8: TILE_DIRT_GRAVEL
+    // Grass edges & hedges (9-12)
+    atlas.add_region(390, 95, 60, 53);    // 9: TILE_GRASS_EDGE1
+    atlas.add_region(390, 152, 60, 53);   // 10: TILE_GRASS_EDGE2
+    atlas.add_region(465, 95, 55, 53);    // 11: TILE_HEDGE1
+    atlas.add_region(465, 152, 55, 53);   // 12: TILE_HEDGE2
+    // Dirt paths (13-18)
+    atlas.add_region(128, 222, 48, 65);   // 13: TILE_DIRT_PATH1
+    atlas.add_region(180, 222, 48, 65);   // 14: TILE_DIRT_PATH2
+    atlas.add_region(248, 222, 60, 65);   // 15: TILE_DIRT_MIXED1
+    atlas.add_region(312, 222, 60, 65);   // 16: TILE_DIRT_MIXED2
+    atlas.add_region(395, 222, 55, 65);   // 17: TILE_STONE_PATH11
+    atlas.add_region(470, 222, 52, 65);   // 18: TILE_STONE_PATH12
+    // Special ground (19-24)
+    atlas.add_region(155, 320, 70, 70);   // 19: TILE_PENTAGRAM
+    atlas.add_region(130, 310, 60, 40);   // 20: TILE_DARK_GROUND1
+    atlas.add_region(300, 310, 60, 40);   // 21: TILE_DARK_GROUND2
+    atlas.add_region(360, 310, 60, 40);   // 22: TILE_BLOOD_DIRT
+    atlas.add_region(445, 310, 35, 35);   // 23: TILE_DARK_STONE1
+    atlas.add_region(490, 310, 35, 35);   // 24: TILE_DARK_STONE2
+    // Roads (25-36)
+    atlas.add_region(620, 160, 60, 55);   // 25: TILE_ROAD_H
+    atlas.add_region(700, 100, 55, 60);   // 26: TILE_ROAD_V
+    atlas.add_region(690, 165, 70, 65);   // 27: TILE_ROAD_CROSS
+    atlas.add_region(620, 100, 60, 55);   // 28: TILE_ROAD_TL
+    atlas.add_region(780, 100, 60, 55);   // 29: TILE_ROAD_TR
+    atlas.add_region(620, 230, 60, 55);   // 30: TILE_ROAD_BL
+    atlas.add_region(780, 230, 60, 55);   // 31: TILE_ROAD_BR
+    atlas.add_region(565, 290, 55, 50);   // 32: TILE_SIDEWALK
+    atlas.add_region(625, 290, 55, 50);   // 33: TILE_SIDEWALK2
+    atlas.add_region(750, 160, 55, 55);   // 34: TILE_ASPHALT
+    atlas.add_region(670, 100, 55, 55);   // 35: TILE_ROAD_MARKING
+    atlas.add_region(565, 235, 55, 50);   // 36: TILE_CURB
+    // Road extras (37-41)
+    atlas.add_region(560, 341, 100, 50);  // 37: TILE_ROAD_DIRT
+    atlas.add_region(671, 341, 50, 50);   // 38: TILE_ROAD_BLOOD1
+    atlas.add_region(730, 341, 65, 50);   // 39: TILE_ROAD_PATCH1
+    atlas.add_region(806, 341, 65, 50);   // 40: TILE_ROAD_PATCH2
+    atlas.add_region(882, 341, 90, 50);   // 41: TILE_ROAD_BLOOD2
+    // Water & shore (42-50)
+    atlas.add_region(130, 510, 55, 50);   // 42: TILE_WATER_DEEP
+    atlas.add_region(195, 510, 55, 50);   // 43: TILE_WATER_MID
+    atlas.add_region(260, 510, 50, 50);   // 44: TILE_WATER_SHORE_L_L
+    atlas.add_region(320, 510, 50, 50);   // 45: TILE_WATER_SHORE_L_R
+    atlas.add_region(380, 510, 55, 50);   // 46: TILE_SAND
+    atlas.add_region(440, 510, 50, 50);   // 47: TILE_SAND_WET
+    atlas.add_region(130, 565, 55, 50);   // 48: TILE_WATER_SHALLOW
+    atlas.add_region(195, 565, 55, 50);   // 49: TILE_WATER_BLOOD
+    atlas.add_region(380, 565, 55, 50);   // 50: TILE_SAND_DARK
+    // Water objects as tiles (51-54)
+    atlas.add_region(130, 640, 60, 30);   // 51: TILE_BENCH_WATER
+    atlas.add_region(290, 680, 35, 30);   // 52: TILE_ROCK_WATER1
+    atlas.add_region(340, 680, 40, 30);   // 53: TILE_ROCK_WATER2
+    atlas.add_region(400, 680, 50, 40);   // 54: TILE_ROCK_WATER3
+
+    // ── Object stamps (not tiles, but registered for palette display) ──
+    // Buildings
+    atlas.add_region(1007, 86, 157, 103); // 55: Gas Mart
+    atlas.add_region(1171, 86, 135, 103); // 56: Salvage Repair
+    atlas.add_region(1312, 86, 105, 103); // 57: Tall Building
+    atlas.add_region(1003, 200, 92, 100); // 58: Motel/House
+    atlas.add_region(1003, 310, 92, 40);  // 59: Dead End Sign
+    // Vehicles
+    atlas.add_region(1110, 250, 90, 50);  // 60: Impala (parked)
+    atlas.add_region(1210, 250, 80, 50);  // 61: Red Car
+    atlas.add_region(1300, 250, 80, 50);  // 62: Blue Car
+    atlas.add_region(1090, 810, 200, 70); // 63: Impala (full side)
+    // Trees
+    atlas.add_region(580, 495, 72, 90);   // 64: Large Tree 1
+    atlas.add_region(660, 495, 65, 90);   // 65: Large Tree 2
+    atlas.add_region(735, 500, 50, 85);   // 66: Medium Tree
+    atlas.add_region(800, 495, 55, 95);   // 67: Dead Tree 1
+    atlas.add_region(860, 495, 60, 95);   // 68: Dead Tree 2
+    atlas.add_region(930, 498, 45, 92);   // 69: Dead Tree 3
+    atlas.add_region(580, 600, 60, 45);   // 70: Bush Large
+    atlas.add_region(650, 610, 35, 35);   // 71: Bush Small
+    atlas.add_region(700, 610, 35, 35);   // 72: Bush Dark
+    atlas.add_region(580, 660, 70, 70);   // 73: Night Tree
+    atlas.add_region(660, 670, 55, 50);   // 74: Night Bush
+    atlas.add_region(580, 740, 80, 50);   // 75: Dark Hedge
+    atlas.add_region(730, 660, 40, 35);   // 76: Rock Moss
+    atlas.add_region(780, 670, 30, 25);   // 77: Stump
+    // Misc Objects
+    atlas.add_region(1080, 498, 30, 45);  // 78: Tombstone 1
+    atlas.add_region(1115, 498, 30, 45);  // 79: Tombstone 2
+    atlas.add_region(1080, 548, 30, 40);  // 80: Tombstone 3
+    atlas.add_region(1170, 498, 35, 55);  // 81: Statue
+    atlas.add_region(1210, 498, 30, 40);  // 82: Urn
+    atlas.add_region(1250, 498, 40, 55);  // 83: Dark Statue
+    atlas.add_region(1320, 498, 25, 80);  // 84: Lamp Post
+    atlas.add_region(1365, 498, 25, 40);  // 85: Fire Hydrant
+    atlas.add_region(1085, 645, 95, 35);  // 86: Brick Wall 1
+    atlas.add_region(1085, 685, 95, 30);  // 87: Brick Wall 2
+    atlas.add_region(1205, 645, 85, 35);  // 88: Brick Wall 3
+    atlas.add_region(1320, 645, 80, 35);  // 89: Stone Wall
+    atlas.add_region(1085, 730, 75, 60);  // 90: Pentagram Circle
+    atlas.add_region(1195, 730, 55, 55);  // 91: Campfire
+    atlas.add_region(1320, 810, 30, 35);  // 92: Barrel 1
+    atlas.add_region(1360, 810, 30, 35);  // 93: Barrel 2
+}
+
+void define_object_stamps(GameState& game) {
+    // Object stamps reference atlas regions by index (0-based, but region 55+ are objects)
+    auto add = [&](const char* name, int region, float pw, float ph, const char* cat) {
+        game.object_stamps.push_back({name, region, 0, 0, pw, ph, cat});
+    };
+    // Buildings (regions 55-59)
+    add("Gas Mart",       54, 140, 96, "building");
+    add("Salvage Repair", 55, 128, 96, "building");
+    add("Tall Building",  56, 96,  96, "building");
+    add("Motel/House",    57, 80,  90, "building");
+    add("Dead End Sign",  58, 80,  36, "building");
+    // Vehicles (regions 60-63)
+    add("Impala",         59, 80,  44, "vehicle");
+    add("Red Car",        60, 72,  44, "vehicle");
+    add("Blue Car",       61, 72,  44, "vehicle");
+    add("Impala (side)",  62, 180, 64, "vehicle");
+    // Trees (regions 64-77)
+    add("Large Tree 1",   63, 64,  80, "tree");
+    add("Large Tree 2",   64, 58,  80, "tree");
+    add("Medium Tree",    65, 44,  76, "tree");
+    add("Dead Tree 1",    66, 48,  86, "tree");
+    add("Dead Tree 2",    67, 52,  86, "tree");
+    add("Dead Tree 3",    68, 40,  82, "tree");
+    add("Bush Large",     69, 52,  40, "tree");
+    add("Bush Small",     70, 30,  30, "tree");
+    add("Bush Dark",      71, 30,  30, "tree");
+    add("Night Tree",     72, 60,  64, "tree");
+    add("Night Bush",     73, 48,  44, "tree");
+    add("Dark Hedge",     74, 72,  44, "tree");
+    add("Rock Moss",      75, 36,  30, "tree");
+    add("Stump",          76, 26,  22, "tree");
+    // Misc (regions 78-93)
+    add("Tombstone 1",    77, 26,  40, "misc");
+    add("Tombstone 2",    78, 26,  40, "misc");
+    add("Tombstone 3",    79, 26,  36, "misc");
+    add("Statue",         80, 30,  48, "misc");
+    add("Urn",            81, 26,  36, "misc");
+    add("Dark Statue",    82, 36,  48, "misc");
+    add("Lamp Post",      83, 22,  72, "misc");
+    add("Fire Hydrant",   84, 22,  36, "misc");
+    add("Brick Wall 1",   85, 86,  32, "misc");
+    add("Brick Wall 2",   86, 86,  26, "misc");
+    add("Brick Wall 3",   87, 76,  32, "misc");
+    add("Stone Wall",     88, 72,  32, "misc");
+    add("Pentagram",      89, 68,  54, "misc");
+    add("Campfire",       90, 48,  48, "misc");
+    add("Barrel 1",       91, 26,  30, "misc");
+    add("Barrel 2",       92, 26,  30, "misc");
 }
 
 void define_npc_atlas_regions(eb::TextureAtlas& atlas, int cw, int ch) {
@@ -40,49 +413,43 @@ void define_npc_atlas_regions(eb::TextureAtlas& atlas, int cw, int ch) {
 // ─── Map generation ───
 
 std::vector<int> generate_town_map(int width, int height) {
-    std::vector<int> data(width * height, TILE_GRASS1);
-    for (int y = 0; y < height; y++) {
+    std::vector<int> data(width * height, TILE_GRASS_PURE);
+
+    // Varied grass field
+    for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++) {
-            int idx = y * width + x;
-            data[idx] = TILE_GRASS1 + ((x * 7 + y * 13) % 4);
-            if (y == 9 || y == 10) data[idx] = TILE_ROAD_H;
-            if (y == 8 || y == 11) data[idx] = TILE_SIDEWALK;
-            if (x == 15 && y >= 3 && y < 9) data[idx] = TILE_ROAD_V;
-            if (x == 15 && (y == 9 || y == 10)) data[idx] = TILE_ROAD_CROSS;
-            if ((x == 14 || x == 16) && y >= 3 && y < 9) data[idx] = TILE_SIDEWALK;
-            if (x >= 18 && x <= 22 && y >= 5 && y <= 7)
-                data[idx] = TILE_DIRT1 + ((x + y) % 4);
-            if (x >= 13 && x <= 17 && y >= 5 && y <= 7)
-                data[idx] = TILE_STONE1 + ((x + y) % 4);
-            if (x >= 22 && x <= 28 && y >= 14 && y <= 18) {
-                float dx = x - 25.0f, dy = y - 16.0f;
-                float d = std::sqrt(dx * dx + dy * dy);
-                if (d < 2.5f) data[idx] = TILE_WATER_DEEP;
-                else if (d < 3.5f) data[idx] = TILE_WATER_MID;
-                else if (d < 4.0f) data[idx] = TILE_SAND;
-            }
-            if (y == 4 && x >= 5 && x <= 11) data[idx] = TILE_HEDGE1;
-            if (y == 4 && x >= 19 && x <= 24) data[idx] = TILE_HEDGE2;
-            if (x == 0 || y == 0 || x == width - 1 || y == height - 1)
-                data[idx] = TILE_WATER_MID;
+            int v = ((x*3 + y*7) % 10);
+            if (v < 5) data[y*width+x] = TILE_GRASS_PURE;
+            else if (v < 8) data[y*width+x] = TILE_GRASS_LIGHT;
+            else data[y*width+x] = TILE_GRASS_FLOWERS;
         }
+
+    // Water border
+    auto set = [&](int x, int y, int t) {
+        if (x >= 0 && x < width && y >= 0 && y < height) data[y*width+x] = t;
+    };
+    for (int x = 0; x < width; x++) {
+        set(x, 0, TILE_WATER_DEEP); set(x, height-1, TILE_WATER_DEEP);
+        set(x, 1, TILE_WATER_MID);  set(x, height-2, TILE_SAND);
     }
+    for (int y = 0; y < height; y++) {
+        set(0, y, TILE_WATER_DEEP); set(width-1, y, TILE_WATER_DEEP);
+        set(1, y, TILE_WATER_MID);  set(width-2, y, TILE_SAND);
+    }
+
     return data;
 }
 
 std::vector<int> generate_town_collision(int width, int height) {
     std::vector<int> col(width * height, 0);
+    // Water border only
+    for (int x = 0; x < width; x++) {
+        col[0*width+x] = 1; col[1*width+x] = 1;
+        col[(height-1)*width+x] = 1; col[(height-2)*width+x] = 1;
+    }
     for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            if (x == 0 || y == 0 || x == width - 1 || y == height - 1)
-                col[y * width + x] = 1;
-            if (x >= 22 && x <= 28 && y >= 14 && y <= 18) {
-                float dx = x - 25.0f, dy = y - 16.0f;
-                if (std::sqrt(dx * dx + dy * dy) < 3.5f) col[y * width + x] = 1;
-            }
-            if (y == 4 && ((x >= 5 && x <= 11) || (x >= 19 && x <= 24)))
-                col[y * width + x] = 1;
-        }
+        col[y*width+0] = 1; col[y*width+1] = 1;
+        col[y*width+width-1] = 1; col[y*width+width-2] = 1;
     }
     return col;
 }
@@ -91,15 +458,17 @@ std::vector<int> generate_town_collision(int width, int height) {
 
 void setup_objects(GameState& game, eb::Texture* tileset_tex) {
     struct ObjSrc { eb::Vec2 sp, ss, rs; };
+    // Object sprites from New_Tileset.png (1536x1024)
+    // Trees & Night section starts at ~(575, 491)
     ObjSrc srcs[] = {
-        {{978, 496},  {103, 111}, {80, 86}},
-        {{1099, 499}, {102, 114}, {80, 90}},
-        {{1331, 501}, {82, 123},  {48, 72}},
-        {{979, 622},  {61, 63},   {48, 50}},
-        {{1056, 619}, {57, 64},   {44, 50}},
-        {{1271, 617}, {44, 44},   {32, 32}},
-        {{1019, 97},  {137, 100}, {128, 96}},
-        {{1167, 97},  {137, 103}, {128, 96}},
+        {{580, 500}, {75, 95},  {64, 80}},    // 0: Large tree 1
+        {{660, 500}, {70, 95},  {64, 80}},    // 1: Large tree 2
+        {{740, 510}, {50, 85},  {40, 68}},    // 2: Medium tree
+        {{795, 530}, {40, 60},  {32, 48}},    // 3: Small tree
+        {{845, 540}, {35, 50},  {28, 40}},    // 4: Bush/shrub
+        {{900, 560}, {30, 30},  {24, 24}},    // 5: Small bush
+        {{1007, 86}, {157, 103},{140, 96}},   // 6: Gas Mart building
+        {{1171, 86}, {135, 103},{128, 96}},   // 7: Salvage Repair
     };
     float tw = static_cast<float>(tileset_tex->width());
     float th = static_cast<float>(tileset_tex->height());
@@ -112,65 +481,55 @@ void setup_objects(GameState& game, eb::Texture* tileset_tex) {
         r.uv_max = {(s.sp.x + s.ss.x) / tw, (s.sp.y + s.ss.y) / th};
         game.object_regions.push_back(r);
     }
-    auto place = [&](int id, float x, float y) {
-        game.world_objects.push_back({id, {x * 32.0f, y * 32.0f}});
-    };
-    place(0, 3, 3); place(1, 8, 2); place(2, 27, 3);
-    place(3, 5, 14); place(4, 3, 16); place(0, 10, 15);
-    place(5, 7, 13); place(5, 12, 17); place(2, 2, 8);
-    place(1, 28, 13);
-    place(6, 6, 7.5f); place(7, 20, 7.5f);
+    // No pre-placed objects — build the map in the editor
+    (void)game;
+    (void)tileset_tex;
 }
 
 // ─── NPC setup ───
 
 void setup_npcs(GameState& game) {
+    // Load dialogue from files
+    DialogueScript bobby_dlg, stranger_dlg, vampire_dlg, azazel_dlg;
+    load_dialogue_file(bobby_dlg, "assets/dialogue/bobby.dialogue");
+    load_dialogue_file(stranger_dlg, "assets/dialogue/stranger.dialogue");
+    load_dialogue_file(vampire_dlg, "assets/dialogue/vampire.dialogue");
+    load_dialogue_file(azazel_dlg, "assets/dialogue/azazel.dialogue");
+
     NPC bobby;
-    bobby.name = "Bobby"; bobby.position = {6.0f * 32.0f, 12.0f * 32.0f};
+    bobby.name = "Bobby"; bobby.position = {8.0f * 32.0f, 7.0f * 32.0f};
+    bobby.home_pos = bobby.position; bobby.wander_target = bobby.position;
     bobby.dir = 0; bobby.sprite_atlas_id = 0;
-    bobby.dialogue = {
-        {"Bobby", "You idjits better be prepared before heading out."},
-        {"Bobby", "I've got some supplies if you need 'em."},
-        {"Bobby", "Also, watch your back. Something ain't right in this town."},
-    };
+    bobby.move_speed = 30.0f; bobby.wander_interval = 4.0f;
+    bobby.dialogue = bobby_dlg.get_lines("greeting");
     game.npcs.push_back(bobby);
 
     NPC stranger;
-    stranger.name = "???"; stranger.position = {15.0f * 32.0f, 16.0f * 32.0f};
+    stranger.name = "???"; stranger.position = {20.0f * 32.0f, 7.0f * 32.0f};
+    stranger.home_pos = stranger.position; stranger.wander_target = stranger.position;
     stranger.dir = 1; stranger.sprite_atlas_id = 1;
-    stranger.dialogue = {
-        {"???", "You shouldn't be poking around here, hunter."},
-        {"???", "I can smell it on you... the stench of righteousness."},
-    };
-    stranger.has_battle = true;
-    stranger.battle_enemy_name = "Shapeshifter";
-    stranger.battle_enemy_hp = 45; stranger.battle_enemy_atk = 12;
+    stranger.move_speed = 25.0f; stranger.wander_interval = 5.0f;
+    stranger.dialogue = stranger_dlg.get_lines("greeting");
     game.npcs.push_back(stranger);
 
     NPC vampire;
-    vampire.name = "Vampire"; vampire.position = {24.0f * 32.0f, 12.0f * 32.0f};
+    vampire.name = "Vampire"; vampire.position = {19.0f * 32.0f, 14.0f * 32.0f};
+    vampire.home_pos = vampire.position; vampire.wander_target = vampire.position;
     vampire.dir = 2; vampire.sprite_atlas_id = 2;
-    vampire.dialogue = {
-        {"Vampire", "The night is young, hunter..."},
-        {"Vampire", "You reek of dead man's blood. Cute."},
-    };
+    vampire.dialogue = vampire_dlg.get_lines("encounter");
     vampire.has_battle = true;
     vampire.battle_enemy_name = "Vampire";
     vampire.battle_enemy_hp = 60; vampire.battle_enemy_atk = 15;
+    vampire.hostile = true; vampire.aggro_range = 160.0f; vampire.attack_range = 36.0f;
+    vampire.move_speed = 65.0f;
     game.npcs.push_back(vampire);
 
     NPC azazel;
-    azazel.name = "Azazel"; azazel.position = {10.0f * 32.0f, 16.0f * 32.0f};
+    azazel.name = "Azazel"; azazel.position = {7.0f * 32.0f, 15.0f * 32.0f};
+    azazel.home_pos = azazel.position; azazel.wander_target = azazel.position;
     azazel.dir = 0; azazel.sprite_atlas_id = 3;
-    azazel.dialogue = {
-        {"Azazel", "Well, well... the Winchester boys."},
-        {"Azazel", "You have no idea what's coming."},
-        {"Azazel", "I've got plans for your brother, Dean."},
-        {"Dean", "You son of a bitch."},
-    };
-    azazel.has_battle = true;
-    azazel.battle_enemy_name = "Azazel";
-    azazel.battle_enemy_hp = 120; azazel.battle_enemy_atk = 22;
+    azazel.move_speed = 20.0f; azazel.wander_interval = 6.0f;
+    azazel.dialogue = azazel_dlg.get_lines("greeting");
     game.npcs.push_back(azazel);
 }
 
@@ -204,7 +563,7 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
         game.white_desc = renderer.default_texture_descriptor();
 
         // Load tileset
-        auto* tileset_tex = resources.load_texture("assets/textures/tileset.png");
+        auto* tileset_tex = resources.load_texture("assets/textures/new_tileset.png");
         game.tileset_atlas = std::make_unique<eb::TextureAtlas>(tileset_tex);
         define_tileset_regions(*game.tileset_atlas);
         game.tileset_desc = renderer.get_texture_descriptor(*tileset_tex);
@@ -253,13 +612,14 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
         const int MAP_W = 30, MAP_H = 20, TILE_SZ = 32;
         game.tile_map.create(MAP_W, MAP_H, TILE_SZ);
         game.tile_map.set_tileset(game.tileset_atlas.get());
-        game.tile_map.set_tileset_path("assets/textures/tileset.png");
+        game.tile_map.set_tileset_path("assets/textures/new_tileset.png");
         game.tile_map.add_layer("ground", generate_town_map(MAP_W, MAP_H));
         game.tile_map.set_collision(generate_town_collision(MAP_W, MAP_H));
-        game.tile_map.set_animated_tiles(TILE_WATER_DEEP, TILE_WATER_SHORE);
+        game.tile_map.set_animated_tiles(TILE_WATER_DEEP, TILE_WATER_SHORE_L);
 
         // Objects & NPCs
         setup_objects(game, tileset_tex);
+        define_object_stamps(game);
         setup_npcs(game);
 
         // Load NPC sprite sheets
@@ -272,7 +632,7 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
         };
         load_npc("assets/textures/bobby_sprites.png",      123, 174);
         load_npc("assets/textures/stranger_sprites.png",     70, 140);
-        load_npc("assets/textures/vampire_sprites.png",     136, 224);
+        load_npc("assets/textures/vampire_sprites.png",     136, 190);
         load_npc("assets/textures/yelloweyes_sprites.png",  134, 187);
 
         // Dialogue box: background texture and character portraits
@@ -310,6 +670,11 @@ void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bo
     b.enemy_name = enemy;
     b.enemy_hp_actual = hp; b.enemy_hp_max = hp; b.enemy_atk = atk;
     b.enemy_sprite_id = sprite_id;
+    b.sam_hp_actual = game.sam_hp; b.sam_hp_max = game.sam_hp_max;
+    b.sam_hp_display = static_cast<float>(game.sam_hp);
+    b.sam_atk = game.sam_atk;
+    b.active_fighter = 0; // Dean goes first
+    b.attack_anim_timer = 0.0f;
     b.player_hp_actual = game.player_hp;
     b.player_hp_max = game.player_hp_max;
     b.player_hp_display = static_cast<float>(game.player_hp);
@@ -322,34 +687,48 @@ void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bo
 void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) {
     auto& b = game.battle;
     b.phase_timer += dt;
+    b.attack_anim_timer += dt;
 
-    if (b.player_hp_display > b.player_hp_actual) {
-        b.player_hp_display -= 40.0f * dt;
-        if (b.player_hp_display < b.player_hp_actual)
-            b.player_hp_display = static_cast<float>(b.player_hp_actual);
-    }
+    // Roll HP displays toward actual
+    auto roll_hp = [&](float& display, int actual) {
+        if (display > actual) {
+            display -= 40.0f * dt;
+            if (display < actual) display = static_cast<float>(actual);
+        }
+    };
+    roll_hp(b.player_hp_display, b.player_hp_actual);
+    roll_hp(b.sam_hp_display, b.sam_hp_actual);
 
     switch (b.phase) {
     case BattlePhase::Intro:
         if (b.phase_timer > 1.5f || confirm) {
-            b.phase = BattlePhase::PlayerTurn; b.phase_timer = 0.0f; b.message = "";
+            b.phase = BattlePhase::PlayerTurn; b.phase_timer = 0.0f;
+            b.active_fighter = 0; b.menu_selection = 0; b.message = "";
         }
         break;
+
     case BattlePhase::PlayerTurn:
         if (up && b.menu_selection > 0) b.menu_selection--;
         if (down && b.menu_selection < 2) b.menu_selection++;
         if (confirm) {
-            b.phase_timer = 0.0f;
+            b.phase_timer = 0.0f; b.attack_anim_timer = 0.0f;
+            const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+            int atk = (b.active_fighter == 0) ? b.player_atk : b.sam_atk;
+
             if (b.menu_selection == 0) {
-                int damage = b.player_atk + (game.rng() % 5) - 2;
+                int damage = atk + (game.rng() % 5) - 2;
                 if (damage < 1) damage = 1;
                 b.enemy_hp_actual -= damage; b.last_damage = damage;
-                b.message = "Dean attacks! " + std::to_string(damage) + " damage!";
+                b.message = std::string(fighter) + " attacks! " + std::to_string(damage) + " damage!";
                 b.phase = BattlePhase::PlayerAttack;
             } else if (b.menu_selection == 1) {
-                int heal = 10 + game.rng() % 8;
-                b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
-                b.message = "Dean braces! Recovered " + std::to_string(heal) + " HP.";
+                int heal = 8 + game.rng() % 8;
+                if (b.active_fighter == 0) {
+                    b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
+                } else {
+                    b.sam_hp_actual = std::min(b.sam_hp_actual + heal, b.sam_hp_max);
+                }
+                b.message = std::string(fighter) + " braces! Recovered " + std::to_string(heal) + " HP.";
                 b.phase = BattlePhase::PlayerAttack;
             } else {
                 if (b.random_encounter && (game.rng() % 3) != 0) {
@@ -362,6 +741,7 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
             }
         }
         break;
+
     case BattlePhase::PlayerAttack:
         if (b.phase_timer > 1.2f || confirm) {
             if (b.enemy_hp_actual <= 0) {
@@ -369,43 +749,74 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
                 int xp = b.enemy_hp_max / 2 + b.enemy_atk;
                 b.message = "Victory! Gained " + std::to_string(xp) + " XP!";
                 game.player_xp += xp;
+            } else if (b.active_fighter == 0 && b.sam_hp_actual > 0) {
+                // Sam's turn next
+                b.active_fighter = 1; b.menu_selection = 0;
+                b.phase = BattlePhase::PlayerTurn; b.message = "";
             } else {
+                // Enemy turn
                 b.phase = BattlePhase::EnemyTurn;
             }
             b.phase_timer = 0.0f;
         }
         break;
+
     case BattlePhase::EnemyTurn: {
-        int damage = b.enemy_atk + (game.rng() % 5) - 2 - b.player_def / 3;
+        // Enemy attacks a random party member
+        int target = (game.rng() % 2 == 0 && b.sam_hp_actual > 0) ? 1 : 0;
+        if (b.player_hp_actual <= 0) target = 1;
+        if (b.sam_hp_actual <= 0) target = 0;
+
+        int def = (target == 0) ? b.player_def : 2;
+        int damage = b.enemy_atk + (game.rng() % 5) - 2 - def / 3;
         if (damage < 1) damage = 1;
-        b.player_hp_actual -= damage; b.last_damage = damage;
-        b.message = b.enemy_name + " attacks! " + std::to_string(damage) + " damage!";
+
+        if (target == 0) {
+            b.player_hp_actual -= damage;
+            b.message = b.enemy_name + " attacks Dean! " + std::to_string(damage) + " damage!";
+        } else {
+            b.sam_hp_actual -= damage;
+            b.message = b.enemy_name + " attacks Sam! " + std::to_string(damage) + " damage!";
+        }
+        b.last_damage = damage;
         b.phase = BattlePhase::EnemyAttack; b.phase_timer = 0.0f;
+        b.attack_anim_timer = 0.0f;
         break;
     }
+
     case BattlePhase::EnemyAttack:
         if (b.phase_timer > 1.2f || confirm) {
-            if (b.player_hp_actual <= 0) {
-                b.player_hp_actual = 0;
-                b.phase = BattlePhase::Defeat; b.message = "Dean is down!";
+            bool dean_down = b.player_hp_actual <= 0;
+            bool sam_down = b.sam_hp_actual <= 0;
+            if (dean_down && sam_down) {
+                b.player_hp_actual = 0; b.sam_hp_actual = 0;
+                b.phase = BattlePhase::Defeat; b.message = "The Winchesters are down!";
             } else {
-                b.phase = BattlePhase::PlayerTurn; b.menu_selection = 0; b.message = "";
+                b.active_fighter = 0; b.menu_selection = 0;
+                // Skip Dean if he's down
+                if (b.player_hp_actual <= 0) b.active_fighter = 1;
+                b.phase = BattlePhase::PlayerTurn; b.message = "";
             }
             b.phase_timer = 0.0f;
         }
         break;
+
     case BattlePhase::Victory:
         if (b.phase_timer > 2.0f || confirm) {
             game.player_hp = std::max(b.player_hp_actual, 1);
+            game.sam_hp = std::max(b.sam_hp_actual, 1);
             b.phase = BattlePhase::None;
         }
         break;
+
     case BattlePhase::Defeat:
         if (b.phase_timer > 2.0f || confirm) {
             game.player_hp = game.player_hp_max / 2;
+            game.sam_hp = game.sam_hp_max / 2;
             b.phase = BattlePhase::None;
         }
         break;
+
     case BattlePhase::None: break;
     }
 }
@@ -519,34 +930,82 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
             }
         }
 
-        // Random encounters on grass
-        game.steps_since_encounter += speed * dt;
-        if (game.steps_since_encounter > 200.0f) {
-            game.steps_since_encounter = 0.0f;
-            int tx = (int)(game.player_pos.x / 32.0f);
-            int ty = (int)(game.player_pos.y / 32.0f);
-            int tile = game.tile_map.tile_at(0, tx, ty);
-            if (tile >= TILE_GRASS1 && tile <= TILE_GRASS4) {
-                if ((game.rng() % 100) < 12) {
-                    const char* enemies[] = {"Ghost", "Ghoul", "Demon", "Vengeful Spirit"};
-                    int ei = game.rng() % 4;
-                    start_battle(game, enemies[ei], 25 + (int)(game.rng() % 30),
-                                 8 + (int)(game.rng() % 8), true);
-                }
-            }
-        }
+        // (Random encounters disabled — battles only through NPC interaction)
     } else {
         game.player_frame = 0; game.anim_timer = 0.0f;
         for (auto& pm : game.party) { pm.moving = false; pm.frame = 0; pm.anim_timer = 0.0f; }
     }
 
-    // NPC interaction
+    // ── NPC AI update ──
+    for (int i = 0; i < (int)game.npcs.size(); i++) {
+        auto& npc = game.npcs[i];
+        float dx = game.player_pos.x - npc.position.x;
+        float dy = game.player_pos.y - npc.position.y;
+        float dist = std::sqrt(dx*dx + dy*dy);
+
+        if (npc.hostile && !npc.has_triggered && dist < npc.aggro_range) {
+            // Hostile NPC: chase player
+            npc.aggro_active = true;
+            float nx = dx / dist, ny = dy / dist;
+            npc.position.x += nx * npc.move_speed * dt;
+            npc.position.y += ny * npc.move_speed * dt;
+            npc.moving = true;
+            if (std::abs(dx) > std::abs(dy))
+                npc.dir = (dx > 0) ? 3 : 2;
+            else
+                npc.dir = (dy > 0) ? 0 : 1;
+
+            // Reached attack range — auto trigger dialogue then battle
+            if (dist < npc.attack_range) {
+                npc.has_triggered = true;
+                npc.aggro_active = false;
+                npc.moving = false;
+                game.dialogue.start(npc.dialogue);
+                game.pending_battle_npc = npc.has_battle ? i : -1;
+            }
+        } else if (!npc.hostile || npc.has_triggered) {
+            // Friendly/passive NPC: idle wander near home
+            npc.wander_timer += dt;
+            if (npc.wander_timer >= npc.wander_interval) {
+                npc.wander_timer = 0.0f;
+                float angle = (game.rng() % 628) / 100.0f;
+                float r = 16.0f + (game.rng() % 32);
+                npc.wander_target = eb::Vec2(
+                    npc.home_pos.x + std::cos(angle) * r,
+                    npc.home_pos.y + std::sin(angle) * r);
+            }
+            float wx = npc.wander_target.x - npc.position.x;
+            float wy = npc.wander_target.y - npc.position.y;
+            float wd = std::sqrt(wx*wx + wy*wy);
+            if (wd > 3.0f) {
+                npc.position.x += (wx/wd) * npc.move_speed * dt;
+                npc.position.y += (wy/wd) * npc.move_speed * dt;
+                npc.moving = true;
+                if (std::abs(wx) > std::abs(wy))
+                    npc.dir = (wx > 0) ? 3 : 2;
+                else
+                    npc.dir = (wy > 0) ? 0 : 1;
+            } else {
+                npc.moving = false;
+            }
+        }
+        // NPC walk animation
+        if (npc.moving) {
+            npc.anim_timer += dt;
+            if (npc.anim_timer >= 0.2f) { npc.anim_timer -= 0.2f; npc.frame = 1 - npc.frame; }
+        } else {
+            npc.frame = 0; npc.anim_timer = 0.0f;
+        }
+    }
+
+    // Manual NPC interaction (Z/A button for friendly NPCs)
     if (input.is_pressed(eb::InputAction::Confirm)) {
         for (int i = 0; i < (int)game.npcs.size(); i++) {
             auto& npc = game.npcs[i];
+            if (npc.hostile && !npc.has_triggered) continue; // Hostile auto-triggers
             float dx = game.player_pos.x - npc.position.x;
             float dy = game.player_pos.y - npc.position.y;
-            float dist = std::sqrt(dx * dx + dy * dy);
+            float dist = std::sqrt(dx*dx + dy*dy);
             if (dist < npc.interact_radius) {
                 game.dialogue.start(npc.dialogue);
                 game.pending_battle_npc = npc.has_battle ? i : -1;
@@ -573,11 +1032,11 @@ static void render_grass_overlay(const GameState& game, eb::SpriteBatch& batch, 
     for (int ty = sy; ty < ey; ty++) {
         for (int tx = sx; tx < ex; tx++) {
             int tile = game.tile_map.tile_at(0, tx, ty);
-            if (tile < TILE_GRASS1 || tile > TILE_GRASS4) continue;
+            if (tile < TILE_GRASS_PURE || tile > TILE_GRASS_DARK) continue;
             auto is_grass = [&](int x, int y) {
                 if (x < 0 || x >= game.tile_map.width() || y < 0 || y >= game.tile_map.height()) return false;
                 int t = game.tile_map.tile_at(0, x, y);
-                return t >= TILE_GRASS1 && t <= TILE_GRASS4;
+                return t >= TILE_GRASS_PURE && t <= TILE_GRASS_DARK;
             };
             if (!is_grass(tx-1,ty)||!is_grass(tx+1,ty)||!is_grass(tx,ty-1)||!is_grass(tx,ty+1)) continue;
             float x_min = margin, x_max = ts - margin, y_min = margin, y_max = ts - margin;
@@ -635,109 +1094,148 @@ static void render_leaf_overlay(const GameState& game, eb::SpriteBatch& batch, f
 
 void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text, float sw, float sh) {
     auto& b = game.battle;
-    float sprite_w = 72.0f, sprite_h = 96.0f; // Battle sprite size
+    float sprite_w = 72.0f, sprite_h = 96.0f;
 
     // Background
     batch.set_texture(game.white_desc);
     batch.draw_quad({0,0},{sw,sh},{0,0},{1,1},{0.02f,0.02f,0.08f,1.0f});
 
-    // ── Enemy sprite (top center, facing down/toward player) ──
+    // ── Enemy sprite (top center, facing down toward player) ──
     float enemy_cx = sw * 0.5f;
-    float enemy_y = 30.0f;
+    float enemy_y = 20.0f;
+    float ew = sprite_w * 1.5f, eh = sprite_h * 1.5f;
 
-    if (b.enemy_sprite_id >= 0 && b.enemy_sprite_id < (int)game.npc_atlases.size()) {
+    // Enemy hit flash during player attack
+    bool enemy_flash = (b.phase == BattlePhase::PlayerAttack &&
+                        b.attack_anim_timer < 0.8f &&
+                        std::fmod(b.attack_anim_timer, 0.15f) < 0.075f);
+
+    if (b.enemy_sprite_id >= 0 && b.enemy_sprite_id < (int)game.npc_atlases.size() && !enemy_flash) {
         auto& atlas = *game.npc_atlases[b.enemy_sprite_id];
         auto desc = game.npc_descs[b.enemy_sprite_id];
-        auto sr = get_character_sprite(atlas, 0, false, 0); // dir=0 = facing down (toward us)
-        float ew = sprite_w * 1.5f, eh = sprite_h * 1.5f; // Enemy drawn larger
+        auto sr = get_character_sprite(atlas, 0, false, 0);
         batch.set_texture(desc);
-        batch.draw_quad({enemy_cx - ew * 0.5f, enemy_y}, {ew, eh},
-                        sr.uv_min, sr.uv_max);
+        batch.draw_quad({enemy_cx - ew*0.5f, enemy_y}, {ew, eh}, sr.uv_min, sr.uv_max);
     }
 
-    // Enemy name + HP (below enemy sprite)
-    float ebx = sw * 0.5f - 140.0f, eby = enemy_y + sprite_h * 1.5f + 10.0f;
+    // Enemy name + HP bar
+    float ebx = sw*0.5f - 120, eby = enemy_y + eh + 6;
     batch.set_texture(game.white_desc);
-    batch.draw_quad({ebx, eby}, {280, 50}, {0,0},{1,1}, {0.1f, 0.08f, 0.15f, 0.8f});
-    text.draw_text(batch, game.font_desc, b.enemy_name, {ebx+10, eby+4}, {1,0.4f,0.4f,1}, 1.0f);
-
-    float hp_pct = std::max(0.0f, (float)b.enemy_hp_actual / b.enemy_hp_max);
+    batch.draw_quad({ebx,eby},{240,45},{0,0},{1,1},{0.1f,0.08f,0.15f,0.8f});
+    text.draw_text(batch, game.font_desc, b.enemy_name, {ebx+8,eby+4}, {1,0.4f,0.4f,1}, 0.9f);
+    float hp_pct = std::max(0.0f,(float)b.enemy_hp_actual/b.enemy_hp_max);
     batch.set_texture(game.white_desc);
-    batch.draw_quad({ebx+10, eby+28}, {200, 14}, {0,0},{1,1}, {0.2f,0.2f,0.2f,1});
-    eb::Vec4 hpc = hp_pct>0.5f ? eb::Vec4{0.2f,0.8f,0.2f,1}
-                 : hp_pct>0.25f ? eb::Vec4{0.9f,0.7f,0.1f,1}
-                 : eb::Vec4{0.9f,0.2f,0.2f,1};
-    batch.draw_quad({ebx+10, eby+28}, {200*hp_pct, 14}, {0,0},{1,1}, hpc);
-    text.draw_text(batch, game.font_desc,
-                   std::to_string(std::max(0,b.enemy_hp_actual))+"/"+std::to_string(b.enemy_hp_max),
-                   {ebx+218, eby+26}, {1,1,1,1}, 0.7f);
+    batch.draw_quad({ebx+8,eby+24},{170,12},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
+    eb::Vec4 ehc = hp_pct>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:hp_pct>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
+    batch.draw_quad({ebx+8,eby+24},{170*hp_pct,12},{0,0},{1,1},ehc);
+    text.draw_text(batch,game.font_desc,std::to_string(std::max(0,b.enemy_hp_actual))+"/"+std::to_string(b.enemy_hp_max),
+                   {ebx+185,eby+22},{1,1,1,1},0.6f);
 
-    // ── Dean + Sam sprites (bottom center, backs facing us = dir 1 = up) ──
-    float party_y = sh * 0.45f;
+    // ── Dean + Sam sprites (lower area, backs to us) ──
+    float party_y = sh * 0.42f;
     float party_cx = sw * 0.5f;
+    float dean_x = party_cx - sprite_w - 10.0f;
+    float sam_x = party_cx + 10.0f;
 
-    // Dean (left)
-    {
-        auto sr = get_character_sprite(*game.dean_atlas, 1, false, 0); // dir=1 = facing up (back to us)
+    // Attack animation: lunge forward during PlayerAttack phase
+    float dean_offset_y = 0, sam_offset_y = 0;
+    if (b.phase == BattlePhase::PlayerAttack && b.attack_anim_timer < 0.5f) {
+        float t = b.attack_anim_timer / 0.5f;
+        float lunge = std::sin(t * 3.14159f) * 30.0f; // Lunge forward and back
+        if (b.active_fighter == 0) dean_offset_y = -lunge;
+        else sam_offset_y = -lunge;
+    }
+
+    // Dean (left) — flash red if hit
+    bool dean_hit = (b.phase == BattlePhase::EnemyAttack &&
+                     b.message.find("Dean") != std::string::npos &&
+                     b.attack_anim_timer < 0.6f &&
+                     std::fmod(b.attack_anim_timer, 0.12f) < 0.06f);
+    if (!dean_hit && b.player_hp_actual > 0) {
+        bool dean_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 0);
+        int dean_frame = dean_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
+        auto sr = get_character_sprite(*game.dean_atlas, 1, dean_attacking, dean_frame);
         batch.set_texture(game.dean_desc);
-        batch.draw_quad({party_cx - sprite_w - 8.0f, party_y}, {sprite_w, sprite_h},
-                        sr.uv_min, sr.uv_max);
+        batch.draw_quad({dean_x, party_y + dean_offset_y}, {sprite_w, sprite_h}, sr.uv_min, sr.uv_max);
     }
+
     // Sam (right)
-    {
-        auto sr = get_character_sprite(*game.sam_atlas, 1, false, 0);
+    bool sam_hit = (b.phase == BattlePhase::EnemyAttack &&
+                    b.message.find("Sam") != std::string::npos &&
+                    b.attack_anim_timer < 0.6f &&
+                    std::fmod(b.attack_anim_timer, 0.12f) < 0.06f);
+    if (!sam_hit && b.sam_hp_actual > 0) {
+        bool sam_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 1);
+        int sam_frame = sam_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
+        auto sr = get_character_sprite(*game.sam_atlas, 1, sam_attacking, sam_frame);
         batch.set_texture(game.sam_desc);
-        batch.draw_quad({party_cx + 8.0f, party_y}, {sprite_w, sprite_h},
-                        sr.uv_min, sr.uv_max);
+        batch.draw_quad({sam_x, party_y + sam_offset_y}, {sprite_w, sprite_h}, sr.uv_min, sr.uv_max);
     }
 
-    // ── Player stats (bottom right) ──
-    float pbx = sw - 280, pby = sh - 80;
+    // ── Party stats (bottom right) ──
+    float pbx = sw - 260, pby = sh - 100;
     batch.set_texture(game.white_desc);
-    batch.draw_quad({pbx, pby}, {260, 70}, {0,0},{1,1}, {0.08f,0.08f,0.18f,0.9f});
-    batch.draw_quad({pbx, pby}, {260, 2}, {0,0},{1,1}, {0.5f,0.5f,0.8f,1});
-    batch.draw_quad({pbx, pby+68}, {260, 2}, {0,0},{1,1}, {0.5f,0.5f,0.8f,1});
-    text.draw_text(batch, game.font_desc, "Dean  Lv."+std::to_string(game.player_level),
-                   {pbx+10, pby+6}, {1,1,1,1}, 0.8f);
+    batch.draw_quad({pbx,pby},{240,92},{0,0},{1,1},{0.08f,0.08f,0.18f,0.9f});
+    batch.draw_quad({pbx,pby},{240,2},{0,0},{1,1},{0.5f,0.5f,0.8f,1});
+    batch.draw_quad({pbx,pby+90},{240,2},{0,0},{1,1},{0.5f,0.5f,0.8f,1});
 
+    // Dean HP
+    eb::Vec4 dean_name_col = (b.phase == BattlePhase::PlayerTurn && b.active_fighter == 0)
+        ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{1,1,1,1};
+    text.draw_text(batch,game.font_desc,"Dean",{pbx+8,pby+4},dean_name_col,0.7f);
     float dhp = b.player_hp_display;
-    float ppct = std::max(0.0f, dhp / b.player_hp_max);
+    float dp = std::max(0.0f,dhp/b.player_hp_max);
     batch.set_texture(game.white_desc);
-    batch.draw_quad({pbx+10, pby+32}, {180, 12}, {0,0},{1,1}, {0.2f,0.2f,0.2f,1});
-    eb::Vec4 ppc = ppct>0.5f ? eb::Vec4{0.2f,0.8f,0.2f,1}
-                 : ppct>0.25f ? eb::Vec4{0.9f,0.7f,0.1f,1}
-                 : eb::Vec4{0.9f,0.2f,0.2f,1};
-    batch.draw_quad({pbx+10, pby+32}, {180*ppct, 12}, {0,0},{1,1}, ppc);
-    char hps[32]; std::snprintf(hps, sizeof(hps), "HP %d/%d", (int)std::ceil(dhp), b.player_hp_max);
-    text.draw_text(batch, game.font_desc, hps, {pbx+198, pby+30}, {1,1,1,1}, 0.6f);
+    batch.draw_quad({pbx+60,pby+8},{120,10},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
+    eb::Vec4 dc=dp>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:dp>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
+    batch.draw_quad({pbx+60,pby+8},{120*dp,10},{0,0},{1,1},dc);
+    char dhs[32]; std::snprintf(dhs,sizeof(dhs),"%d/%d",(int)std::ceil(dhp),b.player_hp_max);
+    text.draw_text(batch,game.font_desc,dhs,{pbx+186,pby+5},{1,1,1,1},0.5f);
 
-    // ── Battle menu (player turn, bottom left) ──
+    // Sam HP
+    eb::Vec4 sam_name_col = (b.phase == BattlePhase::PlayerTurn && b.active_fighter == 1)
+        ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{1,1,1,1};
+    text.draw_text(batch,game.font_desc,"Sam",{pbx+8,pby+24},sam_name_col,0.7f);
+    float shp = b.sam_hp_display;
+    float sp = std::max(0.0f,shp/b.sam_hp_max);
+    batch.set_texture(game.white_desc);
+    batch.draw_quad({pbx+60,pby+28},{120,10},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
+    eb::Vec4 sc2=sp>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:sp>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
+    batch.draw_quad({pbx+60,pby+28},{120*sp,10},{0,0},{1,1},sc2);
+    char shs[32]; std::snprintf(shs,sizeof(shs),"%d/%d",(int)std::ceil(shp),b.sam_hp_max);
+    text.draw_text(batch,game.font_desc,shs,{pbx+186,pby+25},{1,1,1,1},0.5f);
+
+    // Level
+    text.draw_text(batch,game.font_desc,"Lv."+std::to_string(game.player_level),{pbx+8,pby+46},{0.7f,0.7f,0.7f,1},0.5f);
+
+    // ── Battle menu (player turn) ──
     if (b.phase == BattlePhase::PlayerTurn) {
-        float mx = 20, my = sh - 120;
+        const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+        float mx = 16, my = sh - 130;
         batch.set_texture(game.white_desc);
-        batch.draw_quad({mx,my},{180,110},{0,0},{1,1},{0.08f,0.05f,0.15f,0.95f});
-        batch.draw_quad({mx,my},{180,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx,my+108},{180,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx,my},{2,110},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx+178,my},{2,110},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        const char* opts[] = {"Attack", "Defend", "Run"};
-        for (int i = 0; i < 3; i++) {
-            eb::Vec4 c = (i==b.menu_selection) ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{0.8f,0.8f,0.8f,1};
-            std::string pfx = (i==b.menu_selection) ? "> " : "  ";
-            text.draw_text(batch, game.font_desc, pfx+opts[i],
-                           {mx+10, my+10+i*32.0f}, c, 1.0f);
+        batch.draw_quad({mx,my},{170,122},{0,0},{1,1},{0.08f,0.05f,0.15f,0.95f});
+        batch.draw_quad({mx,my},{170,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        batch.draw_quad({mx,my+120},{170,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        batch.draw_quad({mx,my},{2,122},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        batch.draw_quad({mx+168,my},{2,122},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        // Fighter name header
+        text.draw_text(batch,game.font_desc,fighter,{mx+8,my+4},{0.4f,0.8f,1,1},0.7f);
+        const char* opts[]={"Attack","Defend","Run"};
+        for(int i=0;i<3;i++){
+            eb::Vec4 c=(i==b.menu_selection)?eb::Vec4{1,1,0.3f,1}:eb::Vec4{0.8f,0.8f,0.8f,1};
+            std::string pfx=(i==b.menu_selection)?"> ":"  ";
+            text.draw_text(batch,game.font_desc,pfx+opts[i],{mx+8,my+26+i*30.0f},c,0.9f);
         }
     }
 
-    // ── Message box (center) ──
+    // ── Message box ──
     if (!b.message.empty()) {
-        float mw = sw * 0.6f, mh = 40;
-        float mx2 = (sw-mw)*0.5f, my2 = sh*0.42f;
+        float mw = sw*0.55f, mh = 36;
+        float mx2 = (sw-mw)*0.5f, my2 = sh*0.40f;
         batch.set_texture(game.white_desc);
-        batch.draw_quad({mx2,my2},{mw,mh},{0,0},{1,1},{0.05f,0.05f,0.12f,0.9f});
+        batch.draw_quad({mx2,my2},{mw,mh},{0,0},{1,1},{0.05f,0.05f,0.12f,0.92f});
         batch.draw_quad({mx2,my2},{mw,2},{0,0},{1,1},{0.5f,0.5f,0.7f,1});
-        text.draw_text(batch, game.font_desc, b.message,
-                       {mx2+12, my2+10}, {1,1,1,1}, 0.9f);
+        text.draw_text(batch,game.font_desc,b.message,{mx2+10,my2+8},{1,1,1,1},0.8f);
     }
 }
 
@@ -792,7 +1290,7 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         if (npc.sprite_atlas_id >= 0 && npc.sprite_atlas_id < (int)game.npc_atlases.size()) {
             auto& atlas = *game.npc_atlases[npc.sprite_atlas_id];
             auto desc = game.npc_descs[npc.sprite_atlas_id];
-            auto sr = get_character_sprite(atlas, npc.dir, false, 0);
+            auto sr = get_character_sprite(atlas, npc.dir, npc.moving, npc.frame);
             float rw=48, rh=64;
             eb::Vec2 dp = {npc.position.x-rw*0.5f, npc.position.y-rh+4};
             batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, npc.position.y, desc);

@@ -100,6 +100,20 @@ if(NOT EB_ANDROID)
     target_sources(tw_engine PRIVATE
         src/engine/platform/platform_desktop.cpp
         src/editor/tile_editor.cpp
+        src/editor/imgui_integration.cpp
+        src/third_party/tinyfiledialogs.c
+        # Dear ImGui (editor UI)
+        src/third_party/imgui/imgui.cpp
+        src/third_party/imgui/imgui_draw.cpp
+        src/third_party/imgui/imgui_tables.cpp
+        src/third_party/imgui/imgui_widgets.cpp
+        src/third_party/imgui/imgui_demo.cpp
+        src/third_party/imgui/backends/imgui_impl_glfw.cpp
+        src/third_party/imgui/backends/imgui_impl_vulkan.cpp
+    )
+    target_include_directories(tw_engine PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/imgui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/imgui/backends
     )
 endif()
 

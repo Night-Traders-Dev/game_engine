@@ -88,3 +88,7 @@ EXPORTS
     vkEnumerateInstanceLayerProperties
     vkGetInstanceProcAddr
     vkGetDeviceProcAddr
+    vkFreeDescriptorSets
+    vkFlushMappedMemoryRanges
+    vkResetCommandPool
+    vkInvalidateMappedMemoryRanges

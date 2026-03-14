@@ -47,6 +47,7 @@ public:
 
     VkPipelineLayout pipeline_layout() const { return pipeline_layout_; }
     VkCommandBuffer current_command_buffer() const { return command_buffers_[current_frame_]; }
+    VkRenderPass render_pass() const { return render_pass_; }
 
 private:
     void create_render_pass();

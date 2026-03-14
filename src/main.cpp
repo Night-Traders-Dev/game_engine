@@ -3,6 +3,8 @@
 
 #ifndef EB_ANDROID
 #include "editor/tile_editor.h"
+#include "editor/imgui_integration.h"
+#include "engine/platform/platform_desktop.h"
 #include <GLFW/glfw3.h>
 #endif
 
@@ -41,6 +43,16 @@ int main(int /*argc*/, char* /*argv*/[]) {
         eb::TileEditor editor;
         editor.set_map(&game.tile_map);
         editor.set_tileset(game.tileset_atlas.get(), game.tileset_desc);
+        editor.set_text_renderer(&text_renderer, game.font_desc);
+        editor.set_object_stamps(&game.object_stamps);
+        editor.set_game_state(&game);
+
+        // ImGui for editor UI
+        eb::ImGuiIntegration imgui;
+        auto* desktop_platform = dynamic_cast<eb::PlatformDesktop*>(&engine.platform());
+        if (desktop_platform) {
+            imgui.init(desktop_platform->glfw_window(), engine.renderer());
+        }
 #endif
 
 #ifdef _WIN32
@@ -55,7 +67,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
 #ifndef EB_ANDROID
             // Tab toggles editor
-            if (input.key_pressed(GLFW_KEY_TAB)) {
+            if (input.key_pressed(GLFW_KEY_TAB) && !imgui.wants_keyboard()) {
                 editor.toggle();
                 if (editor.is_active()) {
                     game.camera.clear_bounds();
@@ -75,7 +87,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
             if (editor.is_active()) {
                 float sw = (float)engine.platform().get_width();
                 float sh = (float)engine.platform().get_height();
-                editor.update(input, game.camera, dt, (int)sw, (int)sh);
+
+                // Only pass input to editor if ImGui doesn't want it
+                if (!imgui.wants_mouse() && !imgui.wants_keyboard()) {
+                    editor.update(input, game.camera, dt, (int)sw, (int)sh);
+                } else {
+                    // Still need camera viewport for zoom
+                    game.camera.set_viewport(sw / editor.zoom(), sh / editor.zoom());
+                }
                 game.camera.update(dt);
                 return;
             }
@@ -105,18 +124,27 @@ int main(int /*argc*/, char* /*argv*/[]) {
             // World rendering
             render_game_world(game, batch, text_renderer);
 
-            // UI overlay
-            render_game_ui(game, batch, text_renderer,
-                           engine.renderer().screen_projection(), sw, sh);
-
 #ifndef EB_ANDROID
-            // Editor overlay
             if (editor.is_active()) {
-                batch.set_projection(game.camera.projection_matrix());
+                // Editor overlays (grid, collision, cursor)
                 batch.set_texture(engine.renderer().default_texture_descriptor());
                 editor.render(batch, game.camera, game.tileset_desc, (int)sw, (int)sh);
-            }
+
+                // Flush sprite batch before ImGui renders
+                batch.flush();
+
+                // ImGui editor UI
+                if (imgui.is_initialized()) {
+                    imgui.new_frame();
+                    editor.render_imgui(game);
+                    imgui.render(engine.renderer().current_command_buffer());
+                }
+            } else
 #endif
+            {
+                render_game_ui(game, batch, text_renderer,
+                               engine.renderer().screen_projection(), sw, sh);
+            }
         };
 
         std::printf("[Main] Starting Twilight RPG Demo\n");

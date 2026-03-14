@@ -80,42 +80,43 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
                           float screen_width, float screen_height) {
     if (!active_) return;
 
+    float box_h = screen_height * BOX_HEIGHT_FRAC;
     float box_x = BOX_MARGIN;
-    float box_y = screen_height - BOX_HEIGHT - BOX_MARGIN;
+    float box_y = screen_height - box_h - BOX_MARGIN;
     float box_w = screen_width - BOX_MARGIN * 2.0f;
 
     // Draw Dialog.png background (or fallback solid color)
     if (bg_desc_ != VK_NULL_HANDLE) {
         batch.set_texture(bg_desc_);
-        batch.draw_quad({box_x, box_y}, {box_w, BOX_HEIGHT},
+        batch.draw_quad({box_x, box_y}, {box_w, box_h},
                         {0.0f, 0.0f}, {1.0f, 1.0f},
                         {1.0f, 1.0f, 1.0f, 0.95f});
     } else {
         batch.set_texture(white_desc);
-        batch.draw_quad({box_x, box_y}, {box_w, BOX_HEIGHT},
+        batch.draw_quad({box_x, box_y}, {box_w, box_h},
                         {0.0f, 0.0f}, {1.0f, 1.0f},
                         {0.05f, 0.05f, 0.15f, 0.9f});
         float border = 2.0f;
         batch.draw_quad({box_x, box_y}, {box_w, border}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
-        batch.draw_quad({box_x, box_y+BOX_HEIGHT-border}, {box_w, border}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
-        batch.draw_quad({box_x, box_y}, {border, BOX_HEIGHT}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
-        batch.draw_quad({box_x+box_w-border, box_y}, {border, BOX_HEIGHT}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+        batch.draw_quad({box_x, box_y+box_h-border}, {box_w, border}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+        batch.draw_quad({box_x, box_y}, {border, box_h}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
+        batch.draw_quad({box_x+box_w-border, box_y}, {border, box_h}, {0,0},{1,1}, {0.6f,0.6f,0.8f,1});
     }
 
     // Dialog.png layout (measured from 1536x1024 source):
-    //   Chalkboard text area: ~(55,250) to (900,770)  = u 0.036-0.586, v 0.244-0.752
-    //   Portrait frame inner: ~(1016,319) to (1351,679) = u 0.661-0.880, v 0.312-0.663
+    //   Chalkboard text area: u 0.036-0.586, v 0.244-0.752
+    //   Portrait frame inner: u 0.661-0.880, v 0.312-0.663
 
     // Text area in screen coords
     float text_x = box_x + box_w * 0.045f;
-    float text_y = box_y + BOX_HEIGHT * 0.28f;
-    float text_area_w = box_w * 0.53f;
+    float text_y = box_y + box_h * 0.25f;
+    float text_area_w = box_w * 0.55f;
 
     // Portrait area in screen coords (matching the frame in Dialog.png)
-    float port_x = box_x + box_w * 0.661f;
-    float port_y = box_y + BOX_HEIGHT * 0.312f;
-    float port_w = box_w * 0.218f;
-    float port_h = BOX_HEIGHT * 0.351f;
+    float port_x = box_x + box_w * 0.665f;
+    float port_y = box_y + box_h * 0.20f;
+    float port_w = box_w * 0.20f;
+    float port_h = box_h * 0.55f;
 
     // Find current speaker's portrait
     std::string current_speaker;
@@ -171,7 +172,7 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
         // Blinking advance indicator
         if (line_complete_) {
             float ind_x = text_x + text_area_w - 12.0f;
-            float ind_y = box_y + BOX_HEIGHT * 0.75f;
+            float ind_y = box_y + box_h * 0.75f;
             batch.set_texture(white_desc);
             float blink = std::fmod(char_timer_ + visible_chars_ * 0.03f, 0.8f) < 0.5f ? 1.0f : 0.0f;
             batch.draw_quad({ind_x, ind_y}, {8.0f, 8.0f},

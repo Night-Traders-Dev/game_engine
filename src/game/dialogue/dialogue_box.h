@@ -59,12 +59,10 @@ private:
     std::vector<DialogueChoice> choices_;
     int selected_choice_ = 0;
 
-    static constexpr float BOX_MARGIN = 16.0f;
-    static constexpr float BOX_HEIGHT = 180.0f;
-    static constexpr float BOX_PADDING = 20.0f;
+    static constexpr float BOX_MARGIN = 12.0f;
+    static constexpr float BOX_HEIGHT_FRAC = 0.28f; // Fraction of screen height
+    static constexpr float BOX_PADDING = 16.0f;
     static constexpr float TEXT_SCALE = 1.0f;
-    static constexpr float PORTRAIT_W = 100.0f;
-    static constexpr float PORTRAIT_H = 140.0f;
 
     // Textures
     VkDescriptorSet bg_desc_ = VK_NULL_HANDLE;

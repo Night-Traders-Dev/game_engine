@@ -60,6 +60,8 @@ case "${1}" in
             cp -ru "${PROJECT_DIR}/assets/textures/"* "${ASSETS_DIR}/assets/textures/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/maps/"* "${ASSETS_DIR}/assets/maps/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/fonts/"* "${ASSETS_DIR}/assets/fonts/" 2>/dev/null || true
+            mkdir -p "${ASSETS_DIR}/assets/dialogue"
+            cp -ru "${PROJECT_DIR}/assets/dialogue/"* "${ASSETS_DIR}/assets/dialogue/" 2>/dev/null || true
         fi
 
         echo "Building Android APK (Debug)..."
