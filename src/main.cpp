@@ -201,9 +201,25 @@ int main(int /*argc*/, char* /*argv*/[]) {
         game.tileset_atlas = std::make_unique<eb::TextureAtlas>(tileset_tex);
         define_tileset_regions(*game.tileset_atlas);
 
-        // Load Dean sprite sheet
+        // Load Dean sprite sheet (632x1260, cells 158x210)
         auto* dean_tex = engine.resources().load_texture("assets/textures/dean_sprites.png");
         game.dean_atlas = std::make_unique<eb::TextureAtlas>(dean_tex, 158, 210);
+        // Define named regions for each direction/animation
+        // Idle poses
+        game.dean_atlas->define_region("idle_down",  0*158, 0*210, 158, 210);
+        game.dean_atlas->define_region("idle_up",    3*158, 2*210, 158, 210);
+        game.dean_atlas->define_region("idle_right", 0*158, 3*210, 158, 210);
+        // idle_left = idle_right flipped (handled in render code)
+        // Walk frames — down (standing + step for proper 2-frame cycle)
+        game.dean_atlas->define_region("walk_down_0", 0*158, 0*210, 158, 210);
+        game.dean_atlas->define_region("walk_down_1", 2*158, 0*210, 158, 210);
+        // Walk frames — up
+        game.dean_atlas->define_region("walk_up_0", 0*158, 1*210, 158, 210);
+        game.dean_atlas->define_region("walk_up_1", 2*158, 1*210, 158, 210);
+        // Walk frames — right
+        game.dean_atlas->define_region("walk_right_0", 3*158, 0*210, 158, 210);
+        game.dean_atlas->define_region("walk_right_1", 0*158, 2*210, 158, 210);
+        // walk_left = walk_right flipped (handled in render code)
 
         // Create map
         const int MAP_W = 30, MAP_H = 20, TILE_SZ = 32;
@@ -285,19 +301,26 @@ int main(int /*argc*/, char* /*argv*/[]) {
                     float speed = game.player_speed;
                     if (input.is_held(eb::InputAction::Run)) speed *= 1.8f;
 
-                    eb::Vec2 new_pos = game.player_pos;
-                    new_pos.x += move.x * speed * dt;
-                    new_pos.y += move.y * speed * dt;
-
                     float pw = 20.0f, ph = 12.0f;
                     float ox = -pw * 0.5f, oy = -ph;
-                    bool blocked = false;
-                    blocked = blocked || game.tile_map.is_solid_world(new_pos.x + ox, new_pos.y + oy);
-                    blocked = blocked || game.tile_map.is_solid_world(new_pos.x + ox + pw, new_pos.y + oy);
-                    blocked = blocked || game.tile_map.is_solid_world(new_pos.x + ox, new_pos.y);
-                    blocked = blocked || game.tile_map.is_solid_world(new_pos.x + ox + pw, new_pos.y);
 
-                    if (!blocked) game.player_pos = new_pos;
+                    // Test X axis independently
+                    float new_x = game.player_pos.x + move.x * speed * dt;
+                    bool blocked_x = false;
+                    blocked_x = blocked_x || game.tile_map.is_solid_world(new_x + ox, game.player_pos.y + oy);
+                    blocked_x = blocked_x || game.tile_map.is_solid_world(new_x + ox + pw, game.player_pos.y + oy);
+                    blocked_x = blocked_x || game.tile_map.is_solid_world(new_x + ox, game.player_pos.y);
+                    blocked_x = blocked_x || game.tile_map.is_solid_world(new_x + ox + pw, game.player_pos.y);
+                    if (!blocked_x) game.player_pos.x = new_x;
+
+                    // Test Y axis independently
+                    float new_y = game.player_pos.y + move.y * speed * dt;
+                    bool blocked_y = false;
+                    blocked_y = blocked_y || game.tile_map.is_solid_world(game.player_pos.x + ox, new_y + oy);
+                    blocked_y = blocked_y || game.tile_map.is_solid_world(game.player_pos.x + ox + pw, new_y + oy);
+                    blocked_y = blocked_y || game.tile_map.is_solid_world(game.player_pos.x + ox, new_y);
+                    blocked_y = blocked_y || game.tile_map.is_solid_world(game.player_pos.x + ox + pw, new_y);
+                    if (!blocked_y) game.player_pos.y = new_y;
 
                     if (std::abs(move.x) > std::abs(move.y))
                         game.player_dir = (move.x < 0) ? 2 : 3;
@@ -343,18 +366,25 @@ int main(int /*argc*/, char* /*argv*/[]) {
             }
 
             if (!game.editor.is_active()) {
-                int col = 0, row = 0;
+                // Left uses right sprites with flipped UVs
+                bool flip_h = (game.player_dir == 2); // 2 = left
+                const char* lookup_dir = flip_h ? "right" :
+                    (game.player_dir == 0 ? "down" :
+                     game.player_dir == 1 ? "up" : "right");
+
+                const eb::AtlasRegion* sr_ptr = nullptr;
                 if (game.player_moving) {
-                    switch (game.player_dir) {
-                        case 0: row = 0; col = game.player_frame;     break;
-                        case 1: row = 0; col = 2 + game.player_frame; break;
-                        case 2: row = 1; col = game.player_frame;     break;
-                        case 3: row = 1; col = 2 + game.player_frame; break;
-                    }
+                    char name[32];
+                    std::snprintf(name, sizeof(name), "walk_%s_%d",
+                                  lookup_dir, game.player_frame);
+                    sr_ptr = game.dean_atlas->find_region(name);
                 } else {
-                    row = 2; col = game.player_dir;
+                    char name[32];
+                    std::snprintf(name, sizeof(name), "idle_%s", lookup_dir);
+                    sr_ptr = game.dean_atlas->find_region(name);
                 }
-                auto sr = game.dean_atlas->region(col, row);
+                auto sr = sr_ptr ? *sr_ptr : game.dean_atlas->region(0, 0);
+                if (flip_h) std::swap(sr.uv_min.x, sr.uv_max.x);
                 float rw = 48.0f, rh = 64.0f;
                 eb::Vec2 dp = {game.player_pos.x - rw * 0.5f,
                                game.player_pos.y - rh + 4.0f};
