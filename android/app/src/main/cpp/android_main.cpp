@@ -22,7 +22,7 @@ struct AppState {
     std::unique_ptr<eb::ResourceManager> resources;
     std::unique_ptr<eb::TextRenderer> text_renderer;
     eb::Timer timer;
-    float virtual_w = 960.0f, virtual_h = 720.0f;
+    float virtual_w = 1040.0f, virtual_h = 480.0f;
     GameState game;
     bool has_focus = false;
     bool has_window = false;
@@ -50,14 +50,14 @@ static bool init_all(AppState& state) {
         float native_h = static_cast<float>(state.platform->get_height());
         float aspect = native_w / native_h;
         float virtual_w, virtual_h;
+        // Use 480 virtual height — makes the game world larger on screen
+        // and gives the dialogue box proper proportions
         if (native_w >= native_h) {
-            // Landscape
-            virtual_h = 720.0f;
-            virtual_w = 720.0f * aspect;
+            virtual_h = 480.0f;
+            virtual_w = 480.0f * aspect;
         } else {
-            // Portrait (shouldn't happen with landscape lock, but just in case)
-            virtual_w = 720.0f;
-            virtual_h = 720.0f / aspect;
+            virtual_w = 480.0f;
+            virtual_h = 480.0f / aspect;
         }
 
         state.virtual_w = virtual_w;
@@ -151,8 +151,8 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
                 if (state->game.initialized) {
                     float nw = static_cast<float>(state->platform->get_width());
                     float nh = static_cast<float>(state->platform->get_height());
-                    state->virtual_h = 720.0f;
-                    state->virtual_w = 720.0f * (nw / nh);
+                    state->virtual_h = 480.0f;
+                    state->virtual_w = 480.0f * (nw / nh);
                     state->game.camera.set_viewport(state->virtual_w, state->virtual_h);
                 }
             }

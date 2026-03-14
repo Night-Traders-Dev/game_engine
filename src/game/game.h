@@ -72,6 +72,7 @@ struct BattleState {
     BattlePhase phase = BattlePhase::None;
     std::string enemy_name;
     int enemy_hp_actual = 0, enemy_hp_max = 0, enemy_atk = 0;
+    int enemy_sprite_id = -1; // NPC sprite atlas index (-1 = no sprite)
     int player_hp_actual = 0, player_hp_max = 0;
     float player_hp_display = 0.0f;
     int player_atk = 0, player_def = 0;
@@ -172,7 +173,7 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
 void update_game(GameState& game, const eb::InputState& input, float dt);
 
 // Battle logic
-void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bool random);
+void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bool random, int sprite_id = -1);
 void update_battle(GameState& game, float dt, bool confirm, bool up, bool down);
 
 // Rendering

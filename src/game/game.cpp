@@ -304,11 +304,12 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
 
 // ─── Battle logic ───
 
-void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bool random) {
+void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bool random, int sprite_id) {
     auto& b = game.battle;
     b.phase = BattlePhase::Intro;
     b.enemy_name = enemy;
     b.enemy_hp_actual = hp; b.enemy_hp_max = hp; b.enemy_atk = atk;
+    b.enemy_sprite_id = sprite_id;
     b.player_hp_actual = game.player_hp;
     b.player_hp_max = game.player_hp_max;
     b.player_hp_display = static_cast<float>(game.player_hp);
@@ -432,7 +433,8 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         if (result >= 0 && game.pending_battle_npc >= 0) {
             auto& npc = game.npcs[game.pending_battle_npc];
             start_battle(game, npc.battle_enemy_name,
-                         npc.battle_enemy_hp, npc.battle_enemy_atk, false);
+                         npc.battle_enemy_hp, npc.battle_enemy_atk, false,
+                         npc.sprite_atlas_id);
             game.pending_battle_npc = -1;
         }
         return;
@@ -633,59 +635,109 @@ static void render_leaf_overlay(const GameState& game, eb::SpriteBatch& batch, f
 
 void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text, float sw, float sh) {
     auto& b = game.battle;
+    float sprite_w = 72.0f, sprite_h = 96.0f; // Battle sprite size
+
+    // Background
     batch.set_texture(game.white_desc);
     batch.draw_quad({0,0},{sw,sh},{0,0},{1,1},{0.02f,0.02f,0.08f,1.0f});
 
-    float ebx = sw*0.5f-140.0f, eby = 40.0f;
-    batch.draw_quad({ebx,eby},{280,140},{0,0},{1,1},{0.1f,0.08f,0.15f,1.0f});
-    text.draw_text(batch, game.font_desc, b.enemy_name, {ebx+10,eby+10}, {1,0.4f,0.4f,1}, 1.2f);
+    // ── Enemy sprite (top center, facing down/toward player) ──
+    float enemy_cx = sw * 0.5f;
+    float enemy_y = 30.0f;
 
-    float hp_pct = std::max(0.0f,(float)b.enemy_hp_actual/b.enemy_hp_max);
-    batch.set_texture(game.white_desc);
-    batch.draw_quad({ebx+10,eby+45},{260,16},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
-    eb::Vec4 hpc = hp_pct>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:hp_pct>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
-    batch.draw_quad({ebx+10,eby+45},{260*hp_pct,16},{0,0},{1,1},hpc);
-    text.draw_text(batch, game.font_desc, std::to_string(std::max(0,b.enemy_hp_actual))+"/"+std::to_string(b.enemy_hp_max),
-                   {ebx+278,eby+43},{1,1,1,1},0.8f);
+    if (b.enemy_sprite_id >= 0 && b.enemy_sprite_id < (int)game.npc_atlases.size()) {
+        auto& atlas = *game.npc_atlases[b.enemy_sprite_id];
+        auto desc = game.npc_descs[b.enemy_sprite_id];
+        auto sr = get_character_sprite(atlas, 0, false, 0); // dir=0 = facing down (toward us)
+        float ew = sprite_w * 1.5f, eh = sprite_h * 1.5f; // Enemy drawn larger
+        batch.set_texture(desc);
+        batch.draw_quad({enemy_cx - ew * 0.5f, enemy_y}, {ew, eh},
+                        sr.uv_min, sr.uv_max);
+    }
 
-    float pbx = sw-300, pby = sh-200;
+    // Enemy name + HP (below enemy sprite)
+    float ebx = sw * 0.5f - 140.0f, eby = enemy_y + sprite_h * 1.5f + 10.0f;
     batch.set_texture(game.white_desc);
-    batch.draw_quad({pbx,pby},{280,80},{0,0},{1,1},{0.08f,0.08f,0.18f,0.9f});
-    batch.draw_quad({pbx,pby},{280,2},{0,0},{1,1},{0.5f,0.5f,0.8f,1});
-    batch.draw_quad({pbx,pby+78},{280,2},{0,0},{1,1},{0.5f,0.5f,0.8f,1});
+    batch.draw_quad({ebx, eby}, {280, 50}, {0,0},{1,1}, {0.1f, 0.08f, 0.15f, 0.8f});
+    text.draw_text(batch, game.font_desc, b.enemy_name, {ebx+10, eby+4}, {1,0.4f,0.4f,1}, 1.0f);
+
+    float hp_pct = std::max(0.0f, (float)b.enemy_hp_actual / b.enemy_hp_max);
+    batch.set_texture(game.white_desc);
+    batch.draw_quad({ebx+10, eby+28}, {200, 14}, {0,0},{1,1}, {0.2f,0.2f,0.2f,1});
+    eb::Vec4 hpc = hp_pct>0.5f ? eb::Vec4{0.2f,0.8f,0.2f,1}
+                 : hp_pct>0.25f ? eb::Vec4{0.9f,0.7f,0.1f,1}
+                 : eb::Vec4{0.9f,0.2f,0.2f,1};
+    batch.draw_quad({ebx+10, eby+28}, {200*hp_pct, 14}, {0,0},{1,1}, hpc);
+    text.draw_text(batch, game.font_desc,
+                   std::to_string(std::max(0,b.enemy_hp_actual))+"/"+std::to_string(b.enemy_hp_max),
+                   {ebx+218, eby+26}, {1,1,1,1}, 0.7f);
+
+    // ── Dean + Sam sprites (bottom center, backs facing us = dir 1 = up) ──
+    float party_y = sh * 0.45f;
+    float party_cx = sw * 0.5f;
+
+    // Dean (left)
+    {
+        auto sr = get_character_sprite(*game.dean_atlas, 1, false, 0); // dir=1 = facing up (back to us)
+        batch.set_texture(game.dean_desc);
+        batch.draw_quad({party_cx - sprite_w - 8.0f, party_y}, {sprite_w, sprite_h},
+                        sr.uv_min, sr.uv_max);
+    }
+    // Sam (right)
+    {
+        auto sr = get_character_sprite(*game.sam_atlas, 1, false, 0);
+        batch.set_texture(game.sam_desc);
+        batch.draw_quad({party_cx + 8.0f, party_y}, {sprite_w, sprite_h},
+                        sr.uv_min, sr.uv_max);
+    }
+
+    // ── Player stats (bottom right) ──
+    float pbx = sw - 280, pby = sh - 80;
+    batch.set_texture(game.white_desc);
+    batch.draw_quad({pbx, pby}, {260, 70}, {0,0},{1,1}, {0.08f,0.08f,0.18f,0.9f});
+    batch.draw_quad({pbx, pby}, {260, 2}, {0,0},{1,1}, {0.5f,0.5f,0.8f,1});
+    batch.draw_quad({pbx, pby+68}, {260, 2}, {0,0},{1,1}, {0.5f,0.5f,0.8f,1});
     text.draw_text(batch, game.font_desc, "Dean  Lv."+std::to_string(game.player_level),
-                   {pbx+10,pby+8},{1,1,1,1},1.0f);
+                   {pbx+10, pby+6}, {1,1,1,1}, 0.8f);
 
     float dhp = b.player_hp_display;
-    float ppct = std::max(0.0f, dhp/b.player_hp_max);
+    float ppct = std::max(0.0f, dhp / b.player_hp_max);
     batch.set_texture(game.white_desc);
-    batch.draw_quad({pbx+10,pby+38},{200,14},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
-    eb::Vec4 ppc = ppct>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:ppct>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
-    batch.draw_quad({pbx+10,pby+38},{200*ppct,14},{0,0},{1,1},ppc);
-    char hps[32]; std::snprintf(hps,sizeof(hps),"HP %d/%d",(int)std::ceil(dhp),b.player_hp_max);
-    text.draw_text(batch, game.font_desc, hps, {pbx+218,pby+36},{1,1,1,1},0.8f);
+    batch.draw_quad({pbx+10, pby+32}, {180, 12}, {0,0},{1,1}, {0.2f,0.2f,0.2f,1});
+    eb::Vec4 ppc = ppct>0.5f ? eb::Vec4{0.2f,0.8f,0.2f,1}
+                 : ppct>0.25f ? eb::Vec4{0.9f,0.7f,0.1f,1}
+                 : eb::Vec4{0.9f,0.2f,0.2f,1};
+    batch.draw_quad({pbx+10, pby+32}, {180*ppct, 12}, {0,0},{1,1}, ppc);
+    char hps[32]; std::snprintf(hps, sizeof(hps), "HP %d/%d", (int)std::ceil(dhp), b.player_hp_max);
+    text.draw_text(batch, game.font_desc, hps, {pbx+198, pby+30}, {1,1,1,1}, 0.6f);
 
+    // ── Battle menu (player turn, bottom left) ──
     if (b.phase == BattlePhase::PlayerTurn) {
-        float mx=30,my=sh-200;
+        float mx = 20, my = sh - 120;
         batch.set_texture(game.white_desc);
-        batch.draw_quad({mx,my},{200,110},{0,0},{1,1},{0.08f,0.05f,0.15f,0.95f});
-        batch.draw_quad({mx,my},{200,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx,my+108},{200,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        batch.draw_quad({mx,my},{180,110},{0,0},{1,1},{0.08f,0.05f,0.15f,0.95f});
+        batch.draw_quad({mx,my},{180,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        batch.draw_quad({mx,my+108},{180,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
         batch.draw_quad({mx,my},{2,110},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx+198,my},{2,110},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        const char* opts[]={"Attack","Defend","Run"};
-        for(int i=0;i<3;i++){
-            eb::Vec4 c=(i==b.menu_selection)?eb::Vec4{1,1,0.3f,1}:eb::Vec4{0.8f,0.8f,0.8f,1};
-            std::string pfx=(i==b.menu_selection)?"> ":"  ";
-            text.draw_text(batch,game.font_desc,pfx+opts[i],{mx+12,my+12+i*32.0f},c,1.1f);
+        batch.draw_quad({mx+178,my},{2,110},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+        const char* opts[] = {"Attack", "Defend", "Run"};
+        for (int i = 0; i < 3; i++) {
+            eb::Vec4 c = (i==b.menu_selection) ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{0.8f,0.8f,0.8f,1};
+            std::string pfx = (i==b.menu_selection) ? "> " : "  ";
+            text.draw_text(batch, game.font_desc, pfx+opts[i],
+                           {mx+10, my+10+i*32.0f}, c, 1.0f);
         }
     }
+
+    // ── Message box (center) ──
     if (!b.message.empty()) {
-        float mw=500,mh=50,mx2=(sw-mw)*0.5f,my2=sh*0.5f+20;
+        float mw = sw * 0.6f, mh = 40;
+        float mx2 = (sw-mw)*0.5f, my2 = sh*0.42f;
         batch.set_texture(game.white_desc);
         batch.draw_quad({mx2,my2},{mw,mh},{0,0},{1,1},{0.05f,0.05f,0.12f,0.9f});
         batch.draw_quad({mx2,my2},{mw,2},{0,0},{1,1},{0.5f,0.5f,0.7f,1});
-        text.draw_text(batch,game.font_desc,b.message,{mx2+16,my2+12},{1,1,1,1},1.0f);
+        text.draw_text(batch, game.font_desc, b.message,
+                       {mx2+12, my2+10}, {1,1,1,1}, 0.9f);
     }
 }
 

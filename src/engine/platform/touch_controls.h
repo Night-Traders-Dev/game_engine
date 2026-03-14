@@ -30,10 +30,10 @@ class TouchControls {
 public:
     static constexpr int MAX_FINGERS = 5;
     // Base sizes for 720p height — scaled dynamically in begin_frame()
-    static constexpr float BASE_DPAD_RADIUS = 80.0f;
-    static constexpr float BASE_DPAD_DEAD_ZONE = 15.0f;
-    static constexpr float BASE_BUTTON_RADIUS = 40.0f;
-    static constexpr float BASE_MARGIN = 30.0f;
+    static constexpr float BASE_DPAD_RADIUS = 120.0f;
+    static constexpr float BASE_DPAD_DEAD_ZONE = 20.0f;
+    static constexpr float BASE_BUTTON_RADIUS = 60.0f;
+    static constexpr float BASE_MARGIN = 25.0f;
 
     TouchControls() = default;
 
