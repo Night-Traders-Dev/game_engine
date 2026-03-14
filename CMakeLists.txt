@@ -12,7 +12,37 @@ option(EB_ANDROID "Build for Android" OFF)
 option(EB_BUILD_TESTS "Build tests" ON)
 
 # ── Vulkan ──
-find_package(Vulkan REQUIRED)
+if(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Cross-compiling for Windows: fetch Vulkan headers and link vulkan-1 at runtime
+    message(STATUS "Cross-compiling for Windows: fetching Vulkan-Headers")
+    FetchContent_Declare(
+        vulkan_headers
+        GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+        GIT_TAG v1.3.290
+    )
+    FetchContent_MakeAvailable(vulkan_headers)
+
+    # Generate import library from .def file
+    set(VULKAN_DEF "${CMAKE_CURRENT_SOURCE_DIR}/cmake/vulkan-1.def")
+    set(VULKAN_IMPLIB "${CMAKE_CURRENT_BINARY_DIR}/libvulkan-1.a")
+    add_custom_command(
+        OUTPUT ${VULKAN_IMPLIB}
+        COMMAND x86_64-w64-mingw32-dlltool -d ${VULKAN_DEF} -l ${VULKAN_IMPLIB}
+        DEPENDS ${VULKAN_DEF}
+        COMMENT "Generating Vulkan import library for Windows cross-compile"
+    )
+    add_custom_target(vulkan_implib DEPENDS ${VULKAN_IMPLIB})
+
+    add_library(vulkan_crosscompile INTERFACE)
+    add_dependencies(vulkan_crosscompile vulkan_implib)
+    target_include_directories(vulkan_crosscompile INTERFACE
+        ${vulkan_headers_SOURCE_DIR}/include
+    )
+    target_link_libraries(vulkan_crosscompile INTERFACE ${VULKAN_IMPLIB})
+    add_library(Vulkan::Vulkan ALIAS vulkan_crosscompile)
+else()
+    find_package(Vulkan REQUIRED)
+endif()
 
 # ── GLFW (desktop only) ──
 if(NOT EB_ANDROID)
@@ -53,7 +83,11 @@ add_library(tw_engine STATIC
     src/engine/graphics/renderer.cpp
     src/engine/graphics/sprite_batch.cpp
     src/engine/graphics/texture.cpp
+    src/engine/graphics/texture_atlas.cpp
     src/engine/graphics/pipeline.cpp
+    src/engine/resource/resource_manager.cpp
+    src/game/overworld/camera.cpp
+    src/game/overworld/tile_map.cpp
     src/third_party/stb_image_impl.cpp
 )
 
@@ -87,5 +121,13 @@ if(NOT EB_ANDROID)
         SHADERS
             ${CMAKE_CURRENT_SOURCE_DIR}/shaders/sprite.vert
             ${CMAKE_CURRENT_SOURCE_DIR}/shaders/sprite.frag
+    )
+
+    # Symlink assets directory into build dir so the binary can find them
+    add_custom_command(TARGET twilight_game_binary POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            ${CMAKE_CURRENT_BINARY_DIR}/assets
+        COMMENT "Symlinking assets into build directory"
     )
 endif()

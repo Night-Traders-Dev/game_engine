@@ -26,6 +26,9 @@ PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height
     glfwSetWindowUserPointer(window_, this);
     glfwSetKeyCallback(window_, key_callback);
     glfwSetFramebufferSizeCallback(window_, framebuffer_size_callback);
+    glfwSetMouseButtonCallback(window_, mouse_button_callback);
+    glfwSetCursorPosCallback(window_, cursor_pos_callback);
+    glfwSetScrollCallback(window_, scroll_callback);
 
     std::printf("[Platform] Desktop window created (%dx%d)\n", width, height);
 }
@@ -66,10 +69,10 @@ bool PlatformDesktop::was_resized() {
     return r;
 }
 
-void PlatformDesktop::key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
+void PlatformDesktop::key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int mods) {
     auto* platform = static_cast<PlatformDesktop*>(glfwGetWindowUserPointer(window));
     if (platform) {
-        platform->update_key(key, action);
+        platform->update_key(key, action, mods);
     }
 }
 
@@ -82,7 +85,52 @@ void PlatformDesktop::framebuffer_size_callback(GLFWwindow* window, int width, i
     }
 }
 
-void PlatformDesktop::update_key(int key, int action) {
+void PlatformDesktop::mouse_button_callback(GLFWwindow* window, int button, int action, int /*mods*/) {
+    auto* platform = static_cast<PlatformDesktop*>(glfwGetWindowUserPointer(window));
+    if (!platform || button < 0 || button >= MouseState::BUTTON_COUNT) return;
+
+    if (action == GLFW_PRESS) {
+        platform->input_.mouse.buttons[button] = true;
+        platform->input_.mouse.buttons_pressed[button] = true;
+    } else if (action == GLFW_RELEASE) {
+        platform->input_.mouse.buttons[button] = false;
+        platform->input_.mouse.buttons_released[button] = true;
+    }
+}
+
+void PlatformDesktop::cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
+    auto* platform = static_cast<PlatformDesktop*>(glfwGetWindowUserPointer(window));
+    if (platform) {
+        platform->input_.mouse.x = static_cast<float>(xpos);
+        platform->input_.mouse.y = static_cast<float>(ypos);
+    }
+}
+
+void PlatformDesktop::scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    auto* platform = static_cast<PlatformDesktop*>(glfwGetWindowUserPointer(window));
+    if (platform) {
+        platform->input_.mouse.scroll_x += static_cast<float>(xoffset);
+        platform->input_.mouse.scroll_y += static_cast<float>(yoffset);
+    }
+}
+
+void PlatformDesktop::update_key(int key, int action, int mods) {
+    // Update modifier state
+    input_.mods.ctrl = (mods & GLFW_MOD_CONTROL) != 0;
+    input_.mods.shift = (mods & GLFW_MOD_SHIFT) != 0;
+    input_.mods.alt = (mods & GLFW_MOD_ALT) != 0;
+
+    // Raw key tracking
+    if (key >= 0 && key < InputState::MAX_KEYS) {
+        if (action == GLFW_PRESS) {
+            input_.keys[key] = true;
+            input_.keys_pressed[key] = true;
+        } else if (action == GLFW_RELEASE) {
+            input_.keys[key] = false;
+        }
+    }
+
+    // Game action mapping
     auto set_action = [&](InputAction ia) {
         int idx = static_cast<int>(ia);
         if (action == GLFW_PRESS) {
@@ -105,7 +153,6 @@ void PlatformDesktop::update_key(int key, int action) {
         case GLFW_KEY_LEFT_SHIFT:              set_action(InputAction::Run);       break;
         default: break;
     }
-
 }
 
 } // namespace eb

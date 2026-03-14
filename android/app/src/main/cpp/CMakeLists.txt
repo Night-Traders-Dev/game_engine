@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(earthbound_rpg_android LANGUAGES C CXX)
+project(twilight_game_binary_android LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,18 +43,18 @@ set(ENGINE_SOURCES
 )
 
 # ── Build as shared library (required for Android NativeActivity) ──
-add_library(earthbound_rpg SHARED
+add_library(twilight_game_binary SHARED
     android_main.cpp
     ${ENGINE_SOURCES}
 )
 
-target_include_directories(earthbound_rpg PRIVATE
+target_include_directories(twilight_game_binary PRIVATE
     ${ENGINE_ROOT}/src
     ${ENGINE_ROOT}/src/third_party
     ${ANDROID_NDK}/sources/android/native_app_glue
 )
 
-target_link_libraries(earthbound_rpg
+target_link_libraries(twilight_game_binary
     ${vulkan-lib}
     glm::glm
     native_app_glue
@@ -63,7 +63,7 @@ target_link_libraries(earthbound_rpg
     m
 )
 
-target_compile_definitions(earthbound_rpg PRIVATE
+target_compile_definitions(twilight_game_binary PRIVATE
     EB_ANDROID=1
     VK_USE_PLATFORM_ANDROID_KHR
 )

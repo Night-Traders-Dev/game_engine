@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <cstring>
+#include <algorithm>
 
 namespace eb {
 
@@ -85,7 +86,6 @@ void SpriteBatch::create_buffers() {
 
     VkDeviceSize index_size = sizeof(uint32_t) * MAX_INDICES;
 
-    // Create staging buffer
     VkDeviceMemory staging_memory;
     VkBuffer staging_buffer = ctx_.create_buffer(
         index_size,
@@ -99,7 +99,6 @@ void SpriteBatch::create_buffers() {
     std::memcpy(staging_data, indices.data(), index_size);
     vkUnmapMemory(ctx_.device(), staging_memory);
 
-    // Create device-local index buffer
     index_buffer_ = ctx_.create_buffer(
         index_size,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -113,9 +112,26 @@ void SpriteBatch::create_buffers() {
     vkFreeMemory(ctx_.device(), staging_memory, nullptr);
 }
 
-void SpriteBatch::begin() {
+void SpriteBatch::begin(VkCommandBuffer cmd, VkPipelineLayout layout) {
+    cmd_ = cmd;
+    layout_ = layout;
     quad_count_ = 0;
+    current_texture_ = VK_NULL_HANDLE;
     in_batch_ = true;
+}
+
+void SpriteBatch::set_projection(const Mat4& projection) {
+    if (projection != projection_) {
+        flush();
+        projection_ = projection;
+    }
+}
+
+void SpriteBatch::set_texture(VkDescriptorSet descriptor_set) {
+    if (descriptor_set != current_texture_) {
+        flush();
+        current_texture_ = descriptor_set;
+    }
 }
 
 void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec4 color) {
@@ -123,7 +139,9 @@ void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec4 color) {
 }
 
 void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max, Vec4 color) {
-    if (quad_count_ >= MAX_QUADS) return;
+    if (quad_count_ >= MAX_QUADS) {
+        flush();
+    }
 
     uint32_t base = quad_count_ * 4;
 
@@ -139,21 +157,54 @@ void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max, 
     quad_count_++;
 }
 
-void SpriteBatch::flush(VkCommandBuffer cmd, VkPipelineLayout layout, const Mat4& projection) {
-    if (quad_count_ == 0) return;
+void SpriteBatch::flush() {
+    if (quad_count_ == 0 || !cmd_) return;
 
     // Push projection matrix
-    vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mat4), &projection);
+    vkCmdPushConstants(cmd_, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mat4), &projection_);
+
+    // Bind texture descriptor set
+    if (current_texture_) {
+        vkCmdBindDescriptorSets(cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_,
+                                0, 1, &current_texture_, 0, nullptr);
+    }
 
     VkBuffer buffers[] = {vertex_buffer_};
     VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(cmd, 0, 1, buffers, offsets);
-    vkCmdBindIndexBuffer(cmd, index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd, quad_count_ * 6, 1, 0, 0, 0);
+    vkCmdBindVertexBuffers(cmd_, 0, 1, buffers, offsets);
+    vkCmdBindIndexBuffer(cmd_, index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd_, quad_count_ * 6, 1, 0, 0, 0);
+
+    quad_count_ = 0;
+}
+
+void SpriteBatch::draw_sorted(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max,
+                               float sort_y, VkDescriptorSet texture, Vec4 color) {
+    sorted_sprites_.push_back({position, size, uv_min, uv_max, color, sort_y, texture});
+}
+
+void SpriteBatch::flush_sorted() {
+    if (sorted_sprites_.empty()) return;
+
+    // Sort by Y (back-to-front: smaller Y draws first, larger Y draws on top)
+    std::sort(sorted_sprites_.begin(), sorted_sprites_.end(),
+              [](const SortedSprite& a, const SortedSprite& b) {
+                  return a.sort_y < b.sort_y;
+              });
+
+    for (const auto& s : sorted_sprites_) {
+        set_texture(s.texture);
+        draw_quad(s.position, s.size, s.uv_min, s.uv_max, s.color);
+    }
+
+    sorted_sprites_.clear();
 }
 
 void SpriteBatch::end() {
+    flush_sorted();
+    flush();
     in_batch_ = false;
+    cmd_ = VK_NULL_HANDLE;
 }
 
 } // namespace eb

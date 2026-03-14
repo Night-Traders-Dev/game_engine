@@ -11,7 +11,7 @@ case "${1}" in
         cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" \
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
         cmake --build "${BUILD_DIR}" -j"$(nproc)"
-        echo "Build complete: ${BUILD_DIR}/twilight_game_build"
+        echo "Build complete: ${BUILD_DIR}/twilight_game_binary"
         ;;
     win64)
         BUILD_DIR="${PROJECT_DIR}/build-win64"
@@ -20,7 +20,7 @@ case "${1}" in
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
             -DCMAKE_TOOLCHAIN_FILE="${PROJECT_DIR}/cmake/mingw-w64-toolchain.cmake"
         cmake --build "${BUILD_DIR}" -j"$(nproc)"
-        echo "Build complete: ${BUILD_DIR}/twilight_game_build.exe"
+        echo "Build complete: ${BUILD_DIR}/twilight_game_binary.exe"
         ;;
     android)
         export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"

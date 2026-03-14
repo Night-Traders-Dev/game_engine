@@ -7,7 +7,7 @@ import android.view.WindowManager;
 
 public class MainActivity extends NativeActivity {
     static {
-        System.loadLibrary("earthbound_rpg");
+        System.loadLibrary("twilight_game_binary");
     }
 
     @Override

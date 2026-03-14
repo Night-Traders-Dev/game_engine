@@ -14,9 +14,11 @@ Renderer::Renderer(Platform& platform, bool vsync) : platform_(platform) {
     create_framebuffers();
     create_sync_objects();
     create_command_buffers();
+    create_descriptor_set_layout();
+    create_descriptor_pool();
     create_pipeline_layout();
+    create_default_texture();
     sprite_batch_ = std::make_unique<SpriteBatch>(*ctx_);
-    // Pipeline creation is deferred until shaders are available
     std::printf("[Renderer] Initialized\n");
 }
 
@@ -26,6 +28,8 @@ Renderer::~Renderer() {
 
         sprite_pipeline_.reset();
         sprite_batch_.reset();
+        default_texture_.reset();
+        texture_descriptors_.clear();
 
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(ctx_->device(), image_available_[i], nullptr);
@@ -33,6 +37,8 @@ Renderer::~Renderer() {
             vkDestroyFence(ctx_->device(), in_flight_[i], nullptr);
         }
 
+        if (descriptor_pool_) vkDestroyDescriptorPool(ctx_->device(), descriptor_pool_, nullptr);
+        if (descriptor_set_layout_) vkDestroyDescriptorSetLayout(ctx_->device(), descriptor_set_layout_, nullptr);
         if (pipeline_layout_) vkDestroyPipelineLayout(ctx_->device(), pipeline_layout_, nullptr);
         cleanup_framebuffers();
         if (render_pass_) vkDestroyRenderPass(ctx_->device(), render_pass_, nullptr);
@@ -130,6 +136,9 @@ void Renderer::create_sync_objects() {
             throw std::runtime_error("Failed to create sync objects");
         }
     }
+
+    // Per-swapchain-image fence tracking (initialized to null)
+    images_in_flight_.resize(ctx_->swapchain_image_views().size(), VK_NULL_HANDLE);
 }
 
 void Renderer::create_command_buffers() {
@@ -146,6 +155,39 @@ void Renderer::create_command_buffers() {
     }
 }
 
+void Renderer::create_descriptor_set_layout() {
+    VkDescriptorSetLayoutBinding sampler_binding{};
+    sampler_binding.binding = 0;
+    sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    sampler_binding.descriptorCount = 1;
+    sampler_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    info.bindingCount = 1;
+    info.pBindings = &sampler_binding;
+
+    if (vkCreateDescriptorSetLayout(ctx_->device(), &info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor set layout");
+    }
+}
+
+void Renderer::create_descriptor_pool() {
+    VkDescriptorPoolSize pool_size{};
+    pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_size.descriptorCount = MAX_TEXTURE_DESCRIPTORS;
+
+    VkDescriptorPoolCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    info.poolSizeCount = 1;
+    info.pPoolSizes = &pool_size;
+    info.maxSets = MAX_TEXTURE_DESCRIPTORS;
+
+    if (vkCreateDescriptorPool(ctx_->device(), &info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor pool");
+    }
+}
+
 void Renderer::create_pipeline_layout() {
     VkPushConstantRange push_range{};
     push_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -156,11 +198,59 @@ void Renderer::create_pipeline_layout() {
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     info.pushConstantRangeCount = 1;
     info.pPushConstantRanges = &push_range;
-    info.setLayoutCount = 0;
+    info.setLayoutCount = 1;
+    info.pSetLayouts = &descriptor_set_layout_;
 
     if (vkCreatePipelineLayout(ctx_->device(), &info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create pipeline layout");
     }
+}
+
+void Renderer::create_default_texture() {
+    // 1x1 white pixel — used when drawing colored quads without a texture
+    uint8_t white_pixel[] = {255, 255, 255, 255};
+    default_texture_ = std::make_unique<Texture>(*ctx_, white_pixel, 1, 1);
+    default_tex_descriptor_ = get_texture_descriptor(*default_texture_);
+    std::printf("[Renderer] Default white texture created\n");
+}
+
+VkDescriptorSet Renderer::get_texture_descriptor(const Texture& tex) {
+    auto it = texture_descriptors_.find(tex.image_view());
+    if (it != texture_descriptors_.end()) {
+        return it->second;
+    }
+
+    // Allocate new descriptor set
+    VkDescriptorSetAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = descriptor_pool_;
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts = &descriptor_set_layout_;
+
+    VkDescriptorSet desc_set;
+    if (vkAllocateDescriptorSets(ctx_->device(), &alloc_info, &desc_set) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate texture descriptor set");
+    }
+
+    // Update with texture image/sampler
+    VkDescriptorImageInfo image_info{};
+    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    image_info.imageView = tex.image_view();
+    image_info.sampler = tex.sampler();
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = desc_set;
+    write.dstBinding = 0;
+    write.dstArrayElement = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &image_info;
+
+    vkUpdateDescriptorSets(ctx_->device(), 1, &write, 0, nullptr);
+
+    texture_descriptors_[tex.image_view()] = desc_set;
+    return desc_set;
 }
 
 void Renderer::create_sprite_pipeline() {
@@ -180,20 +270,20 @@ void Renderer::create_sprite_pipeline() {
 void Renderer::handle_resize() {
     int w = platform_.get_width();
     int h = platform_.get_height();
-    if (w == 0 || h == 0) return; // Minimized
+    if (w == 0 || h == 0) return;
 
     ctx_->wait_idle();
     cleanup_framebuffers();
 
-    // Recreate render pass (format may change)
     vkDestroyRenderPass(ctx_->device(), render_pass_, nullptr);
     ctx_->recreate_swapchain(w, h);
     create_render_pass();
     create_framebuffers();
 
-    // Recreate pipeline with new render pass
     sprite_pipeline_.reset();
     create_sprite_pipeline();
+
+    images_in_flight_.assign(ctx_->swapchain_image_views().size(), VK_NULL_HANDLE);
 }
 
 void Renderer::set_clear_color(float r, float g, float b, float a) {
@@ -208,8 +298,15 @@ int Renderer::height() const {
     return static_cast<int>(ctx_->swapchain_extent().height);
 }
 
+Mat4 Renderer::screen_projection() const {
+    auto extent = ctx_->swapchain_extent();
+    // Vulkan clip space: +Y is down, so bottom < top
+    return glm::ortho(0.0f, static_cast<float>(extent.width),
+                      0.0f, static_cast<float>(extent.height),
+                      -1.0f, 1.0f);
+}
+
 bool Renderer::begin_frame() {
-    // Lazy-init the sprite pipeline on first frame
     if (!sprite_pipeline_) {
         try {
             create_sprite_pipeline();
@@ -232,6 +329,12 @@ bool Renderer::begin_frame() {
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swapchain image");
     }
+
+    // Wait if this swapchain image is still in use by a previous frame
+    if (images_in_flight_[image_index_] != VK_NULL_HANDLE) {
+        vkWaitForFences(ctx_->device(), 1, &images_in_flight_[image_index_], VK_TRUE, UINT64_MAX);
+    }
+    images_in_flight_[image_index_] = in_flight_[current_frame_];
 
     vkResetFences(ctx_->device(), 1, &in_flight_[current_frame_]);
 
@@ -256,7 +359,6 @@ bool Renderer::begin_frame() {
 
     vkCmdBeginRenderPass(cmd, &rp_info, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Set dynamic viewport and scissor
     auto extent = ctx_->swapchain_extent();
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -272,30 +374,24 @@ bool Renderer::begin_frame() {
     scissor.extent = extent;
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    // Bind sprite pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sprite_pipeline_->handle());
 
-    // Begin sprite batch
-    sprite_batch_->begin();
+    // Initialize sprite batch with default screen projection and white texture
+    sprite_batch_->begin(cmd, pipeline_layout_);
+    sprite_batch_->set_projection(screen_projection());
+    sprite_batch_->set_texture(default_tex_descriptor_);
 
     return true;
 }
 
 void Renderer::end_frame() {
     auto cmd = command_buffers_[current_frame_];
-    auto extent = ctx_->swapchain_extent();
 
-    // Flush sprite batch with orthographic projection
-    Mat4 projection = glm::ortho(0.0f, static_cast<float>(extent.width),
-                                  static_cast<float>(extent.height), 0.0f,
-                                  -1.0f, 1.0f);
-    sprite_batch_->flush(cmd, pipeline_layout_, projection);
     sprite_batch_->end();
 
     vkCmdEndRenderPass(cmd);
     vkEndCommandBuffer(cmd);
 
-    // Submit
     VkSemaphore wait_semaphores[] = {image_available_[current_frame_]};
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSemaphore signal_semaphores[] = {render_finished_[current_frame_]};
@@ -314,7 +410,6 @@ void Renderer::end_frame() {
         throw std::runtime_error("Failed to submit draw command buffer");
     }
 
-    // Present
     VkSwapchainKHR swapchains[] = {ctx_->swapchain()};
     VkPresentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
