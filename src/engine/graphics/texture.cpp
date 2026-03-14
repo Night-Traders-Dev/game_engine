@@ -1,5 +1,6 @@
 #include "engine/graphics/texture.h"
 #include "engine/graphics/vulkan_context.h"
+#include "engine/resource/file_io.h"
 
 #include <stb_image.h>
 #include <stdexcept>
@@ -9,9 +10,22 @@ namespace eb {
 
 Texture::Texture(VulkanContext& ctx, const std::string& path) : ctx_(ctx) {
     int w, h, channels;
-    stbi_uc* pixels = stbi_load(path.c_str(), &w, &h, &channels, STBI_rgb_alpha);
-    if (!pixels) {
+    stbi_uc* pixels = nullptr;
+
+#ifdef __ANDROID__
+    // On Android, read from AAssetManager then decode from memory
+    auto data = FileIO::read_file(path);
+    if (data.empty()) {
         throw std::runtime_error("Failed to load texture: " + path);
+    }
+    pixels = stbi_load_from_memory(data.data(), static_cast<int>(data.size()),
+                                    &w, &h, &channels, STBI_rgb_alpha);
+#else
+    pixels = stbi_load(path.c_str(), &w, &h, &channels, STBI_rgb_alpha);
+#endif
+
+    if (!pixels) {
+        throw std::runtime_error("Failed to decode texture: " + path);
     }
 
     create_from_pixels(pixels, static_cast<uint32_t>(w), static_cast<uint32_t>(h));

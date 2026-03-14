@@ -48,21 +48,24 @@ case "${1}" in
             echo "Warning: glslangValidator not found, using pre-compiled shaders"
         fi
 
-        # Copy compiled shaders and assets into android assets directory
+        # Copy compiled shaders and game assets into android assets directory
         ASSETS_DIR="${ANDROID_DIR}/app/src/main/assets"
         mkdir -p "${ASSETS_DIR}/shaders"
         cp -f "${SHADER_DIR}"/*.spv "${ASSETS_DIR}/shaders/" 2>/dev/null || true
 
-        echo "Building Android APK (${BUILD_TYPE})..."
+        # Copy game assets preserving the assets/ prefix so paths match desktop
+        if [ -d "${PROJECT_DIR}/assets" ]; then
+            echo "Copying game assets..."
+            mkdir -p "${ASSETS_DIR}/assets/textures" "${ASSETS_DIR}/assets/maps"
+            cp -ru "${PROJECT_DIR}/assets/textures/"* "${ASSETS_DIR}/assets/textures/" 2>/dev/null || true
+            cp -ru "${PROJECT_DIR}/assets/maps/"* "${ASSETS_DIR}/assets/maps/" 2>/dev/null || true
+        fi
+
+        echo "Building Android APK (Debug)..."
         cd "${ANDROID_DIR}"
 
-        if [ "${BUILD_TYPE}" = "Debug" ]; then
-            ./gradlew assembleDebug -Pndkdir="${ANDROID_NDK_HOME}"
-            APK="${ANDROID_DIR}/app/build/outputs/apk/debug/app-debug.apk"
-        else
-            ./gradlew assembleRelease -Pndkdir="${ANDROID_NDK_HOME}"
-            APK="${ANDROID_DIR}/app/build/outputs/apk/release/app-release.apk"
-        fi
+        ./gradlew assembleDebug -Pndkdir="${ANDROID_NDK_HOME}"
+        APK="${ANDROID_DIR}/app/build/outputs/apk/debug/app-debug.apk"
 
         if [ -f "${APK}" ]; then
             echo "Build complete: ${APK}"

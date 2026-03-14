@@ -86,6 +86,7 @@ add_library(tw_engine STATIC
     src/engine/graphics/texture_atlas.cpp
     src/engine/graphics/pipeline.cpp
     src/engine/resource/resource_manager.cpp
+    src/engine/resource/file_io.cpp
     src/game/overworld/camera.cpp
     src/game/overworld/tile_map.cpp
     src/editor/tile_editor.cpp

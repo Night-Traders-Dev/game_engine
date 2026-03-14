@@ -33,7 +33,4 @@ private:
     VkPipeline pipeline_ = VK_NULL_HANDLE;
 };
 
-// Helper to read compiled SPIR-V files
-std::vector<char> read_shader_file(const std::string& path);
-
 } // namespace eb

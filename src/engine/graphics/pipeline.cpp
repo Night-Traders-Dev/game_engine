@@ -1,22 +1,18 @@
 #include "engine/graphics/pipeline.h"
 #include "engine/graphics/vulkan_context.h"
+#include "engine/resource/file_io.h"
 
 #include <fstream>
 #include <stdexcept>
 
 namespace eb {
 
-std::vector<char> read_shader_file(const std::string& path) {
-    std::ifstream file(path, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
+static std::vector<char> read_shader_file(const std::string& path) {
+    auto data = FileIO::read_file_chars(path);
+    if (data.empty()) {
         throw std::runtime_error("Failed to open shader file: " + path);
     }
-
-    size_t size = static_cast<size_t>(file.tellg());
-    std::vector<char> buffer(size);
-    file.seekg(0);
-    file.read(buffer.data(), static_cast<std::streamsize>(size));
-    return buffer;
+    return data;
 }
 
 Pipeline::Pipeline(VulkanContext& ctx, const PipelineConfig& config) : ctx_(ctx) {

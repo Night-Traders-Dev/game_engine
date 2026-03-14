@@ -64,8 +64,29 @@ void VulkanContext::create_instance(Platform& platform) {
     app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
     app_info.apiVersion = VK_API_VERSION_1_2;
 
+    // Check if validation layers are actually available
+    bool use_validation = enable_validation_;
+    if (use_validation) {
+        uint32_t layer_count = 0;
+        vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
+        std::vector<VkLayerProperties> available(layer_count);
+        vkEnumerateInstanceLayerProperties(&layer_count, available.data());
+
+        bool found = false;
+        for (const auto& layer : available) {
+            if (std::strcmp(layer.layerName, validation_layers[0]) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            std::printf("[Vulkan] Validation layer not available, skipping\n");
+            use_validation = false;
+        }
+    }
+
     auto extensions = platform.get_required_extensions();
-    if (enable_validation_) {
+    if (use_validation) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
@@ -75,7 +96,7 @@ void VulkanContext::create_instance(Platform& platform) {
     create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.data();
 
-    if (enable_validation_) {
+    if (use_validation) {
         create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
         create_info.ppEnabledLayerNames = validation_layers.data();
     }
@@ -83,10 +104,12 @@ void VulkanContext::create_instance(Platform& platform) {
     if (vkCreateInstance(&create_info, nullptr, &instance_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Vulkan instance");
     }
+
+    validation_active_ = use_validation;
 }
 
 void VulkanContext::setup_debug_messenger() {
-    if (!enable_validation_) return;
+    if (!validation_active_) return;
 
     VkDebugUtilsMessengerCreateInfoEXT info{};
     info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -106,7 +129,7 @@ void VulkanContext::setup_debug_messenger() {
 }
 
 void VulkanContext::destroy_debug_messenger() {
-    if (!enable_validation_ || debug_messenger_ == VK_NULL_HANDLE) return;
+    if (!validation_active_ || debug_messenger_ == VK_NULL_HANDLE) return;
     auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
         vkGetInstanceProcAddr(instance_, "vkDestroyDebugUtilsMessengerEXT"));
     if (func) {

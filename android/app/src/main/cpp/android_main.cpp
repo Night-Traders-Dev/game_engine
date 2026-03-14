@@ -10,6 +10,7 @@
 #include "engine/graphics/texture.h"
 #include "engine/graphics/texture_atlas.h"
 #include "engine/resource/resource_manager.h"
+#include "engine/resource/file_io.h"
 #include "game/overworld/camera.h"
 #include "game/overworld/tile_map.h"
 
@@ -387,7 +388,7 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
                     state->platform = std::make_unique<eb::PlatformAndroid>(app->window);
                     try {
                         state->renderer = std::make_unique<eb::Renderer>(*state->platform, true);
-                        state->renderer->set_shader_dir("");
+                        state->renderer->set_shader_dir("shaders/");
                         state->renderer->set_clear_color(0.05f, 0.05f, 0.12f);
                         state->resources = std::make_unique<eb::ResourceManager>(
                             state->renderer->vulkan_context());
@@ -443,6 +444,9 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 
 void android_main(struct android_app* app) {
     LOGI("android_main started");
+
+    // Set up asset manager for file I/O before anything else
+    eb::FileIO::set_asset_manager(app->activity->assetManager);
 
     AppState state{};
     state.app = app;

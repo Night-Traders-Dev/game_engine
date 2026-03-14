@@ -97,6 +97,7 @@ private:
 #else
     static constexpr bool enable_validation_ = true;
 #endif
+    bool validation_active_ = false; // Set at runtime if layers were found
     VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
     void setup_debug_messenger();
     void destroy_debug_messenger();
