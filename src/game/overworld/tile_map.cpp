@@ -108,7 +108,12 @@ const Portal* TileMap::get_portal_at(int tile_x, int tile_y) const {
     return nullptr;
 }
 
-void TileMap::render(SpriteBatch& batch, const Camera& camera) const {
+void TileMap::set_animated_tiles(int first_id, int last_id) {
+    animated_first_ = first_id;
+    animated_last_ = last_id;
+}
+
+void TileMap::render(SpriteBatch& batch, const Camera& camera, float time) const {
     if (!tileset_ || layers_.empty()) return;
 
     Rect view = camera.visible_area();
@@ -129,7 +134,33 @@ void TileMap::render(SpriteBatch& batch, const Camera& camera) const {
 
                 Vec2 pos = {x * ts, y * ts};
                 Vec2 size = {ts, ts};
-                batch.draw_quad(pos, size, region.uv_min, region.uv_max);
+
+                bool is_animated = (animated_first_ >= 0 &&
+                                    tile_id >= animated_first_ &&
+                                    tile_id <= animated_last_);
+
+                if (is_animated && time > 0.0f) {
+                    // Wave effect: offset position and shimmer color
+                    float phase = x * 0.8f + y * 1.2f + time * 2.5f;
+                    float wave_y = std::sin(phase) * 1.5f;
+                    float wave_x = std::cos(phase * 0.7f + 0.5f) * 0.8f;
+                    pos.y += wave_y;
+                    pos.x += wave_x;
+
+                    // UV distortion for ripple effect
+                    float uv_w = region.uv_max.x - region.uv_min.x;
+                    float uv_h = region.uv_max.y - region.uv_min.y;
+                    float uv_off = std::sin(time * 1.8f + x * 1.5f) * uv_w * 0.06f;
+                    region.uv_min.x += uv_off;
+                    region.uv_max.x += uv_off;
+
+                    // Color shimmer
+                    float shimmer = 0.85f + 0.15f * std::sin(time * 3.0f + x * 0.9f + y * 1.1f);
+                    Vec4 color = {shimmer * 0.8f, shimmer * 0.9f, shimmer, 1.0f};
+                    batch.draw_quad(pos, size, region.uv_min, region.uv_max, color);
+                } else {
+                    batch.draw_quad(pos, size, region.uv_min, region.uv_max);
+                }
             }
         }
     }

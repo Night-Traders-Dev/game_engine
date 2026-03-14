@@ -62,9 +62,9 @@ private:
     int selected_choice_ = 0;
 
     // Visual
-    static constexpr float BOX_MARGIN = 16.0f;
-    static constexpr float BOX_HEIGHT = 120.0f;
-    static constexpr float BOX_PADDING = 12.0f;
+    static constexpr float BOX_MARGIN = 20.0f;
+    static constexpr float BOX_HEIGHT = 150.0f;
+    static constexpr float BOX_PADDING = 16.0f;
     static constexpr float TEXT_SCALE = 1.0f;
 };
 

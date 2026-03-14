@@ -82,12 +82,28 @@ struct BattleState {
     bool random_encounter = false;
 };
 
+// ─── Party follower (EarthBound-style breadcrumb trail) ───
+struct PartyMember {
+    std::string name;
+    eb::Vec2 position;
+    int dir = 0;
+    int frame = 0;
+    float anim_timer = 0.0f;
+    bool moving = false;
+};
+
+struct PositionRecord {
+    eb::Vec2 pos;
+    int dir;
+};
+
 // ─── Game state ───
 struct GameState {
     eb::Camera camera;
     eb::TileMap tile_map;
     std::unique_ptr<eb::TextureAtlas> tileset_atlas;
     std::unique_ptr<eb::TextureAtlas> dean_atlas;
+    std::unique_ptr<eb::TextureAtlas> sam_atlas;
     eb::TileEditor editor;
 
     std::vector<eb::AtlasRegion> object_regions;
@@ -110,12 +126,22 @@ struct GameState {
     int player_level = 1;
     int player_xp = 0;
 
+    // Party members
+    std::vector<PartyMember> party;
+    // Breadcrumb trail: records of leader positions, followers pick from this
+    static constexpr int TRAIL_SIZE = 256;
+    static constexpr int FOLLOW_DISTANCE = 8; // How many trail entries behind leader
+    std::vector<PositionRecord> trail;
+    int trail_head = 0;
+    int trail_count = 0;
+    float trail_step_accum = 0.0f;
+
     // NPCs
     std::vector<NPC> npcs;
 
     // Dialogue
     eb::DialogueBox dialogue;
-    int pending_battle_npc = -1; // NPC index that will trigger battle after dialogue
+    int pending_battle_npc = -1;
 
     // Battle
     BattleState battle;
@@ -224,24 +250,12 @@ static void setup_objects(GameState& game, eb::Texture* tileset_tex) {
 }
 
 static void setup_npcs(GameState& game) {
-    // Sam Winchester — near the motel
-    NPC sam;
-    sam.name = "Sam";
-    sam.position = {22.0f * 32.0f, 9.0f * 32.0f};
-    sam.dir = 2; // facing left
-    sam.dialogue = {
-        {"Sam", "Dean! I've been researching the local disappearances."},
-        {"Sam", "People have been vanishing near the old cemetery north of town."},
-        {"Sam", "I think we're dealing with a Wendigo."},
-        {"Dean", "Great. My favorite."},
-        {"Sam", "Be careful out there. I'll keep digging."},
-    };
-    game.npcs.push_back(sam);
+    // Sam is now a party member, not an NPC
 
     // Bobby — near the shop
     NPC bobby;
     bobby.name = "Bobby";
-    bobby.position = {8.0f * 32.0f, 9.0f * 32.0f};
+    bobby.position = {6.0f * 32.0f, 12.0f * 32.0f};
     bobby.dir = 0; // facing down
     bobby.dialogue = {
         {"Bobby", "You idjits better be prepared before heading out."},
@@ -253,7 +267,7 @@ static void setup_npcs(GameState& game) {
     // Suspicious stranger — has a battle
     NPC stranger;
     stranger.name = "???";
-    stranger.position = {18.0f * 32.0f, 14.0f * 32.0f};
+    stranger.position = {15.0f * 32.0f, 16.0f * 32.0f};
     stranger.dir = 1; // facing up
     stranger.dialogue = {
         {"???", "You shouldn't be poking around here, hunter."},
@@ -504,29 +518,39 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch,
                         eb::TextRenderer& text,
                         VkDescriptorSet font_desc, VkDescriptorSet white_desc,
                         float sw, float /*sh*/) {
-    // Small HP bar in top-left
-    float hud_x = 8.0f, hud_y = 8.0f;
+    // HUD panel in top-left
+    float hud_x = 10.0f, hud_y = 10.0f;
+    float hud_w = 220.0f, hud_h = 56.0f;
     batch.set_texture(white_desc);
-    batch.draw_quad({hud_x, hud_y}, {180.0f, 40.0f}, {0,0}, {1,1}, {0.05f, 0.05f, 0.12f, 0.8f});
-    batch.draw_quad({hud_x, hud_y}, {180.0f, 2.0f}, {0,0}, {1,1}, {0.4f, 0.4f, 0.6f, 0.8f});
+    // Background
+    batch.draw_quad({hud_x, hud_y}, {hud_w, hud_h}, {0,0}, {1,1}, {0.03f, 0.03f, 0.10f, 0.85f});
+    // Border
+    batch.draw_quad({hud_x, hud_y}, {hud_w, 2.0f}, {0,0}, {1,1}, {0.5f, 0.5f, 0.7f, 0.9f});
+    batch.draw_quad({hud_x, hud_y + hud_h - 2}, {hud_w, 2.0f}, {0,0}, {1,1}, {0.5f, 0.5f, 0.7f, 0.9f});
+    batch.draw_quad({hud_x, hud_y}, {2.0f, hud_h}, {0,0}, {1,1}, {0.5f, 0.5f, 0.7f, 0.9f});
+    batch.draw_quad({hud_x + hud_w - 2, hud_y}, {2.0f, hud_h}, {0,0}, {1,1}, {0.5f, 0.5f, 0.7f, 0.9f});
 
-    text.draw_text(batch, font_desc, "Dean",
-                   {hud_x + 6, hud_y + 4}, {1,1,1,1}, 0.7f);
+    // Name and level
+    char name_str[64];
+    std::snprintf(name_str, sizeof(name_str), "Dean  Lv.%d", game.player_level);
+    text.draw_text(batch, font_desc, name_str,
+                   {hud_x + 10, hud_y + 8}, {1,1,1,1}, 0.9f);
 
+    // HP bar
     float hp_pct = std::max(0.0f, (float)game.player_hp / game.player_hp_max);
-    float bar_x = hud_x + 6, bar_y = hud_y + 22;
-    float bar_w = 120.0f;
+    float bar_x = hud_x + 10, bar_y = hud_y + 34;
+    float bar_w = 140.0f, bar_h = 12.0f;
     batch.set_texture(white_desc);
-    batch.draw_quad({bar_x, bar_y}, {bar_w, 10.0f}, {0,0}, {1,1}, {0.2f, 0.2f, 0.2f, 1.0f});
+    batch.draw_quad({bar_x, bar_y}, {bar_w, bar_h}, {0,0}, {1,1}, {0.2f, 0.2f, 0.2f, 1.0f});
     eb::Vec4 hcol = hp_pct > 0.5f ? eb::Vec4{0.2f, 0.8f, 0.2f, 1.0f}
                   : hp_pct > 0.25f ? eb::Vec4{0.9f, 0.7f, 0.1f, 1.0f}
                   : eb::Vec4{0.9f, 0.2f, 0.2f, 1.0f};
-    batch.draw_quad({bar_x, bar_y}, {bar_w * hp_pct, 10.0f}, {0,0}, {1,1}, hcol);
+    batch.draw_quad({bar_x, bar_y}, {bar_w * hp_pct, bar_h}, {0,0}, {1,1}, hcol);
 
     char hp_str[32];
     std::snprintf(hp_str, sizeof(hp_str), "%d/%d", game.player_hp, game.player_hp_max);
     text.draw_text(batch, font_desc, hp_str,
-                   {bar_x + bar_w + 6, bar_y - 2}, {1,1,1,1}, 0.6f);
+                   {bar_x + bar_w + 8, bar_y - 1}, {1,1,1,1}, 0.7f);
 }
 
 // ─── Draw an NPC (simple colored rectangle for now) ───
@@ -547,24 +571,23 @@ static void render_npc(const NPC& npc, eb::SpriteBatch& batch,
     batch.draw_quad(head_pos, {head_sz, head_sz}, {0,0}, {1,1}, {0.85f, 0.7f, 0.55f, 1.0f});
 }
 
-// ─── Player sprite helpers ───
-static eb::AtlasRegion get_player_sprite(GameState& game) {
-    bool flip_h = (game.player_dir == 2);
+// ─── Sprite lookup helper ───
+static eb::AtlasRegion get_character_sprite(eb::TextureAtlas& atlas,
+                                             int dir, bool moving, int frame) {
+    bool flip_h = (dir == 2); // left = flipped right
     const char* lookup_dir = flip_h ? "right" :
-        (game.player_dir == 0 ? "down" :
-         game.player_dir == 1 ? "up" : "right");
+        (dir == 0 ? "down" : dir == 1 ? "up" : "right");
 
     const eb::AtlasRegion* sr_ptr = nullptr;
-    if (game.player_moving) {
-        char name[32];
-        std::snprintf(name, sizeof(name), "walk_%s_%d", lookup_dir, game.player_frame);
-        sr_ptr = game.dean_atlas->find_region(name);
+    char name[32];
+    if (moving) {
+        std::snprintf(name, sizeof(name), "walk_%s_%d", lookup_dir, frame);
+        sr_ptr = atlas.find_region(name);
     } else {
-        char name[32];
         std::snprintf(name, sizeof(name), "idle_%s", lookup_dir);
-        sr_ptr = game.dean_atlas->find_region(name);
+        sr_ptr = atlas.find_region(name);
     }
-    auto sr = sr_ptr ? *sr_ptr : game.dean_atlas->region(0, 0);
+    auto sr = sr_ptr ? *sr_ptr : atlas.region(0, 0);
     if (flip_h) std::swap(sr.uv_min.x, sr.uv_max.x);
     return sr;
 }
@@ -599,17 +622,45 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // Load Dean sprite sheet
         auto* dean_tex = engine.resources().load_texture("assets/textures/dean_sprites.png");
         game.dean_atlas = std::make_unique<eb::TextureAtlas>(dean_tex, 158, 210);
-        // Idle poses
         game.dean_atlas->define_region("idle_down",  0*158, 0*210, 158, 210);
         game.dean_atlas->define_region("idle_up",    3*158, 2*210, 158, 210);
         game.dean_atlas->define_region("idle_right", 0*158, 3*210, 158, 210);
-        // Walk frames
         game.dean_atlas->define_region("walk_down_0", 0*158, 0*210, 158, 210);
         game.dean_atlas->define_region("walk_down_1", 2*158, 0*210, 158, 210);
         game.dean_atlas->define_region("walk_up_0", 0*158, 1*210, 158, 210);
         game.dean_atlas->define_region("walk_up_1", 2*158, 1*210, 158, 210);
         game.dean_atlas->define_region("walk_right_0", 3*158, 0*210, 158, 210);
         game.dean_atlas->define_region("walk_right_1", 0*158, 2*210, 158, 210);
+
+        // Load Sam sprite sheet (1840x1290, non-uniform cells)
+        auto* sam_tex = engine.resources().load_texture("assets/textures/sam_sprites.png");
+        game.sam_atlas = std::make_unique<eb::TextureAtlas>(sam_tex);
+        // Padded regions (140x190) centered on each sprite to match Dean's proportions
+        game.sam_atlas->define_region("idle_down",     44,  92, 140, 190);
+        game.sam_atlas->define_region("walk_down_0",   44,  92, 140, 190);
+        game.sam_atlas->define_region("walk_down_1",  504,  92, 140, 190);
+        game.sam_atlas->define_region("idle_up",      734,  92, 140, 190);
+        game.sam_atlas->define_region("walk_up_0",    734,  92, 140, 190);
+        game.sam_atlas->define_region("walk_up_1",    275, 350, 140, 190);
+        game.sam_atlas->define_region("idle_right",   504, 350, 140, 190);
+        game.sam_atlas->define_region("walk_right_0", 504, 350, 140, 190);
+        game.sam_atlas->define_region("walk_right_1", 965, 350, 140, 190);
+
+        // Setup Sam as party member
+        PartyMember sam;
+        sam.name = "Sam";
+        sam.position = {game.player_pos.x, game.player_pos.y + 32.0f};
+        sam.dir = 0;
+        game.party.push_back(sam);
+
+        // Initialize breadcrumb trail
+        game.trail.resize(GameState::TRAIL_SIZE);
+        for (auto& r : game.trail) {
+            r.pos = game.player_pos;
+            r.dir = 0;
+        }
+        game.trail_head = 0;
+        game.trail_count = 0;
 
         // Create map
         const int MAP_W = 30, MAP_H = 20, TILE_SZ = 32;
@@ -618,6 +669,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         game.tile_map.set_tileset_path("assets/textures/tileset.png");
         game.tile_map.add_layer("ground", generate_town_map(MAP_W, MAP_H));
         game.tile_map.set_collision(generate_town_collision(MAP_W, MAP_H));
+        game.tile_map.set_animated_tiles(TILE_WATER_DEEP, TILE_WATER_SHORE);
 
         // Objects & NPCs
         setup_objects(game, tileset_tex);
@@ -632,6 +684,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // Descriptor sets
         VkDescriptorSet tileset_desc = engine.renderer().get_texture_descriptor(*tileset_tex);
         VkDescriptorSet dean_desc = engine.renderer().get_texture_descriptor(*dean_tex);
+        VkDescriptorSet sam_desc = engine.renderer().get_texture_descriptor(*sam_tex);
 
         // Editor
         game.editor.set_map(&game.tile_map);
@@ -643,8 +696,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
         mkdir("assets/maps", 0755);
 #endif
 
+        float game_time = 0.0f;
+
         // ─── Update ───
         engine.on_update = [&](float dt) {
+            game_time += dt;
             auto& input = engine.platform().input();
             float sw = (float)engine.platform().get_width();
             float sh = (float)engine.platform().get_height();
@@ -739,6 +795,57 @@ int main(int /*argc*/, char* /*argv*/[]) {
                         game.player_frame = 1 - game.player_frame;
                     }
 
+                    // Record breadcrumb trail for party followers
+                    game.trail_step_accum += speed * dt;
+                    const float TRAIL_STEP = 4.0f; // Record every 4 pixels of movement
+                    while (game.trail_step_accum >= TRAIL_STEP) {
+                        game.trail_step_accum -= TRAIL_STEP;
+                        game.trail[game.trail_head] = {game.player_pos, game.player_dir};
+                        game.trail_head = (game.trail_head + 1) % GameState::TRAIL_SIZE;
+                        if (game.trail_count < GameState::TRAIL_SIZE)
+                            game.trail_count++;
+                    }
+
+                    // Update party followers from trail (smooth lerp)
+                    for (int pi = 0; pi < (int)game.party.size(); pi++) {
+                        int delay = GameState::FOLLOW_DISTANCE * (pi + 1);
+                        if (game.trail_count >= delay) {
+                            int idx = (game.trail_head - delay + GameState::TRAIL_SIZE) % GameState::TRAIL_SIZE;
+                            auto& pm = game.party[pi];
+                            auto& target = game.trail[idx];
+                            float dx = target.pos.x - pm.position.x;
+                            float dy = target.pos.y - pm.position.y;
+                            float d = std::sqrt(dx*dx + dy*dy);
+
+                            pm.moving = (d > 2.0f);
+                            if (pm.moving) {
+                                // Lerp toward target at player speed
+                                float lerp_speed = speed * 1.1f;
+                                if (d <= lerp_speed * dt) {
+                                    pm.position = target.pos;
+                                } else {
+                                    pm.position.x += (dx / d) * lerp_speed * dt;
+                                    pm.position.y += (dy / d) * lerp_speed * dt;
+                                }
+                                // Direction from movement
+                                if (std::abs(dx) > std::abs(dy))
+                                    pm.dir = (dx < 0) ? 2 : 3;
+                                else
+                                    pm.dir = (dy < 0) ? 1 : 0;
+
+                                pm.anim_timer += dt;
+                                if (pm.anim_timer >= 0.2f) {
+                                    pm.anim_timer -= 0.2f;
+                                    pm.frame = 1 - pm.frame;
+                                }
+                            } else {
+                                pm.dir = target.dir;
+                                pm.frame = 0;
+                                pm.anim_timer = 0.0f;
+                            }
+                        }
+                    }
+
                     // Random encounter chance (grass tiles only)
                     game.steps_since_encounter += speed * dt;
                     if (game.steps_since_encounter > 200.0f) {
@@ -759,6 +866,12 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 } else {
                     game.player_frame = 0;
                     game.anim_timer = 0.0f;
+                    // Stop party followers when player stops
+                    for (auto& pm : game.party) {
+                        pm.moving = false;
+                        pm.frame = 0;
+                        pm.anim_timer = 0.0f;
+                    }
                 }
 
                 // NPC interaction (Z/Enter)
@@ -799,7 +912,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
             // Tile map
             batch.set_texture(tileset_desc);
-            game.tile_map.render(batch, game.camera);
+            game.tile_map.render(batch, game.camera, game_time);
 
             // Y-sorted objects
             for (const auto& obj : game.world_objects) {
@@ -833,12 +946,32 @@ int main(int /*argc*/, char* /*argv*/[]) {
                                  {0.85f, 0.7f, 0.55f, 1.0f});
             }
 
-            // Player
+            // Party members (Sam follows Dean)
             if (!game.editor.is_active()) {
-                auto sr = get_player_sprite(game);
+                for (int pi = 0; pi < (int)game.party.size(); pi++) {
+                    auto& pm = game.party[pi];
+                    auto sr = get_character_sprite(*game.sam_atlas,
+                                                   pm.dir, pm.moving, pm.frame);
+                    float rw = 48.0f, rh = 64.0f;
+                    float bob = pm.moving
+                        ? std::sin(pm.anim_timer * 15.0f) * 2.0f : 0.0f;
+                    eb::Vec2 dp = {pm.position.x - rw * 0.5f,
+                                   pm.position.y - rh + 4.0f + bob};
+                    batch.draw_sorted(dp, {rw, rh}, sr.uv_min, sr.uv_max,
+                                     pm.position.y, sam_desc);
+                }
+            }
+
+            // Player (Dean)
+            if (!game.editor.is_active()) {
+                auto sr = get_character_sprite(*game.dean_atlas,
+                                               game.player_dir, game.player_moving,
+                                               game.player_frame);
                 float rw = 48.0f, rh = 64.0f;
+                float bob = game.player_moving
+                    ? std::sin(game.anim_timer * 15.0f) * 2.0f : 0.0f;
                 eb::Vec2 dp = {game.player_pos.x - rw * 0.5f,
-                               game.player_pos.y - rh + 4.0f};
+                               game.player_pos.y - rh + 4.0f + bob};
                 batch.draw_sorted(dp, {rw, rh}, sr.uv_min, sr.uv_max,
                                  game.player_pos.y, dean_desc);
             }
@@ -858,16 +991,35 @@ int main(int /*argc*/, char* /*argv*/[]) {
                     // Convert world pos to screen pos
                     eb::Vec2 cam_off = game.camera.offset();
                     float sx = npc.position.x + cam_off.x;
-                    float sy = npc.position.y + cam_off.y - 60.0f;
-                    auto name_size = text_renderer.measure_text(npc.name, 0.7f);
+                    float sy = npc.position.y + cam_off.y - 100.0f;
+
+                    // Name label with dark background for readability
+                    float name_scale = 1.0f;
+                    auto name_size = text_renderer.measure_text(npc.name, name_scale);
+                    float label_pad = 6.0f;
+                    float label_x = sx - name_size.x * 0.5f - label_pad;
+                    float label_y = sy - label_pad * 0.5f;
+                    batch.set_texture(white_desc);
+                    batch.draw_quad({label_x, label_y},
+                        {name_size.x + label_pad * 2, name_size.y + label_pad},
+                        {0,0}, {1,1}, {0.0f, 0.0f, 0.0f, 0.6f});
                     text_renderer.draw_text(batch, font_desc, npc.name,
                         {sx - name_size.x * 0.5f, sy},
-                        {1.0f, 1.0f, 0.6f, 1.0f}, 0.7f);
+                        {1.0f, 1.0f, 0.4f, 1.0f}, name_scale);
+
                     // Interaction hint
                     if (dist < npc.interact_radius) {
+                        float hint_scale = 0.7f;
+                        auto hint_size = text_renderer.measure_text("[Z] Talk", hint_scale);
+                        float hint_y = sy + name_size.y + 8.0f;
+                        batch.set_texture(white_desc);
+                        batch.draw_quad(
+                            {sx - hint_size.x * 0.5f - 4.0f, hint_y - 2.0f},
+                            {hint_size.x + 8.0f, hint_size.y + 4.0f},
+                            {0,0}, {1,1}, {0.0f, 0.0f, 0.0f, 0.5f});
                         text_renderer.draw_text(batch, font_desc, "[Z] Talk",
-                            {sx - 25.0f, sy + 14.0f},
-                            {0.7f, 0.7f, 0.7f, 0.8f}, 0.5f);
+                            {sx - hint_size.x * 0.5f, hint_y},
+                            {0.8f, 0.8f, 0.8f, 0.9f}, hint_scale);
                     }
                 }
             }

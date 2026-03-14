@@ -58,8 +58,11 @@ public:
     std::vector<Portal>& portals() { return portals_; }
     const std::vector<Portal>& portals() const { return portals_; }
 
+    // Mark a range of tile IDs as animated (e.g. water)
+    void set_animated_tiles(int first_id, int last_id);
+
     // Rendering — draws visible tiles through the sprite batch
-    void render(SpriteBatch& batch, const Camera& camera) const;
+    void render(SpriteBatch& batch, const Camera& camera, float time = 0.0f) const;
 
     // Collision queries
     bool is_solid(int tile_x, int tile_y) const;
@@ -91,6 +94,8 @@ private:
     std::vector<TileLayer> layers_;
     std::vector<CollisionType> collision_types_;
     std::vector<Portal> portals_;
+    int animated_first_ = -1;
+    int animated_last_ = -1;
 };
 
 } // namespace eb

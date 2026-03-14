@@ -128,7 +128,7 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
         if (!line.speaker.empty()) {
             text.draw_text(batch, font_desc, line.speaker,
                            {text_x, text_y}, {0.4f, 0.8f, 1.0f, 1.0f}, TEXT_SCALE);
-            text_y += text.line_height() * TEXT_SCALE + 2.0f;
+            text_y += text.line_height() * TEXT_SCALE + 10.0f;
         }
 
         // Dialogue text with typewriter
