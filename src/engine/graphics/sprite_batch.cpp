@@ -116,6 +116,7 @@ void SpriteBatch::begin(VkCommandBuffer cmd, VkPipelineLayout layout) {
     cmd_ = cmd;
     layout_ = layout;
     quad_count_ = 0;
+    vertex_offset_ = 0;
     current_texture_ = VK_NULL_HANDLE;
     in_batch_ = true;
 }
@@ -139,11 +140,11 @@ void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec4 color) {
 }
 
 void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max, Vec4 color) {
-    if (quad_count_ >= MAX_QUADS) {
+    if (quad_count_ >= MAX_QUADS || (vertex_offset_ + quad_count_ + 1) > MAX_QUADS) {
         flush();
     }
 
-    uint32_t base = quad_count_ * 4;
+    uint32_t base = (vertex_offset_ + quad_count_) * 4;
 
     // Top-left
     vertex_data_[base + 0] = {{position.x, position.y}, {uv_min.x, uv_min.y}, color};
@@ -173,8 +174,14 @@ void SpriteBatch::flush() {
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(cmd_, 0, 1, buffers, offsets);
     vkCmdBindIndexBuffer(cmd_, index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd_, quad_count_ * 6, 1, 0, 0, 0);
 
+    // Draw from the correct offset in the index/vertex buffer
+    uint32_t first_index = vertex_offset_ * 6;
+    int32_t vertex_off = 0; // vertices are already at the right position in the buffer
+    vkCmdDrawIndexed(cmd_, quad_count_ * 6, 1, first_index, vertex_off, 0);
+
+    // Advance offset for next batch (don't reuse buffer region this frame)
+    vertex_offset_ += quad_count_;
     quad_count_ = 0;
 }
 

@@ -7,6 +7,16 @@
 #include <set>
 #include <algorithm>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define VLOG_TAG "TWEngine-Vulkan"
+#define VLOGI(...) __android_log_print(ANDROID_LOG_INFO, VLOG_TAG, __VA_ARGS__)
+#define VLOGE(...) __android_log_print(ANDROID_LOG_ERROR, VLOG_TAG, __VA_ARGS__)
+#else
+#define VLOGI(...) std::printf(__VA_ARGS__)
+#define VLOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
+
 namespace eb {
 
 static const std::vector<const char*> validation_layers = {
@@ -29,14 +39,20 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
 }
 
 VulkanContext::VulkanContext(Platform& platform, bool vsync) : vsync_(vsync) {
+    VLOGI("Creating VulkanContext...\n");
     create_instance(platform);
+    VLOGI("Instance created\n");
     setup_debug_messenger();
     create_surface(platform);
+    VLOGI("Surface created\n");
     pick_physical_device();
+    VLOGI("Physical device selected\n");
     create_logical_device();
+    VLOGI("Logical device created\n");
     create_command_pool();
+    VLOGI("Command pool created\n");
     create_swapchain(platform.get_width(), platform.get_height());
-    std::printf("[VulkanContext] Initialized\n");
+    VLOGI("VulkanContext initialized\n");
 }
 
 VulkanContext::~VulkanContext() {
@@ -62,7 +78,7 @@ void VulkanContext::create_instance(Platform& platform) {
     app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
     app_info.pEngineName = "Twilight Engine";
     app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.apiVersion = VK_API_VERSION_1_2;
+    app_info.apiVersion = VK_API_VERSION_1_0;
 
     // Check if validation layers are actually available
     bool use_validation = enable_validation_;
@@ -80,14 +96,33 @@ void VulkanContext::create_instance(Platform& platform) {
             }
         }
         if (!found) {
-            std::printf("[Vulkan] Validation layer not available, skipping\n");
+            VLOGI("Validation layer not available, skipping\n");
             use_validation = false;
         }
     }
 
     auto extensions = platform.get_required_extensions();
+
+    // Check if debug utils extension is available before requesting it
     if (use_validation) {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        uint32_t ext_count = 0;
+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
+        std::vector<VkExtensionProperties> available_exts(ext_count);
+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, available_exts.data());
+
+        bool debug_ext_found = false;
+        for (const auto& ext : available_exts) {
+            if (std::strcmp(ext.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0) {
+                debug_ext_found = true;
+                break;
+            }
+        }
+        if (debug_ext_found) {
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        } else {
+            VLOGI("Debug utils extension not available, skipping validation\n");
+            use_validation = false;
+        }
     }
 
     VkInstanceCreateInfo create_info{};
@@ -101,7 +136,12 @@ void VulkanContext::create_instance(Platform& platform) {
         create_info.ppEnabledLayerNames = validation_layers.data();
     }
 
-    if (vkCreateInstance(&create_info, nullptr, &instance_) != VK_SUCCESS) {
+    VLOGI("Creating Vulkan instance with %u extensions, %u layers\n",
+          create_info.enabledExtensionCount, create_info.enabledLayerCount);
+
+    VkResult inst_result = vkCreateInstance(&create_info, nullptr, &instance_);
+    if (inst_result != VK_SUCCESS) {
+        VLOGE("vkCreateInstance failed with error %d\n", static_cast<int>(inst_result));
         throw std::runtime_error("Failed to create Vulkan instance");
     }
 
@@ -190,7 +230,10 @@ void VulkanContext::pick_physical_device() {
                 physical_device_ = dev;
                 VkPhysicalDeviceProperties props;
                 vkGetPhysicalDeviceProperties(dev, &props);
-                std::printf("[VulkanContext] Using GPU: %s\n", props.deviceName);
+                VLOGI("Using GPU: %s (Vulkan %u.%u.%u)\n", props.deviceName,
+                      VK_VERSION_MAJOR(props.apiVersion),
+                      VK_VERSION_MINOR(props.apiVersion),
+                      VK_VERSION_PATCH(props.apiVersion));
                 return;
             }
         }
@@ -325,12 +368,33 @@ void VulkanContext::create_swapchain(int width, int height) {
     }
 
     create_info.preTransform = support.capabilities.currentTransform;
-    create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+    // Pick a supported composite alpha mode (Android often lacks OPAQUE)
+    VkCompositeAlphaFlagBitsKHR composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    VkCompositeAlphaFlagBitsKHR preferred[] = {
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+        VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+        VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+    };
+    for (auto mode : preferred) {
+        if (support.capabilities.supportedCompositeAlpha & mode) {
+            composite_alpha = mode;
+            break;
+        }
+    }
+    create_info.compositeAlpha = composite_alpha;
+
     create_info.presentMode = present_mode;
     create_info.clipped = VK_TRUE;
     create_info.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(device_, &create_info, nullptr, &swapchain_) != VK_SUCCESS) {
+    VLOGI("Creating swapchain %ux%u, %u images, compositeAlpha=%u\n",
+          extent.width, extent.height, image_count, static_cast<uint32_t>(composite_alpha));
+
+    VkResult sc_result = vkCreateSwapchainKHR(device_, &create_info, nullptr, &swapchain_);
+    if (sc_result != VK_SUCCESS) {
+        VLOGE("vkCreateSwapchainKHR failed with error %d\n", static_cast<int>(sc_result));
         throw std::runtime_error("Failed to create swapchain");
     }
 
@@ -346,8 +410,7 @@ void VulkanContext::create_swapchain(int width, int height) {
         swapchain_image_views_[i] = create_image_view(swapchain_images_[i], swapchain_format_);
     }
 
-    std::printf("[VulkanContext] Swapchain created (%ux%u, %u images)\n",
-                extent.width, extent.height, image_count);
+    VLOGI("Swapchain created (%ux%u, %u images)\n", extent.width, extent.height, image_count);
 }
 
 void VulkanContext::cleanup_swapchain() {

@@ -26,7 +26,9 @@ PlatformAndroid::~PlatformAndroid() = default;
 void PlatformAndroid::poll_events() {
     input_.clear_frame();
     touch_controls_.begin_frame(width_, height_);
-    // Events are pushed from android_main's event loop via handle_input()
+    // Re-apply current touch state after clearing frame
+    // (events were already processed by handle_input() in the event loop)
+    touch_controls_.apply_to(input_);
 }
 
 bool PlatformAndroid::should_close() const {

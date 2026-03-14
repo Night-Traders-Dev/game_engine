@@ -10,6 +10,8 @@ namespace eb {
 
 PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height)
     : width_(width), height_(height) {
+    // Disable libdecor on Wayland to avoid fontconfig crash in some distros
+    glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW");
     }

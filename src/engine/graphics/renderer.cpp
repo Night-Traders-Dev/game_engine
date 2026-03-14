@@ -6,20 +6,33 @@
 #include <cstdio>
 #include <array>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define RLOGI(...) __android_log_print(ANDROID_LOG_INFO, "TWEngine-Render", __VA_ARGS__)
+#define RLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "TWEngine-Render", __VA_ARGS__)
+#else
+#define RLOGI(...) std::printf(__VA_ARGS__)
+#define RLOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
+
 namespace eb {
 
 Renderer::Renderer(Platform& platform, bool vsync) : platform_(platform) {
+    RLOGI("Creating Renderer...\n");
     ctx_ = std::make_unique<VulkanContext>(platform, vsync);
+    RLOGI("Creating render pass\n");
     create_render_pass();
+    RLOGI("Creating framebuffers\n");
     create_framebuffers();
     create_sync_objects();
     create_command_buffers();
     create_descriptor_set_layout();
     create_descriptor_pool();
     create_pipeline_layout();
+    RLOGI("Creating default texture\n");
     create_default_texture();
     sprite_batch_ = std::make_unique<SpriteBatch>(*ctx_);
-    std::printf("[Renderer] Initialized\n");
+    RLOGI("Renderer initialized\n");
 }
 
 Renderer::~Renderer() {
@@ -211,7 +224,7 @@ void Renderer::create_default_texture() {
     uint8_t white_pixel[] = {255, 255, 255, 255};
     default_texture_ = std::make_unique<Texture>(*ctx_, white_pixel, 1, 1);
     default_tex_descriptor_ = get_texture_descriptor(*default_texture_);
-    std::printf("[Renderer] Default white texture created\n");
+    RLOGI("Default white texture created\n");
 }
 
 VkDescriptorSet Renderer::get_texture_descriptor(const Texture& tex) {
@@ -264,7 +277,7 @@ void Renderer::create_sprite_pipeline() {
     config.alpha_blending = true;
 
     sprite_pipeline_ = std::make_unique<Pipeline>(*ctx_, config);
-    std::printf("[Renderer] Sprite pipeline created\n");
+    RLOGI("Sprite pipeline created\n");
 }
 
 void Renderer::handle_resize() {
@@ -311,7 +324,7 @@ bool Renderer::begin_frame() {
         try {
             create_sprite_pipeline();
         } catch (const std::exception& e) {
-            std::fprintf(stderr, "[Renderer] Cannot create pipeline: %s\n", e.what());
+            RLOGE("Cannot create pipeline: %s\n", e.what());
             return false;
         }
     }

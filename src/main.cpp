@@ -358,15 +358,17 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 float rw = 48.0f, rh = 64.0f;
                 eb::Vec2 dp = {game.player_pos.x - rw * 0.5f,
                                game.player_pos.y - rh + 4.0f};
+
                 batch.draw_sorted(dp, {rw, rh}, sr.uv_min, sr.uv_max,
                                  game.player_pos.y, dean_desc);
             }
 
+            // Always flush sorted sprites (objects + player) before any overlay
+            batch.flush_sorted();
+            batch.flush();
+
             // Editor overlay (drawn last, on top)
             if (game.editor.is_active()) {
-                // Flush sorted sprites first so editor draws on top
-                batch.flush_sorted();
-                batch.flush();
 
                 // Editor needs to use the default (white) texture for colored quads
                 batch.set_texture(engine.renderer().default_texture_descriptor());

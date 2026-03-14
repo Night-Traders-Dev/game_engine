@@ -76,7 +76,8 @@ private:
     VkDeviceMemory index_memory_ = VK_NULL_HANDLE;
 
     SpriteVertex* vertex_data_ = nullptr; // Mapped pointer
-    uint32_t quad_count_ = 0;
+    uint32_t quad_count_ = 0;     // Quads in current batch (since last flush)
+    uint32_t vertex_offset_ = 0;  // Running vertex offset across flushes within a frame
     bool in_batch_ = false;
 
     // Per-frame state (set during begin)

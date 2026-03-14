@@ -25,7 +25,7 @@
 
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="twilight_game" />
+                android:value="twilight_game_binary" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

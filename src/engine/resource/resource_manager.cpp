@@ -1,10 +1,19 @@
 #include "engine/resource/resource_manager.h"
 #include <cstdio>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define RMLOGI(...) __android_log_print(ANDROID_LOG_INFO, "TWEngine-Resources", __VA_ARGS__)
+#define RMLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "TWEngine-Resources", __VA_ARGS__)
+#else
+#define RMLOGI(...) std::printf(__VA_ARGS__)
+#define RMLOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
+
 namespace eb {
 
 ResourceManager::ResourceManager(VulkanContext& ctx) : ctx_(ctx) {
-    std::printf("[ResourceManager] Initialized\n");
+    RMLOGI("ResourceManager initialized\n");
 }
 
 ResourceManager::~ResourceManager() {
@@ -20,7 +29,7 @@ Texture* ResourceManager::load_texture(const std::string& path) {
     auto tex = std::make_unique<Texture>(ctx_, path);
     Texture* ptr = tex.get();
     textures_[path] = std::move(tex);
-    std::printf("[ResourceManager] Loaded texture: %s\n", path.c_str());
+    RMLOGI("Loaded texture: %s (%ux%u)\n", path.c_str(), ptr->width(), ptr->height());
     return ptr;
 }
 

@@ -4,14 +4,27 @@
 
 #include <fstream>
 #include <stdexcept>
+#include <cstdio>
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#define PLOGI(...) __android_log_print(ANDROID_LOG_INFO, "TWEngine-Pipeline", __VA_ARGS__)
+#define PLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "TWEngine-Pipeline", __VA_ARGS__)
+#else
+#define PLOGI(...) std::printf(__VA_ARGS__)
+#define PLOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
 
 namespace eb {
 
 static std::vector<char> read_shader_file(const std::string& path) {
+    PLOGI("Loading shader: %s\n", path.c_str());
     auto data = FileIO::read_file_chars(path);
     if (data.empty()) {
+        PLOGE("Failed to load shader: %s\n", path.c_str());
         throw std::runtime_error("Failed to open shader file: " + path);
     }
+    PLOGI("Shader loaded: %s (%zu bytes)\n", path.c_str(), data.size());
     return data;
 }
 
