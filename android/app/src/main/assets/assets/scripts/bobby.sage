@@ -10,8 +10,8 @@ proc supplies():
     say("Bobby", "Let me see what I got in the truck.")
     say("Bobby", "Here, take this shotgun. Rock salt rounds.")
     say("Bobby", "And some holy water. Never leave home without it.")
-    set_flag("has_shotgun", true)
-    set_flag("has_holy_water", true)
+    bobby_supplies()
+    say("Bobby", "That should keep you boys alive a little longer.")
 
 proc warning():
     say("Bobby", "Listen to me, boy.")

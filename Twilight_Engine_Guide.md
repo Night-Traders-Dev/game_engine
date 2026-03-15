@@ -9,15 +9,16 @@
 5. [Tile Map System](#tile-map-system)
 6. [Sprite & Animation System](#sprite--animation-system)
 7. [Battle System](#battle-system)
-8. [SageLang Battle Scripting](#sagelang-battle-scripting)
-9. [Dialogue System](#dialogue-system)
-10. [NPC & AI System](#npc--ai-system)
-11. [Scripting with SageLang](#scripting-with-sagelang)
-12. [Tile Editor](#tile-editor)
-13. [Map File Format](#map-file-format)
-14. [Asset Pipeline](#asset-pipeline)
-15. [Android Platform](#android-platform)
-16. [Adding New Content](#adding-new-content)
+8. [Inventory System](#inventory-system)
+9. [SageLang Battle Scripting](#sagelang-battle-scripting)
+10. [Dialogue System](#dialogue-system)
+11. [NPC & AI System](#npc--ai-system)
+12. [Scripting with SageLang](#scripting-with-sagelang)
+13. [Tile Editor](#tile-editor)
+14. [Map File Format](#map-file-format)
+15. [Asset Pipeline](#asset-pipeline)
+16. [Android Platform](#android-platform)
+17. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -274,7 +275,7 @@ auto sr = get_character_sprite(atlas, direction, is_moving, frame);
 ### Turn Flow
 
 1. **Intro** — "A [Enemy] appeared!" (1.5s or confirm)
-2. **Dean's Turn** — Attack / Defend / Run menu
+2. **Dean's Turn** — Attack / Items / Defend / Run menu
 3. **Sam's Turn** — Same menu (skipped if Sam is down)
 4. **Enemy Turn** — SageLang AI selects target and calculates damage
 5. Repeat until victory or defeat
@@ -306,6 +307,130 @@ The battle system calls SageLang functions at key action points:
 - `on_victory()` / `on_defeat()` — battle end handlers
 
 If no script function exists, the engine falls back to built-in C++ logic.
+
+---
+
+## Inventory System
+
+### Overview
+
+The inventory system manages items that players collect and use during gameplay. Items are defined and used via SageLang scripts, with the C++ engine managing storage, the battle menu UI, and native bridge functions.
+
+### Item Types
+
+| Type | Description | Battle Use |
+|------|-------------|------------|
+| Consumable | Healing items (food, medical supplies) | Heals active fighter, consumed on use |
+| Weapon | Ammo and throwable weapons | Deals damage to enemy, consumed on use (except special weapons) |
+| Key Item | Story/utility items (EMF Meter, Journal) | Not usable in battle |
+
+### Item Struct (C++)
+
+```cpp
+struct Item {
+    std::string id;          // "first_aid_kit"
+    std::string name;        // "First Aid Kit"
+    std::string description;
+    ItemType type;           // Consumable, Weapon, KeyItem
+    int quantity;
+    int max_stack;           // Default 99
+    int heal_hp;             // HP restored on use
+    int damage;              // Base damage dealt
+    std::string element;     // "holy", "silver", "salt", "demon", "divine"
+    std::string sage_func;   // SageLang function called on use
+};
+```
+
+### Inventory Management (C++)
+
+```cpp
+struct Inventory {
+    static constexpr int MAX_SLOTS = 20;
+    bool add(id, name, count, type, desc, heal, dmg, element, sage_func);
+    bool remove(id, count);
+    int count(id);
+    Item* find(id);
+    std::vector<const Item*> get_battle_items(); // Excludes key items
+};
+```
+
+### Built-in Items (Supernatural Theme)
+
+**Starter Items** (given at game start via `give_starter_items()`):
+
+| Item | Type | Effect |
+|------|------|--------|
+| First Aid Kit | Consumable | Heals 30-40 HP |
+| Burger | Consumable | Heals 50-65 HP |
+| Beer | Consumable | Heals 15-20 HP |
+| Salt Rounds | Weapon | 20-28 dmg, x2 vs Spirits/Ghosts |
+
+**Bobby's Supplies** (given via `bobby_supplies()`):
+
+| Item | Type | Effect |
+|------|------|--------|
+| Shotgun Shells | Weapon | 28-38 dmg |
+| Holy Water | Weapon | 35-50 dmg, x2 vs Vampires/Demons |
+| Silver Bullets | Weapon | 40-52 dmg, x2 vs Werewolves/Shapeshifters |
+
+**Special Weapons** (quest rewards, not consumed):
+
+| Item | Type | Effect |
+|------|------|--------|
+| Angel Blade | Weapon | 60-80 dmg |
+| Ruby's Knife | Weapon | 55-73 dmg, x2 vs Demons |
+| The Colt | Weapon | 99-149 dmg |
+
+### Battle Menu Integration
+
+The battle menu has 4 options: **Attack / Items / Defend / Run**
+
+Selecting **Items** opens a scrollable submenu showing usable items with quantities. Up to 6 items visible at once with scroll support. Each item displays as `> Item Name x3` with the selected item highlighted in yellow.
+
+### SageLang Native Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `add_item` | `add_item(id, name, qty, type, desc, heal, dmg, elem, sage_func)` | Add item to inventory |
+| `remove_item` | `remove_item(id, qty)` | Remove item (qty defaults to 1) |
+| `has_item` | `has_item(id)` | Returns true if item exists |
+| `item_count` | `item_count(id)` | Returns quantity of item |
+
+### SageLang Item Use Flow
+
+1. Player selects an item in the battle submenu
+2. C++ syncs battle state AND item info to SageLang globals
+3. C++ calls the item's `sage_func` (e.g., `use_holy_water`)
+4. SageLang script applies the effect (damage/heal, elemental bonus)
+5. SageLang calls `remove_item()` to consume the item
+6. C++ syncs modified battle state back
+
+### Item Script Example
+
+```sage
+proc use_holy_water():
+    let fighter_name = "Dean"
+    if active_fighter == 1:
+        fighter_name = "Sam"
+    let damage = 35 + random(0, 15)
+    # Super effective against demons and vampires
+    if enemy_name == "Vampire" or enemy_name == "Demon":
+        damage = damage * 2
+        battle_msg = fighter_name + " throws Holy Water! It burns! " + str(damage) + " damage!"
+    else:
+        battle_msg = fighter_name + " throws Holy Water! " + str(damage) + " damage!"
+    enemy_hp = enemy_hp - damage
+    battle_damage = damage
+    battle_target = "enemy"
+    remove_item("holy_water", 1)
+```
+
+### Adding New Items
+
+1. Define the item grant function in `inventory.sage` using `add_item()`
+2. Write a `use_*` function for battle use (read battle globals, apply effect, set `battle_msg`)
+3. Call the grant function from an NPC script, event, or game init
+4. The item automatically appears in the battle Items submenu
 
 ---
 
@@ -393,8 +518,8 @@ proc vampire_attack():
 | Function | Called When | Purpose |
 |----------|-----------|---------|
 | `attack_normal()` | Player selects Attack | Calculate and apply damage to enemy |
-| `attack_shotgun()` | (future: item menu) | Shotgun attack (requires `has_shotgun` flag) |
-| `attack_holy_water()` | (future: item menu) | Holy water attack (requires flag) |
+| `attack_shotgun()` | Legacy (use inventory) | Shotgun attack (requires `has_shotgun` flag) |
+| `attack_holy_water()` | Legacy (use inventory) | Holy water attack (requires flag) |
 | `defend()` | Player selects Defend | Heal the active fighter |
 | `enemy_turn()` | Enemy's turn (generic) | AI selects target and attacks |
 | `vampire_attack()` | Enemy's turn (vampire) | Vampire-specific drain attack |
@@ -509,6 +634,10 @@ SageLang is embedded as a C library via the `ScriptEngine` wrapper class. It's a
 | `get_flag` | `get_flag(name)` | Check a game flag (returns bool) |
 | `random` | `random(min, max)` | Random integer in [min, max] |
 | `clamp` | `clamp(value, min, max)` | Clamp a number to range |
+| `add_item` | `add_item(id, name, qty, type, ...)` | Add item to inventory |
+| `remove_item` | `remove_item(id, qty)` | Remove item from inventory |
+| `has_item` | `has_item(id)` | Check if item exists (returns bool) |
+| `item_count` | `item_count(id)` | Get item quantity |
 
 ### Script Loading
 
@@ -516,7 +645,9 @@ SageLang is embedded as a C library via the `ScriptEngine` wrapper class. It's a
 eb::ScriptEngine script_engine;
 script_engine.set_game_state(&game);
 script_engine.load_file("assets/scripts/battle_system.sage");
+script_engine.load_file("assets/scripts/inventory.sage");
 script_engine.load_file("assets/scripts/bobby.sage");
+script_engine.call_function("give_starter_items");
 script_engine.call_function("greeting");
 ```
 
@@ -757,13 +888,43 @@ Touch events arrive via `ALooper` before `poll_events()`. The `apply_to()` call 
 3. Save via Save As... button (native file dialog)
 4. Map file includes tiles, collision, objects, NPCs, portals
 
+### Adding New Items
+
+1. Define a grant function in `assets/scripts/inventory.sage`:
+
+```sage
+proc find_machete():
+    add_item("machete", "Machete", 1, "weapon",
+             "Good for decapitations", 0, 45, "", "use_machete")
+```
+
+2. Write a `use_*` battle function in `inventory.sage`:
+
+```sage
+proc use_machete():
+    let fighter_name = "Dean"
+    if active_fighter == 1:
+        fighter_name = "Sam"
+    let damage = 45 + random(0, 12)
+    if enemy_name == "Vampire":
+        damage = damage * 2
+        battle_msg = fighter_name + " decapitates! " + str(damage) + " damage!"
+    else:
+        battle_msg = fighter_name + " slashes with machete! " + str(damage) + " damage!"
+    enemy_hp = enemy_hp - damage
+    battle_damage = damage
+    battle_target = "enemy"
+```
+
+3. Call the grant function from an NPC script, event trigger, or game init
+4. The item automatically appears in the battle Items submenu with its quantity
+
 ### Adding New Battle Attacks
 
 1. Write a new `proc` in `assets/scripts/battle_system.sage`
 2. Read synced globals (`enemy_hp`, `dean_atk`, etc.)
 3. Modify HP values and set `battle_msg`, `battle_damage`
 4. Call from C++ via `script_engine->call_function("my_attack")`
-5. Use `get_flag()`/`set_flag()` for item requirements
 
 ### Adding New Script Functions (C++ → SageLang)
 
@@ -773,4 +934,4 @@ Touch events arrive via `ALooper` before `poll_events()`. The `apply_to()` call 
 
 ---
 
-*Twilight Engine v0.2.0 — Built with Vulkan, SageLang, and Dear ImGui*
+*Twilight Engine v0.3.0 — Built with Vulkan, SageLang, and Dear ImGui*

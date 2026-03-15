@@ -47,8 +47,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
         script_engine.load_file("assets/scripts/vampire.sage");
         script_engine.load_file("assets/scripts/stranger.sage");
         script_engine.load_file("assets/scripts/azazel.sage");
+        script_engine.load_file("assets/scripts/inventory.sage");
         script_engine.load_file("assets/scripts/map_events.sage");
         game.script_engine = &script_engine;
+
+        // Give starter items via SageLang
+        if (script_engine.has_function("give_starter_items")) {
+            script_engine.call_function("give_starter_items");
+        }
 
 #ifndef EB_ANDROID
         // Editor (desktop only)

@@ -897,6 +897,7 @@ void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bo
     b.player_hp_display = static_cast<float>(game.player_hp);
     b.player_atk = game.player_atk; b.player_def = game.player_def;
     b.menu_selection = 0; b.phase_timer = 0.0f;
+    b.item_menu_open = false; b.item_menu_selection = 0;
     b.message = "A " + enemy + " appeared!";
     b.last_damage = 0; b.random_encounter = random;
 }
@@ -925,50 +926,104 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
         break;
 
     case BattlePhase::PlayerTurn:
-        if (up && b.menu_selection > 0) b.menu_selection--;
-        if (down && b.menu_selection < 2) b.menu_selection++;
-        if (confirm) {
-            b.phase_timer = 0.0f; b.attack_anim_timer = 0.0f;
+        if (b.item_menu_open) {
+            // ── Item submenu navigation ──
+            auto battle_items = game.inventory.get_battle_items();
+            int item_count = (int)battle_items.size();
+            if (item_count == 0) {
+                b.item_menu_open = false; // No items, close
+                break;
+            }
+            if (up && b.item_menu_selection > 0) b.item_menu_selection--;
+            if (down && b.item_menu_selection < item_count - 1) b.item_menu_selection++;
+            if (confirm) {
+                // Use selected item
+                auto* item = battle_items[b.item_menu_selection];
+                b.phase_timer = 0.0f; b.attack_anim_timer = 0.0f;
 
-            if (b.menu_selection == 0) {
-                // Attack — use SageLang if available
-                if (game.script_engine && game.script_engine->has_function("attack_normal")) {
+                if (game.script_engine && !item->sage_func.empty() &&
+                    game.script_engine->has_function(item->sage_func)) {
                     game.script_engine->sync_battle_to_script();
-                    game.script_engine->call_function("attack_normal");
+                    game.script_engine->sync_item_to_script(item->id);
+                    game.script_engine->call_function(item->sage_func);
                     game.script_engine->sync_battle_from_script();
                 } else {
-                    // Fallback C++ logic
+                    // Fallback: generic item use
                     const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
-                    int atk = (b.active_fighter == 0) ? b.player_atk : b.sam_atk;
-                    int damage = atk + (game.rng() % 5) - 2;
-                    if (damage < 1) damage = 1;
-                    b.enemy_hp_actual -= damage; b.last_damage = damage;
-                    b.message = std::string(fighter) + " attacks! " + std::to_string(damage) + " damage!";
+                    if (item->heal_hp > 0) {
+                        int heal = item->heal_hp;
+                        if (b.active_fighter == 0)
+                            b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
+                        else
+                            b.sam_hp_actual = std::min(b.sam_hp_actual + heal, b.sam_hp_max);
+                        b.message = std::string(fighter) + " uses " + item->name + "! Healed " + std::to_string(heal) + " HP!";
+                    } else if (item->damage > 0) {
+                        int dmg = item->damage + (game.rng() % 5);
+                        b.enemy_hp_actual -= dmg; b.last_damage = dmg;
+                        b.message = std::string(fighter) + " uses " + item->name + "! " + std::to_string(dmg) + " damage!";
+                    }
+                    game.inventory.remove(item->id, 1);
                 }
+                b.item_menu_open = false;
                 b.phase = BattlePhase::PlayerAttack;
-            } else if (b.menu_selection == 1) {
-                // Defend — use SageLang if available
-                if (game.script_engine && game.script_engine->has_function("defend")) {
-                    game.script_engine->sync_battle_to_script();
-                    game.script_engine->call_function("defend");
-                    game.script_engine->sync_battle_from_script();
-                } else {
-                    const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
-                    int heal = 8 + game.rng() % 8;
-                    if (b.active_fighter == 0)
-                        b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
-                    else
-                        b.sam_hp_actual = std::min(b.sam_hp_actual + heal, b.sam_hp_max);
-                    b.message = std::string(fighter) + " braces! Recovered " + std::to_string(heal) + " HP.";
-                }
-                b.phase = BattlePhase::PlayerAttack;
-            } else {
-                if (b.random_encounter && (game.rng() % 3) != 0) {
-                    b.message = "Got away safely!";
-                    b.phase = BattlePhase::Victory; b.phase_timer = 0.0f;
-                } else {
-                    b.message = "Can't escape!";
+            }
+        } else {
+            // ── Main battle menu: Attack / Items / Defend / Run ──
+            if (up && b.menu_selection > 0) b.menu_selection--;
+            if (down && b.menu_selection < 3) b.menu_selection++;
+            if (confirm) {
+                b.phase_timer = 0.0f; b.attack_anim_timer = 0.0f;
+
+                if (b.menu_selection == 0) {
+                    // Attack — use SageLang if available
+                    if (game.script_engine && game.script_engine->has_function("attack_normal")) {
+                        game.script_engine->sync_battle_to_script();
+                        game.script_engine->call_function("attack_normal");
+                        game.script_engine->sync_battle_from_script();
+                    } else {
+                        const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                        int atk = (b.active_fighter == 0) ? b.player_atk : b.sam_atk;
+                        int damage = atk + (game.rng() % 5) - 2;
+                        if (damage < 1) damage = 1;
+                        b.enemy_hp_actual -= damage; b.last_damage = damage;
+                        b.message = std::string(fighter) + " attacks! " + std::to_string(damage) + " damage!";
+                    }
                     b.phase = BattlePhase::PlayerAttack;
+                } else if (b.menu_selection == 1) {
+                    // Items — open item submenu
+                    auto battle_items = game.inventory.get_battle_items();
+                    if (battle_items.empty()) {
+                        b.message = "No items!";
+                        // Stay on player turn, don't advance phase
+                    } else {
+                        b.item_menu_open = true;
+                        b.item_menu_selection = 0;
+                    }
+                } else if (b.menu_selection == 2) {
+                    // Defend — use SageLang if available
+                    if (game.script_engine && game.script_engine->has_function("defend")) {
+                        game.script_engine->sync_battle_to_script();
+                        game.script_engine->call_function("defend");
+                        game.script_engine->sync_battle_from_script();
+                    } else {
+                        const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                        int heal = 8 + game.rng() % 8;
+                        if (b.active_fighter == 0)
+                            b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
+                        else
+                            b.sam_hp_actual = std::min(b.sam_hp_actual + heal, b.sam_hp_max);
+                        b.message = std::string(fighter) + " braces! Recovered " + std::to_string(heal) + " HP.";
+                    }
+                    b.phase = BattlePhase::PlayerAttack;
+                } else {
+                    // Run
+                    if (b.random_encounter && (game.rng() % 3) != 0) {
+                        b.message = "Got away safely!";
+                        b.phase = BattlePhase::Victory; b.phase_timer = 0.0f;
+                    } else {
+                        b.message = "Can't escape!";
+                        b.phase = BattlePhase::PlayerAttack;
+                    }
                 }
             }
         }
@@ -1459,20 +1514,53 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
     // ── Battle menu (player turn) ──
     if (b.phase == BattlePhase::PlayerTurn) {
         const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
-        float mx = 16, my = sh - 130;
-        batch.set_texture(game.white_desc);
-        batch.draw_quad({mx,my},{170,122},{0,0},{1,1},{0.08f,0.05f,0.15f,0.95f});
-        batch.draw_quad({mx,my},{170,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx,my+120},{170,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx,my},{2,122},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        batch.draw_quad({mx+168,my},{2,122},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
-        // Fighter name header
-        text.draw_text(batch,game.font_desc,fighter,{mx+8,my+4},{0.4f,0.8f,1,1},0.7f);
-        const char* opts[]={"Attack","Defend","Run"};
-        for(int i=0;i<3;i++){
-            eb::Vec4 c=(i==b.menu_selection)?eb::Vec4{1,1,0.3f,1}:eb::Vec4{0.8f,0.8f,0.8f,1};
-            std::string pfx=(i==b.menu_selection)?"> ":"  ";
-            text.draw_text(batch,game.font_desc,pfx+opts[i],{mx+8,my+26+i*30.0f},c,0.9f);
+
+        if (b.item_menu_open) {
+            // ── Item submenu ──
+            auto battle_items = game.inventory.get_battle_items();
+            int item_count = (int)battle_items.size();
+            int visible = std::min(item_count, 6); // Max 6 visible at once
+            float imh = 26.0f + visible * 24.0f + 8.0f;
+            float imx = 16, imy = sh - imh - 10;
+
+            batch.set_texture(game.white_desc);
+            batch.draw_quad({imx,imy},{210,imh},{0,0},{1,1},{0.06f,0.04f,0.14f,0.95f});
+            batch.draw_quad({imx,imy},{210,2},{0,0},{1,1},{0.5f,0.5f,0.9f,1});
+            batch.draw_quad({imx,imy+imh-2},{210,2},{0,0},{1,1},{0.5f,0.5f,0.9f,1});
+            batch.draw_quad({imx,imy},{2,imh},{0,0},{1,1},{0.5f,0.5f,0.9f,1});
+            batch.draw_quad({imx+208,imy},{2,imh},{0,0},{1,1},{0.5f,0.5f,0.9f,1});
+
+            text.draw_text(batch,game.font_desc,"Items",{imx+8,imy+4},{0.4f,0.8f,1,1},0.7f);
+
+            // Scroll offset if more items than visible
+            int scroll = 0;
+            if (b.item_menu_selection >= visible) scroll = b.item_menu_selection - visible + 1;
+
+            for (int i = 0; i < visible && (i + scroll) < item_count; i++) {
+                int idx = i + scroll;
+                auto* item = battle_items[idx];
+                eb::Vec4 c = (idx == b.item_menu_selection) ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{0.8f,0.8f,0.8f,1};
+                std::string pfx = (idx == b.item_menu_selection) ? "> " : "  ";
+                std::string label = pfx + item->name + " x" + std::to_string(item->quantity);
+                text.draw_text(batch,game.font_desc,label,{imx+8,imy+26+i*24.0f},c,0.7f);
+            }
+        } else {
+            // ── Main battle menu ──
+            float mx = 16, my = sh - 152;
+            batch.set_texture(game.white_desc);
+            batch.draw_quad({mx,my},{170,144},{0,0},{1,1},{0.08f,0.05f,0.15f,0.95f});
+            batch.draw_quad({mx,my},{170,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+            batch.draw_quad({mx,my+142},{170,2},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+            batch.draw_quad({mx,my},{2,144},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+            batch.draw_quad({mx+168,my},{2,144},{0,0},{1,1},{0.6f,0.6f,0.8f,1});
+            // Fighter name header
+            text.draw_text(batch,game.font_desc,fighter,{mx+8,my+4},{0.4f,0.8f,1,1},0.7f);
+            const char* opts[]={"Attack","Items","Defend","Run"};
+            for(int i=0;i<4;i++){
+                eb::Vec4 c=(i==b.menu_selection)?eb::Vec4{1,1,0.3f,1}:eb::Vec4{0.8f,0.8f,0.8f,1};
+                std::string pfx=(i==b.menu_selection)?"> ":"  ";
+                text.draw_text(batch,game.font_desc,pfx+opts[i],{mx+8,my+26+i*28.0f},c,0.9f);
+            }
         }
     }
 

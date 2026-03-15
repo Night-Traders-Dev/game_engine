@@ -75,7 +75,13 @@ static bool init_all(AppState& state) {
         script_engine.load_file("assets/scripts/battle_system.sage");
         script_engine.load_file("assets/scripts/bobby.sage");
         script_engine.load_file("assets/scripts/vampire.sage");
+        script_engine.load_file("assets/scripts/inventory.sage");
         state.game.script_engine = &script_engine;
+
+        // Give starter items via SageLang
+        if (script_engine.has_function("give_starter_items")) {
+            script_engine.call_function("give_starter_items");
+        }
 
         LOGI("Game initialized (virtual %.0fx%.0f, native %.0fx%.0f)",
              virtual_w, virtual_h, native_w, native_h);
