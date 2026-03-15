@@ -8,18 +8,8 @@
 
   "player": {
     "name": "Hero",
-    "sprite": "assets/textures/ness_sprites_2x.png",
-    "sprite_regions": {
-      "idle_down":     [100, 70, 100, 140],
-      "walk_down_0":   [100, 70, 100, 140],
-      "walk_down_1":   [350, 70, 100, 140],
-      "idle_up":       [600, 70, 100, 140],
-      "walk_up_0":     [600, 70, 100, 140],
-      "walk_up_1":     [850, 70, 100, 140],
-      "idle_right":    [1100, 70, 100, 140],
-      "walk_right_0":  [1100, 70, 100, 140],
-      "walk_right_1":  [1350, 70, 100, 140]
-    },
+    "sprite": "assets/textures/hero_sprites.png",
+    "sprite_grid": [32, 48],
     "hp": 100, "hp_max": 100,
     "atk": 15, "def": 5,
     "level": 1, "xp": 0,
@@ -33,18 +23,8 @@
   "party": [
     {
       "name": "Mage",
-      "sprite": "assets/textures/ness_sprites_2x.png",
-      "sprite_regions": {
-        "idle_down":     [100, 540, 100, 140],
-        "walk_down_0":   [100, 540, 100, 140],
-        "walk_down_1":   [350, 540, 100, 140],
-        "idle_up":       [600, 540, 100, 140],
-        "walk_up_0":     [600, 540, 100, 140],
-        "walk_up_1":     [850, 540, 100, 140],
-        "idle_right":    [1100, 540, 100, 140],
-        "walk_right_0":  [1100, 540, 100, 140],
-        "walk_right_1":  [1350, 540, 100, 140]
-      },
+      "sprite": "assets/textures/mage_sprites.png",
+      "sprite_grid": [32, 48],
       "hp": 80, "hp_max": 80, "atk": 12,
       "skills": {
         "hardiness": 4, "unholiness": 4, "nerve": 4,
@@ -54,15 +34,14 @@
   ],
 
   "tileset": "assets/textures/village_tileset.png",
-  "dialog_bg": "assets/textures/demo_objects.png",
   "default_font": "assets/fonts/default.ttf",
 
   "npcs": [
     {
       "name": "Elder",
       "x": 320, "y": 256, "dir": 0,
-      "sprite": "assets/textures/ness_sprites_2x.png",
-      "sprite_grid": [200, 200],
+      "sprite": "assets/textures/elder_sprites.png",
+      "sprite_grid": [32, 48],
       "interact_radius": 40, "hostile": false,
       "aggro_range": 150, "attack_range": 32,
       "move_speed": 20, "wander_interval": 5,
@@ -72,8 +51,8 @@
     {
       "name": "Merchant",
       "x": 512, "y": 256, "dir": 0,
-      "sprite": "assets/textures/ness_sprites_2x.png",
-      "sprite_grid": [200, 200],
+      "sprite": "assets/textures/merchant_sprites.png",
+      "sprite_grid": [32, 48],
       "interact_radius": 40, "hostile": false,
       "aggro_range": 150, "attack_range": 32,
       "move_speed": 15, "wander_interval": 6,
@@ -82,9 +61,9 @@
     },
     {
       "name": "Slime",
-      "x": 640, "y": 384, "dir": 2,
-      "sprite": "assets/textures/ness_sprites_2x.png",
-      "sprite_grid": [200, 200],
+      "x": 640, "y": 384, "dir": 0,
+      "sprite": "assets/textures/slime_sprites.png",
+      "sprite_grid": [32, 48],
       "interact_radius": 40, "hostile": true,
       "aggro_range": 120, "attack_range": 32,
       "move_speed": 40, "wander_interval": 3,
@@ -110,7 +89,7 @@
   ],
 
   "audio": {
-    "overworld": "assets/audio/overworld.wav",
+    "overworld": "assets/audio/overworld.mp3",
     "battle": "assets/audio/battle.wav"
   },
 

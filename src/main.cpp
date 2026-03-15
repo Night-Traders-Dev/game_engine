@@ -48,9 +48,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
         game.font_desc = engine.renderer().get_texture_descriptor(*text_renderer.texture());
         game.white_desc = engine.renderer().default_texture_descriptor();
 
-        // Initialize shared game logic
-        init_game(game, engine.renderer(), engine.resources(),
-                  (float)config.width, (float)config.height);
+        // Initialize shared game logic (manifest-driven if available)
+        if (manifest.loaded) {
+            init_game_from_manifest(game, engine.renderer(), engine.resources(),
+                                    (float)config.width, (float)config.height, manifest);
+        } else {
+            init_game(game, engine.renderer(), engine.resources(),
+                      (float)config.width, (float)config.height);
+        }
 
         // ─── SageLang scripting engine ───
         eb::ScriptEngine script_engine;

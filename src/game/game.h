@@ -308,6 +308,11 @@ void setup_objects(GameState& game, eb::Texture* tileset_tex);
 void setup_npcs(GameState& game);
 bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& resources,
                float viewport_w, float viewport_h);
+
+// Forward declare
+namespace eb { struct GameManifest; }
+bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::ResourceManager& resources,
+                              float viewport_w, float viewport_h, const eb::GameManifest& manifest);
 void update_game(GameState& game, const eb::InputState& input, float dt);
 void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bool random, int sprite_id = -1);
 void update_battle(GameState& game, float dt, bool confirm, bool up, bool down);

@@ -952,6 +952,228 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
     }
 }
 
+// ─── Manifest-driven init ───
+
+#include "engine/resource/game_manifest.h"
+
+bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::ResourceManager& resources,
+                              float viewport_w, float viewport_h, const eb::GameManifest& manifest) {
+    if (game.initialized) return true;
+    if (!manifest.loaded) return init_game(game, renderer, resources, viewport_w, viewport_h);
+
+    try {
+        game.white_desc = renderer.default_texture_descriptor();
+
+        auto try_load = [&](const std::string& path) -> eb::Texture* {
+            if (path.empty()) return nullptr;
+            try { return resources.load_texture(path); }
+            catch (...) { std::fprintf(stderr, "[Game] Texture not found: %s (skipping)\n", path.c_str()); return nullptr; }
+        };
+
+        // Load tileset from manifest
+        eb::Texture* tileset_tex = try_load(manifest.tileset_path);
+        if (tileset_tex) {
+            game.tileset_atlas = std::make_unique<eb::TextureAtlas>(tileset_tex);
+            // For non-standard tilesets, define regions as a simple grid
+            int tw = tileset_tex->width(), th = tileset_tex->height();
+            int tile_sz = 32;
+            int cols = tw / tile_sz, rows = th / tile_sz;
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++)
+                    game.tileset_atlas->add_region(c * tile_sz, r * tile_sz, tile_sz, tile_sz);
+            game.tileset_desc = renderer.get_texture_descriptor(*tileset_tex);
+            std::printf("[Game] Tileset: %s (%dx%d, %d tiles)\n", manifest.tileset_path.c_str(), tw, th, cols*rows);
+        } else {
+            game.tileset_desc = game.white_desc;
+        }
+
+        // Player sprite from manifest
+        auto* player_tex = try_load(manifest.player.sprite_path);
+        if (player_tex) {
+            if (manifest.player.sprite_grid_w > 0 && manifest.player.sprite_grid_h > 0) {
+                game.dean_atlas = std::make_unique<eb::TextureAtlas>(player_tex,
+                    manifest.player.sprite_grid_w, manifest.player.sprite_grid_h);
+            } else {
+                game.dean_atlas = std::make_unique<eb::TextureAtlas>(player_tex);
+            }
+            // Define regions from manifest custom regions
+            for (auto& reg : manifest.player.custom_regions)
+                game.dean_atlas->define_region(reg.name, reg.x, reg.y, reg.w, reg.h);
+            // If no custom regions and grid-based, define standard walk cycle
+            if (manifest.player.custom_regions.empty() && manifest.player.sprite_grid_w > 0) {
+                int cw = manifest.player.sprite_grid_w, ch = manifest.player.sprite_grid_h;
+                // 3x3 grid: row 0=down, row 1=up, row 2=right
+                game.dean_atlas->define_region("idle_down",     0,      0, cw, ch);
+                game.dean_atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                game.dean_atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                game.dean_atlas->define_region("idle_up",       0,     ch, cw, ch);
+                game.dean_atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                game.dean_atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                game.dean_atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                game.dean_atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                game.dean_atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+            }
+            game.dean_desc = renderer.get_texture_descriptor(*player_tex);
+        } else {
+            game.dean_desc = game.white_desc;
+        }
+
+        // Player stats from manifest
+        game.player_hp = manifest.player.hp; game.player_hp_max = manifest.player.hp_max;
+        game.player_atk = manifest.player.atk; game.player_def = manifest.player.def;
+        game.player_level = manifest.player.level; game.player_xp = manifest.player.xp;
+        game.player_pos = {manifest.player.start_x, manifest.player.start_y};
+
+        // Party members from manifest
+        if (!manifest.party.empty()) {
+            auto& pm_def = manifest.party[0];
+            auto* pm_tex = try_load(pm_def.sprite_path);
+            if (pm_tex) {
+                if (pm_def.sprite_grid_w > 0 && pm_def.sprite_grid_h > 0) {
+                    game.sam_atlas = std::make_unique<eb::TextureAtlas>(pm_tex,
+                        pm_def.sprite_grid_w, pm_def.sprite_grid_h);
+                } else {
+                    game.sam_atlas = std::make_unique<eb::TextureAtlas>(pm_tex);
+                }
+                for (auto& reg : pm_def.custom_regions)
+                    game.sam_atlas->define_region(reg.name, reg.x, reg.y, reg.w, reg.h);
+                if (pm_def.custom_regions.empty() && pm_def.sprite_grid_w > 0) {
+                    int cw = pm_def.sprite_grid_w, ch = pm_def.sprite_grid_h;
+                    game.sam_atlas->define_region("idle_down",     0,      0, cw, ch);
+                    game.sam_atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                    game.sam_atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                    game.sam_atlas->define_region("idle_up",       0,     ch, cw, ch);
+                    game.sam_atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                    game.sam_atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                    game.sam_atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                    game.sam_atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                    game.sam_atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+                }
+                game.sam_desc = renderer.get_texture_descriptor(*pm_tex);
+            } else {
+                game.sam_desc = game.white_desc;
+            }
+            game.sam_hp = pm_def.hp; game.sam_hp_max = pm_def.hp_max; game.sam_atk = pm_def.atk;
+
+            PartyMember follower;
+            follower.name = pm_def.name;
+            follower.position = {game.player_pos.x, game.player_pos.y + 32.0f};
+            follower.dir = 0;
+            game.party.push_back(follower);
+        }
+
+        // Breadcrumb trail
+        game.trail.resize(GameState::TRAIL_SIZE);
+        for (auto& r : game.trail) { r.pos = game.player_pos; r.dir = 0; }
+        game.trail_head = 0; game.trail_count = 0;
+
+        // Create default map
+        const int MAP_W = 30, MAP_H = 20, TILE_SZ = 32;
+        game.tile_map.create(MAP_W, MAP_H, TILE_SZ);
+        if (game.tileset_atlas) {
+            game.tile_map.set_tileset(game.tileset_atlas.get());
+            game.tile_map.set_tileset_path(manifest.tileset_path);
+        }
+        // Generate a simple grass field map using first tile
+        std::vector<int> ground(MAP_W * MAP_H, 1);
+        // Water border
+        for (int y = 0; y < MAP_H; y++)
+            for (int x = 0; x < MAP_W; x++)
+                if (x == 0 || x == MAP_W-1 || y == 0 || y == MAP_H-1) ground[y*MAP_W+x] = 0;
+        game.tile_map.add_layer("ground", ground);
+        // Collision: border is solid
+        std::vector<int> col(MAP_W * MAP_H, 0);
+        for (int y = 0; y < MAP_H; y++)
+            for (int x = 0; x < MAP_W; x++)
+                if (x == 0 || x == MAP_W-1 || y == 0 || y == MAP_H-1) col[y*MAP_W+x] = 1;
+        game.tile_map.set_collision(col);
+
+        // NPCs from manifest
+        for (auto& npc_def : manifest.npcs) {
+            NPC npc;
+            npc.name = npc_def.name;
+            npc.position = {npc_def.x, npc_def.y};
+            npc.home_pos = npc.position;
+            npc.wander_target = npc.position;
+            npc.dir = npc_def.dir;
+            npc.interact_radius = npc_def.interact_radius;
+            npc.hostile = npc_def.hostile;
+            npc.aggro_range = npc_def.aggro_range;
+            npc.attack_range = npc_def.attack_range;
+            npc.move_speed = npc_def.move_speed;
+            npc.wander_interval = npc_def.wander_interval;
+            npc.has_battle = npc_def.has_battle;
+            npc.battle_enemy_name = npc_def.battle_enemy;
+            npc.battle_enemy_hp = npc_def.battle_hp;
+            npc.battle_enemy_atk = npc_def.battle_atk;
+
+            // Load NPC sprite
+            if (!npc_def.sprite_path.empty()) {
+                auto* npc_tex = try_load(npc_def.sprite_path);
+                if (npc_tex) {
+                    auto atlas = std::make_unique<eb::TextureAtlas>(npc_tex);
+                    int cw = npc_def.sprite_grid_w > 0 ? npc_def.sprite_grid_w : 32;
+                    int ch = npc_def.sprite_grid_h > 0 ? npc_def.sprite_grid_h : 32;
+                    define_npc_atlas_regions(*atlas, cw, ch);
+                    npc.sprite_atlas_id = (int)game.npc_atlases.size();
+                    game.npc_descs.push_back(renderer.get_texture_descriptor(*npc_tex));
+                    game.npc_atlases.push_back(std::move(atlas));
+                }
+            }
+
+            // Load dialogue
+            if (!npc_def.dialogue_file.empty()) {
+                DialogueScript dlg;
+                if (load_dialogue_file(dlg, npc_def.dialogue_file)) {
+                    auto lines = dlg.get_lines("greeting");
+                    if (!lines.empty()) npc.dialogue = lines;
+                }
+            }
+            if (npc.dialogue.empty()) npc.dialogue = {{npc.name, "..."}};
+
+            game.npcs.push_back(npc);
+        }
+
+        // Load dialogue background and portraits from manifest
+        if (!manifest.dialog_bg_path.empty()) {
+            auto* dtex = try_load(manifest.dialog_bg_path);
+            if (dtex) game.dialogue.set_background(renderer.get_texture_descriptor(*dtex));
+        }
+        // Player portrait
+        if (!manifest.player.portrait_path.empty()) {
+            auto* ptex = try_load(manifest.player.portrait_path);
+            if (ptex) game.dialogue.set_portrait(manifest.player.name, renderer.get_texture_descriptor(*ptex));
+        }
+        // Party portraits
+        for (auto& pm : manifest.party) {
+            if (!pm.portrait_path.empty()) {
+                auto* ptex = try_load(pm.portrait_path);
+                if (ptex) game.dialogue.set_portrait(pm.name, renderer.get_texture_descriptor(*ptex));
+            }
+        }
+        // NPC portraits
+        for (auto& npc : manifest.npcs) {
+            if (!npc.portrait_path.empty()) {
+                auto* ptex = try_load(npc.portrait_path);
+                if (ptex) game.dialogue.set_portrait(npc.name, renderer.get_texture_descriptor(*ptex));
+            }
+        }
+
+        // Camera
+        game.camera.set_viewport(viewport_w, viewport_h);
+        game.camera.set_bounds(0, 0, game.tile_map.world_width(), game.tile_map.world_height());
+        game.camera.set_follow_offset(eb::Vec2(0.0f, -viewport_h * 0.1f));
+        game.camera.center_on(game.player_pos);
+
+        game.initialized = true;
+        std::printf("[Game] Initialized from manifest: %s\n", manifest.title.c_str());
+        return true;
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "[Game] Manifest init failed: %s\n", e.what());
+        return false;
+    }
+}
+
 // ─── Battle logic ───
 
 void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bool random, int sprite_id) {
