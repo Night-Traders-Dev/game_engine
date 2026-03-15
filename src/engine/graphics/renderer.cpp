@@ -44,6 +44,13 @@ Renderer::~Renderer() {
         default_texture_.reset();
         texture_descriptors_.clear();
 
+        // Free command buffers before destroying the pool
+        if (!command_buffers_.empty()) {
+            vkFreeCommandBuffers(ctx_->device(), ctx_->command_pool(),
+                static_cast<uint32_t>(command_buffers_.size()), command_buffers_.data());
+            command_buffers_.clear();
+        }
+
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(ctx_->device(), image_available_[i], nullptr);
             vkDestroyFence(ctx_->device(), in_flight_[i], nullptr);
@@ -241,6 +248,13 @@ VkDescriptorSet Renderer::get_texture_descriptor(const Texture& tex) {
         return it->second;
     }
 
+    // Check descriptor pool capacity before allocating
+    if (static_cast<int>(texture_descriptors_.size()) >= MAX_TEXTURE_DESCRIPTORS) {
+        RLOGE("[Renderer] Descriptor pool exhausted (%d/%d textures). Returning default.\n",
+              static_cast<int>(texture_descriptors_.size()), MAX_TEXTURE_DESCRIPTORS);
+        return default_tex_descriptor_;
+    }
+
     // Allocate new descriptor set
     VkDescriptorSetAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -250,7 +264,8 @@ VkDescriptorSet Renderer::get_texture_descriptor(const Texture& tex) {
 
     VkDescriptorSet desc_set;
     if (vkAllocateDescriptorSets(ctx_->device(), &alloc_info, &desc_set) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate texture descriptor set");
+        RLOGE("[Renderer] Failed to allocate descriptor set. Returning default.\n");
+        return default_tex_descriptor_;
     }
 
     // Update with texture image/sampler

@@ -36,8 +36,8 @@ proc map_init():
         sh = 720
     let px = sw / 2 - 110
     let py = sh / 2 - 130
-    ui_panel("pause_bg", px, py, 220, 260, "panel_large")
-    ui_label("pause_title", "PAUSED", px + 58, py + 14, 1, 0.9, 0.5, 1)
+    ui_panel("pause_bg", px, py, 220 * 2, 260 * 2, "panel_large")
+    ui_label("pause_title", "PAUSED", (px + 58) * 2, (py + 14) * 2, 1, 0.9, 0.5, 1)
     ui_set("pause_title", "scale", 1.3)
     ui_label("pause_item_0", "Resume Game", px + 38, py + 56, 0.85, 0.82, 0.75, 1)
     ui_label("pause_item_1", "Editor Mode", px + 38, py + 92, 0.85, 0.82, 0.75, 1)

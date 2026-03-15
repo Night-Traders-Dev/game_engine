@@ -49,8 +49,15 @@ Module* create_ssl_module(ModuleCache* c)    { (void)c; return NULL; }
 #ifdef _WIN32
 // Windows doesn't have realpath — provide a simple shim
 char* realpath(const char* path, char* resolved) {
-    if (!resolved) resolved = (char*)malloc(4096);
-    if (resolved) strncpy(resolved, path, 4095);
+    if (!path) return nullptr;
+    size_t len = strlen(path);
+    if (len >= 4095) return nullptr;  // Path too long
+    if (!resolved) {
+        resolved = (char*)malloc(4096);
+        if (!resolved) return nullptr;
+    }
+    memcpy(resolved, path, len);
+    resolved[len] = '\0';
     return resolved;
 }
 #endif
@@ -61,10 +68,39 @@ char* realpath(const char* path, char* resolved) {
 #include <cstring>
 #include <cmath>
 #include <vector>
+#include <unordered_map>
 
 namespace eb {
 
 static ScriptEngine* s_active_engine = nullptr;
+
+// ═══════════════ Path Sanitization ═══════════════
+
+// Validate that a script-provided path stays within allowed directories.
+// Rejects absolute paths, parent traversals, and null bytes.
+static bool is_safe_path(const char* path) {
+    if (!path || path[0] == '\0') return false;
+    // Reject null bytes embedded in the string
+    for (const char* p = path; *p; ++p) {
+        if (*p == '\0') return false;
+    }
+    // Reject absolute paths
+    if (path[0] == '/' || path[0] == '\\') return false;
+    // Reject Windows-style absolute paths (e.g. C:\)
+    if (std::isalpha(path[0]) && path[1] == ':') return false;
+    // Reject parent directory traversal
+    const char* p = path;
+    while (*p) {
+        if (p[0] == '.' && p[1] == '.') {
+            char next = p[2];
+            if (next == '/' || next == '\\' || next == '\0') return false;
+        }
+        // Advance to next path segment
+        while (*p && *p != '/' && *p != '\\') ++p;
+        while (*p == '/' || *p == '\\') ++p;
+    }
+    return true;
+}
 
 // ═══════════════ Core API ═══════════════
 
@@ -95,23 +131,22 @@ static Value native_log(int argc, Value* args) {
     return val_nil();
 }
 
-static std::vector<std::pair<std::string, Value>> s_flags;
+static std::unordered_map<std::string, Value> s_flags;
 
 static Value native_set_flag(int argc, Value* args) {
     if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
     const char* name = args[0].as.string;
-    for (auto& f : s_flags) {
-        if (f.first == name) { f.second = args[1]; return val_nil(); }
-    }
-    s_flags.push_back({name, args[1]});
+    if (!name) return val_nil();
+    s_flags[name] = args[1];
     return val_nil();
 }
 
 static Value native_get_flag(int argc, Value* args) {
     if (argc < 1 || args[0].type != VAL_STRING) return val_number(0);
-    for (auto& f : s_flags) {
-        if (f.first == args[0].as.string) return f.second;
-    }
+    const char* name = args[0].as.string;
+    if (!name) return val_number(0);
+    auto it = s_flags.find(name);
+    if (it != s_flags.end()) return it->second;
     return val_number(0);
 }
 
@@ -406,7 +441,7 @@ static Value native_set_time(int argc, Value* args) {
 static Value native_set_day_speed(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
     if (args[0].type == VAL_NUMBER)
-        s_active_engine->game_state_->day_night.day_speed = (float)args[0].as.number;
+        s_active_engine->game_state_->day_night.day_speed = std::max(0.0f, std::min(100.0f, (float)args[0].as.number));
     return val_nil();
 }
 
@@ -902,7 +937,10 @@ static Value native_spawn_npc_map(int argc, Value* args) {
     npc.wander_target = npc.position;
     if (argc > 3 && args[3].type == VAL_NUMBER) npc.dir = (int)args[3].as.number;
     if (argc > 4) npc.hostile = (args[4].type == VAL_BOOL) ? args[4].as.boolean : (args[4].type == VAL_NUMBER && args[4].as.number != 0);
-    if (argc > 5 && args[5].type == VAL_NUMBER) npc.sprite_atlas_id = (int)args[5].as.number;
+    if (argc > 5) {
+        if (args[5].type == VAL_STRING) npc.sprite_atlas_key = args[5].as.string;
+        else if (args[5].type == VAL_NUMBER) npc.sprite_atlas_id = (int)args[5].as.number;
+    }
     if (argc > 6 && args[6].type == VAL_NUMBER) { npc.battle_enemy_hp = (int)args[6].as.number; npc.has_battle = npc.battle_enemy_hp > 0; }
     if (argc > 7 && args[7].type == VAL_NUMBER) npc.battle_enemy_atk = (int)args[7].as.number;
     if (argc > 8 && args[8].type == VAL_NUMBER) npc.move_speed = (float)args[8].as.number;
@@ -1164,8 +1202,8 @@ static Value native_camera_center(int argc, Value* args) {
 static Value native_camera_shake(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
     auto* gs = s_active_engine->game_state_;
-    gs->shake_intensity = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 4.0f;
-    gs->shake_timer = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0.3f;
+    gs->shake_intensity = (args[0].type == VAL_NUMBER) ? std::max(0.0f, std::min(50.0f, (float)args[0].as.number)) : 4.0f;
+    gs->shake_timer = (args[1].type == VAL_NUMBER) ? std::max(0.0f, std::min(10.0f, (float)args[1].as.number)) : 0.3f;
     return val_nil();
 }
 
@@ -1286,8 +1324,8 @@ static Value native_npc_remove(int argc, Value* args) {
 static Value native_screen_shake(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
     auto* gs = s_active_engine->game_state_;
-    gs->shake_intensity = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 4.0f;
-    gs->shake_timer = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0.3f;
+    gs->shake_intensity = (args[0].type == VAL_NUMBER) ? std::max(0.0f, std::min(50.0f, (float)args[0].as.number)) : 4.0f;
+    gs->shake_timer = (args[1].type == VAL_NUMBER) ? std::max(0.0f, std::min(10.0f, (float)args[1].as.number)) : 0.3f;
     return val_nil();
 }
 
@@ -1433,7 +1471,8 @@ static Value native_start_battle(int argc, Value* args) {
     gs->battle.enemy_hp_actual = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 10;
     gs->battle.enemy_hp_max = gs->battle.enemy_hp_actual;
     gs->battle.enemy_atk = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 3;
-    gs->battle.enemy_sprite_id = (args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    if (args[3].type == VAL_STRING) gs->battle.enemy_sprite_key = args[3].as.string;
+    else gs->battle.enemy_sprite_id = (args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
     gs->battle.phase = BattlePhase::Intro;
     gs->battle.phase_timer = 0;
     gs->battle.player_hp_actual = gs->player_hp;
@@ -1477,6 +1516,7 @@ static Value native_load_level(int argc, Value* args) {
     if (!gs->level_manager) return val_bool(0);
     std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
     std::string path = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    if (!is_safe_path(path.c_str())) { DLOG_WARN("load_level: rejected unsafe path: %s", path.c_str()); return val_bool(0); }
     return val_bool(gs->level_manager->load_level(id, path, *gs));
 }
 
@@ -1866,6 +1906,7 @@ static Value native_play_music(int argc, Value* args) {
     auto* audio = s_active_engine->game_state_->audio_engine;
     if (!audio) return val_nil();
     const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    if (!is_safe_path(path)) { DLOG_WARN("play_music: rejected unsafe path: %s", path); return val_nil(); }
     bool loop = (argc > 1 && args[1].type == VAL_BOOL) ? args[1].as.boolean : true;
     audio->play_music(path, loop);
     return val_nil();
@@ -1895,14 +1936,14 @@ static Value native_resume_music(int, Value*) {
 static Value native_set_music_volume(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
     auto* audio = s_active_engine->game_state_->audio_engine;
-    if (audio && args[0].type == VAL_NUMBER) audio->set_music_volume((float)args[0].as.number);
+    if (audio && args[0].type == VAL_NUMBER) audio->set_music_volume(std::max(0.0f, std::min(2.0f, (float)args[0].as.number)));
     return val_nil();
 }
 
 static Value native_set_master_volume(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
     auto* audio = s_active_engine->game_state_->audio_engine;
-    if (audio && args[0].type == VAL_NUMBER) audio->set_master_volume((float)args[0].as.number);
+    if (audio && args[0].type == VAL_NUMBER) audio->set_master_volume(std::max(0.0f, std::min(2.0f, (float)args[0].as.number)));
     return val_nil();
 }
 
@@ -1911,7 +1952,8 @@ static Value native_play_sfx(int argc, Value* args) {
     auto* audio = s_active_engine->game_state_->audio_engine;
     if (!audio) return val_nil();
     const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
-    float vol = (argc > 1 && args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1.0f;
+    if (!is_safe_path(path)) { DLOG_WARN("play_sfx: rejected unsafe path: %s", path); return val_nil(); }
+    float vol = (argc > 1 && args[1].type == VAL_NUMBER) ? std::max(0.0f, std::min(2.0f, (float)args[1].as.number)) : 1.0f;
     audio->play_sfx(path, vol);
     return val_nil();
 }
@@ -1921,7 +1963,8 @@ static Value native_crossfade_music(int argc, Value* args) {
     auto* audio = s_active_engine->game_state_->audio_engine;
     if (!audio) return val_nil();
     const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
-    float dur = (argc > 1 && args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1.0f;
+    if (!is_safe_path(path)) { DLOG_WARN("crossfade_music: rejected unsafe path: %s", path); return val_nil(); }
+    float dur = (argc > 1 && args[1].type == VAL_NUMBER) ? std::max(0.01f, std::min(30.0f, (float)args[1].as.number)) : 1.0f;
     bool loop = (argc > 2 && args[2].type == VAL_BOOL) ? args[2].as.boolean : true;
     audio->crossfade_music(path, dur, loop);
     return val_nil();

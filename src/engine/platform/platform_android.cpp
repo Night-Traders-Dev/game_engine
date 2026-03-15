@@ -19,7 +19,7 @@ PlatformAndroid::PlatformAndroid(ANativeWindow* window) : window_(window) {
         width_ = ANativeWindow_getWidth(window_);
         height_ = ANativeWindow_getHeight(window_);
     }
-    LOGI("PlatformAndroid created (%dx%d)", width_, height_);
+    LOGI("PlatformAndroid created (%dx%d)", width_.load(), height_.load());
 }
 
 PlatformAndroid::~PlatformAndroid() = default;
@@ -70,9 +70,7 @@ int PlatformAndroid::get_height() const {
 }
 
 bool PlatformAndroid::was_resized() {
-    bool r = resized_;
-    resized_ = false;
-    return r;
+    return resized_.exchange(false);
 }
 
 void PlatformAndroid::set_window(ANativeWindow* window) {

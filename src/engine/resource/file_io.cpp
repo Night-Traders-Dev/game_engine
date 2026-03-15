@@ -39,9 +39,20 @@ std::vector<uint8_t> FileIO::read_file(const std::string& path) {
     }
 
     off_t size = AAsset_getLength(asset);
+    if (size < 0 || size > 256 * 1024 * 1024) { // Max 256MB per file
+        LOGE("Invalid asset size for %s: %ld", path.c_str(), static_cast<long>(size));
+        AAsset_close(asset);
+        return {};
+    }
+
     std::vector<uint8_t> buffer(static_cast<size_t>(size));
-    AAsset_read(asset, buffer.data(), static_cast<size_t>(size));
+    int bytes_read = AAsset_read(asset, buffer.data(), static_cast<size_t>(size));
     AAsset_close(asset);
+
+    if (bytes_read < 0 || static_cast<off_t>(bytes_read) != size) {
+        LOGE("Partial read for asset %s: expected %ld, got %d", path.c_str(), static_cast<long>(size), bytes_read);
+        buffer.resize(bytes_read > 0 ? static_cast<size_t>(bytes_read) : 0);
+    }
 
     LOGI("Loaded asset: %s (%ld bytes)", path.c_str(), static_cast<long>(size));
     return buffer;
@@ -62,9 +73,17 @@ std::vector<uint8_t> FileIO::read_file(const std::string& path) {
     }
 
     auto size = file.tellg();
+    if (size < 0 || static_cast<size_t>(size) > 256ULL * 1024 * 1024) {
+        std::fprintf(stderr, "[FileIO] Invalid file size for %s: %lld\n", path.c_str(), static_cast<long long>(size));
+        return {};
+    }
     std::vector<uint8_t> buffer(static_cast<size_t>(size));
     file.seekg(0);
     file.read(reinterpret_cast<char*>(buffer.data()), size);
+    if (!file) {
+        std::fprintf(stderr, "[FileIO] Read error for %s\n", path.c_str());
+        buffer.resize(static_cast<size_t>(file.gcount()));
+    }
     return buffer;
 }
 
@@ -76,9 +95,17 @@ std::vector<char> FileIO::read_file_chars(const std::string& path) {
     }
 
     auto size = file.tellg();
+    if (size < 0 || static_cast<size_t>(size) > 256ULL * 1024 * 1024) {
+        std::fprintf(stderr, "[FileIO] Invalid file size for %s: %lld\n", path.c_str(), static_cast<long long>(size));
+        return {};
+    }
     std::vector<char> buffer(static_cast<size_t>(size));
     file.seekg(0);
     file.read(buffer.data(), size);
+    if (!file) {
+        std::fprintf(stderr, "[FileIO] Read error for %s\n", path.c_str());
+        buffer.resize(static_cast<size_t>(file.gcount()));
+    }
     return buffer;
 }
 

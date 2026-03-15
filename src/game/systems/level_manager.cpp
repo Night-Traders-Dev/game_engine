@@ -44,7 +44,8 @@ bool LevelManager::load_level(const std::string& id, const std::string& map_path
             if (pos == std::string::npos) return 0;
             pos++;
             while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
-            return std::stof(json.substr(pos));
+            try { return std::stof(json.substr(pos)); }
+            catch (...) { return 0; }
         };
         level.player_start.x = find_num("\"player_start_x\"");
         level.player_start.y = find_num("\"player_start_y\"");
@@ -71,6 +72,12 @@ void LevelManager::save_active_to_level(GameState& game) {
     lvl.spawn_loops = game.spawn_loops;
     lvl.meet_triggers = game.npc_meet_triggers;
     lvl.drops = game.world_drops;
+
+    // Clean up expired world drops before saving
+    lvl.drops.erase(
+        std::remove_if(lvl.drops.begin(), lvl.drops.end(),
+            [](const WorldDrop& d) { return d.lifetime > 0 && d.anim_timer >= d.lifetime; }),
+        lvl.drops.end());
 }
 
 void LevelManager::restore_level_to_game(const std::string& id, GameState& game) {

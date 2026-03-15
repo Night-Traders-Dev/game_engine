@@ -9,6 +9,7 @@
 #include <android/native_window.h>
 #include <android/input.h>
 #include <android/log.h>
+#include <atomic>
 
 namespace eb {
 
@@ -44,10 +45,10 @@ private:
     void process_touch(AInputEvent* event);
 
     ANativeWindow* window_ = nullptr;
-    int width_ = 0;
-    int height_ = 0;
-    bool resized_ = false;
-    bool should_close_ = false;
+    std::atomic<int> width_{0};
+    std::atomic<int> height_{0};
+    std::atomic<bool> resized_{false};
+    std::atomic<bool> should_close_{false};
     InputState input_;
 
     TouchControls touch_controls_;

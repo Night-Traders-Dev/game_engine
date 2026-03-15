@@ -110,6 +110,7 @@ bool save_map_file(const GameState& game, const std::string& path) {
           << ",\"x\":" << npc.position.x << ",\"y\":" << npc.position.y
           << ",\"dir\":" << npc.dir
           << ",\"sprite_atlas_id\":" << npc.sprite_atlas_id
+          << ",\"sprite_atlas_key\":\"" << esc(npc.sprite_atlas_key) << "\""
           << ",\"interact_radius\":" << npc.interact_radius
           << ",\"hostile\":" << (npc.hostile ? "true" : "false")
           << ",\"aggro_range\":" << npc.aggro_range
@@ -289,6 +290,7 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
                         else if (key=="y") npc.position.y = (float)mnum(json, i);
                         else if (key=="dir") npc.dir = (int)mnum(json, i);
                         else if (key=="sprite_atlas_id") npc.sprite_atlas_id = (int)mnum(json, i);
+                        else if (key=="sprite_atlas_key") npc.sprite_atlas_key = mstr(json, i);
                         else if (key=="interact_radius") npc.interact_radius = (float)mnum(json, i);
                         else if (key=="hostile") npc.hostile = mbool(json, i);
                         else if (key=="aggro_range") npc.aggro_range = (float)mnum(json, i);
@@ -336,10 +338,8 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
                     npc.wander_target = npc.position;
                     npc.dialogue = dlg;
                     if (npc.dialogue.empty()) npc.dialogue = {{npc.name, "..."}};
-                    // Validate sprite atlas ID
+                    // Validate sprite atlas ID (legacy indexed access)
                     if (npc.sprite_atlas_id >= (int)game.npc_atlases.size()) {
-                        std::fprintf(stderr, "[Map] Warning: NPC '%s' has invalid sprite_atlas_id %d (max %d)\n",
-                                     npc.name.c_str(), npc.sprite_atlas_id, (int)game.npc_atlases.size()-1);
                         npc.sprite_atlas_id = -1;
                     }
                     game.npcs.push_back(npc);
@@ -789,7 +789,7 @@ void setup_npcs(GameState& game) {
     NPC bobby;
     bobby.name = "Bobby"; bobby.position = {8.0f * 32.0f, 7.0f * 32.0f};
     bobby.home_pos = bobby.position; bobby.wander_target = bobby.position;
-    bobby.dir = 0; bobby.sprite_atlas_id = 0;
+    bobby.dir = 0; bobby.sprite_atlas_id = 0; bobby.sprite_atlas_key = "assets/textures/bobby_sprites.png";
     bobby.move_speed = 30.0f; bobby.wander_interval = 4.0f;
     bobby.dialogue = bobby_dlg.get_lines("greeting");
     if (bobby.dialogue.empty()) bobby.dialogue = {{"Bobby", "Hey there."}};
@@ -798,7 +798,7 @@ void setup_npcs(GameState& game) {
     NPC stranger;
     stranger.name = "???"; stranger.position = {20.0f * 32.0f, 7.0f * 32.0f};
     stranger.home_pos = stranger.position; stranger.wander_target = stranger.position;
-    stranger.dir = 1; stranger.sprite_atlas_id = 1;
+    stranger.dir = 1; stranger.sprite_atlas_id = 1; stranger.sprite_atlas_key = "assets/textures/stranger_sprites.png";
     stranger.move_speed = 25.0f; stranger.wander_interval = 5.0f;
     stranger.dialogue = stranger_dlg.get_lines("greeting");
     if (stranger.dialogue.empty()) stranger.dialogue = {{"???", "..."}};
@@ -807,7 +807,7 @@ void setup_npcs(GameState& game) {
     NPC vampire;
     vampire.name = "Vampire"; vampire.position = {19.0f * 32.0f, 14.0f * 32.0f};
     vampire.home_pos = vampire.position; vampire.wander_target = vampire.position;
-    vampire.dir = 2; vampire.sprite_atlas_id = 2;
+    vampire.dir = 2; vampire.sprite_atlas_id = 2; vampire.sprite_atlas_key = "assets/textures/vampire_sprites.png";
     vampire.dialogue = vampire_dlg.get_lines("encounter");
     if (vampire.dialogue.empty()) vampire.dialogue = {{"Vampire", "..."}};
 
@@ -821,7 +821,7 @@ void setup_npcs(GameState& game) {
     NPC azazel;
     azazel.name = "Azazel"; azazel.position = {7.0f * 32.0f, 15.0f * 32.0f};
     azazel.home_pos = azazel.position; azazel.wander_target = azazel.position;
-    azazel.dir = 0; azazel.sprite_atlas_id = 3;
+    azazel.dir = 0; azazel.sprite_atlas_id = 3; azazel.sprite_atlas_key = "assets/textures/yelloweyes_sprites.png";
     azazel.move_speed = 20.0f; azazel.wander_interval = 6.0f;
     azazel.dialogue = azazel_dlg.get_lines("greeting");
     if (azazel.dialogue.empty()) azazel.dialogue = {{"Azazel", "..."}};
@@ -937,20 +937,27 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
         }
         setup_npcs(game);
 
-        // Load NPC sprite sheets (skip missing ones gracefully)
-        auto load_npc = [&](const char* path, int cw, int ch) {
+        // Load NPC sprite sheets into atlas cache (skip missing ones gracefully)
+        auto load_npc_cached = [&](const char* path, int cw, int ch) -> std::string {
+            if (game.atlas_cache.count(path)) return path; // Already cached
             auto* tex = try_load_tex(path);
             if (tex) {
-                auto atlas = std::make_unique<eb::TextureAtlas>(tex);
+                auto atlas = std::make_shared<eb::TextureAtlas>(tex);
                 define_npc_atlas_regions(*atlas, cw, ch);
-                game.npc_descs.push_back(renderer.get_texture_descriptor(*tex));
-                game.npc_atlases.push_back(std::move(atlas));
+                game.atlas_cache[path] = atlas;
+                game.atlas_descs[path] = renderer.get_texture_descriptor(*tex);
+                // Also push to legacy vectors for backward compat
+                game.npc_descs.push_back(game.atlas_descs[path]);
+                game.npc_atlases.push_back(std::make_unique<eb::TextureAtlas>(tex));
+                define_npc_atlas_regions(*game.npc_atlases.back(), cw, ch);
+                return path;
             }
+            return "";
         };
-        load_npc("assets/textures/bobby_sprites.png",      123, 174);
-        load_npc("assets/textures/stranger_sprites.png",     70, 140);
-        load_npc("assets/textures/vampire_sprites.png",     136, 190);
-        load_npc("assets/textures/yelloweyes_sprites.png",  134, 187);
+        std::string bobby_key    = load_npc_cached("assets/textures/bobby_sprites.png",      123, 174);
+        std::string stranger_key = load_npc_cached("assets/textures/stranger_sprites.png",     70, 140);
+        std::string vampire_key  = load_npc_cached("assets/textures/vampire_sprites.png",     136, 190);
+        std::string azazel_key   = load_npc_cached("assets/textures/yelloweyes_sprites.png",  134, 187);
 
         // Dialogue box: background texture and character portraits (optional)
         auto* dialog_tex = try_load_tex("assets/textures/dialog_bg.png");
@@ -1182,17 +1189,27 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
             npc.battle_enemy_hp = npc_def.battle_hp;
             npc.battle_enemy_atk = npc_def.battle_atk;
 
-            // Load NPC sprite
+            // Load NPC sprite into atlas cache
             if (!npc_def.sprite_path.empty()) {
-                auto* npc_tex = try_load(npc_def.sprite_path);
-                if (npc_tex) {
-                    auto atlas = std::make_unique<eb::TextureAtlas>(npc_tex);
-                    int cw = npc_def.sprite_grid_w > 0 ? npc_def.sprite_grid_w : 32;
-                    int ch = npc_def.sprite_grid_h > 0 ? npc_def.sprite_grid_h : 32;
-                    define_npc_atlas_regions(*atlas, cw, ch);
-                    npc.sprite_atlas_id = (int)game.npc_atlases.size();
-                    game.npc_descs.push_back(renderer.get_texture_descriptor(*npc_tex));
-                    game.npc_atlases.push_back(std::move(atlas));
+                npc.sprite_atlas_key = npc_def.sprite_path;
+                if (!game.atlas_cache.count(npc_def.sprite_path)) {
+                    auto* npc_tex = try_load(npc_def.sprite_path);
+                    if (npc_tex) {
+                        auto atlas = std::make_shared<eb::TextureAtlas>(npc_tex);
+                        int cw = npc_def.sprite_grid_w > 0 ? npc_def.sprite_grid_w : 32;
+                        int ch = npc_def.sprite_grid_h > 0 ? npc_def.sprite_grid_h : 32;
+                        define_npc_atlas_regions(*atlas, cw, ch);
+                        game.atlas_cache[npc_def.sprite_path] = atlas;
+                        game.atlas_descs[npc_def.sprite_path] = renderer.get_texture_descriptor(*npc_tex);
+                        // Also push to legacy vectors
+                        npc.sprite_atlas_id = (int)game.npc_atlases.size();
+                        game.npc_descs.push_back(game.atlas_descs[npc_def.sprite_path]);
+                        game.npc_atlases.push_back(std::make_unique<eb::TextureAtlas>(npc_tex));
+                        define_npc_atlas_regions(*game.npc_atlases.back(), cw, ch);
+                    }
+                } else {
+                    // Already cached — just set the legacy ID for backward compat
+                    npc.sprite_atlas_id = -1; // Will use key-based lookup
                 }
             }
 
@@ -1626,10 +1643,10 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         // Convert native touch/mouse coords to UI virtual coords
         float mx = input.mouse.x * (game.hud.screen_w / game.hud.native_w);
         float my = input.mouse.y * (game.hud.screen_h / game.hud.native_h);
+        static const char* pause_ids[5] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4"};
         for (int i = 0; i < 5; i++) {
-            std::string item_id = "pause_item_" + std::to_string(i);
             for (auto& l : game.script_ui.labels) {
-                if (l.id != item_id) continue;
+                if (l.id != pause_ids[i]) continue;
                 // Hit test: generous area around the label
                 float hit_w = 180, hit_h = 30;
                 float lx = l.position.x - 20, ly = l.position.y - 4;
@@ -1695,6 +1712,7 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
             input.is_pressed(eb::InputAction::MoveDown));
         if (result >= 0 && game.pending_battle_npc >= 0) {
             auto& npc = game.npcs[game.pending_battle_npc];
+            game.battle.enemy_sprite_key = npc.sprite_atlas_key;
             start_battle(game, npc.battle_enemy_name,
                          npc.battle_enemy_hp, npc.battle_enemy_atk, false,
                          npc.sprite_atlas_id);
@@ -1836,32 +1854,52 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         for (auto& pm : game.party) { pm.moving = false; pm.frame = 0; pm.anim_timer = 0.0f; }
     }
 
-    // ── NPC-NPC separation (prevent clumping) ──
+    // ── NPC-NPC separation (spatial grid — O(n) average) ──
     static constexpr float NPC_SEP_DIST = 40.0f;
     static constexpr float NPC_SEP_FORCE = 200.0f;
-    for (int i = 0; i < (int)game.npcs.size(); i++) {
-        auto& a = game.npcs[i];
-        if (!a.schedule.currently_visible) continue;
-        for (int j = i + 1; j < (int)game.npcs.size(); j++) {
-            auto& b = game.npcs[j];
-            if (!b.schedule.currently_visible) continue;
-            float sx = a.position.x - b.position.x;
-            float sy = a.position.y - b.position.y;
-            float sd = std::sqrt(sx*sx + sy*sy);
-            if (sd > 0.5f && sd < NPC_SEP_DIST) {
-                // Stronger push the closer they are
-                float overlap = 1.0f - (sd / NPC_SEP_DIST);
-                float push = overlap * overlap * NPC_SEP_FORCE * dt;
-                float nx = sx / sd, ny = sy / sd;
-                a.position.x += nx * push;
-                a.position.y += ny * push;
-                b.position.x -= nx * push;
-                b.position.y -= ny * push;
-            } else if (sd <= 0.5f) {
-                // Exactly on top — random nudge
-                float angle = (game.rng() % 628) / 100.0f;
-                a.position.x += std::cos(angle) * 8.0f;
-                a.position.y += std::sin(angle) * 8.0f;
+    static constexpr float GRID_CELL = NPC_SEP_DIST;  // Cell size matches check radius
+    {
+        // Build spatial grid of visible NPC indices
+        std::unordered_map<int64_t, std::vector<int>> sep_grid;
+        auto cell_key = [](int cx, int cy) -> int64_t { return ((int64_t)cx << 32) | (uint32_t)cy; };
+        for (int i = 0; i < (int)game.npcs.size(); i++) {
+            if (!game.npcs[i].schedule.currently_visible) continue;
+            int cx = (int)(game.npcs[i].position.x / GRID_CELL);
+            int cy = (int)(game.npcs[i].position.y / GRID_CELL);
+            sep_grid[cell_key(cx, cy)].push_back(i);
+        }
+        // Check neighbors in 3x3 grid around each NPC
+        for (auto& [key, indices] : sep_grid) {
+            int cx0 = (int)(key >> 32), cy0 = (int)(key & 0xFFFFFFFF);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    auto nit = sep_grid.find(cell_key(cx0+dx, cy0+dy));
+                    if (nit == sep_grid.end()) continue;
+                    for (int i : indices) {
+                        for (int j : nit->second) {
+                            if (j <= i) continue;
+                            auto& a = game.npcs[i];
+                            auto& b = game.npcs[j];
+                            float sx = a.position.x - b.position.x;
+                            float sy = a.position.y - b.position.y;
+                            float sd2 = sx*sx + sy*sy;
+                            if (sd2 > NPC_SEP_DIST * NPC_SEP_DIST || sd2 < 0.01f) {
+                                if (sd2 < 0.01f) {
+                                    float angle = (game.rng() % 628) / 100.0f;
+                                    a.position.x += std::cos(angle) * 8.0f;
+                                    a.position.y += std::sin(angle) * 8.0f;
+                                }
+                                continue;
+                            }
+                            float sd = std::sqrt(sd2);
+                            float overlap = 1.0f - (sd / NPC_SEP_DIST);
+                            float push = overlap * overlap * NPC_SEP_FORCE * dt;
+                            float nx = sx / sd, ny = sy / sd;
+                            a.position.x += nx * push; a.position.y += ny * push;
+                            b.position.x -= nx * push; b.position.y -= ny * push;
+                        }
+                    }
+                }
             }
         }
     }
@@ -2318,12 +2356,25 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
                         b.attack_anim_timer < 0.8f &&
                         std::fmod(b.attack_anim_timer, 0.15f) < 0.075f);
 
-    if (b.enemy_sprite_id >= 0 && b.enemy_sprite_id < (int)game.npc_atlases.size() && !enemy_flash) {
-        auto& atlas = *game.npc_atlases[b.enemy_sprite_id];
-        auto desc = game.npc_descs[b.enemy_sprite_id];
-        auto sr = get_character_sprite(atlas, 0, false, 0);
-        batch.set_texture(desc);
-        batch.draw_quad({enemy_cx - ew*0.5f, enemy_y}, {ew, eh}, sr.uv_min, sr.uv_max);
+    if (!enemy_flash) {
+        eb::TextureAtlas* battle_atlas = nullptr;
+        VkDescriptorSet battle_desc = VK_NULL_HANDLE;
+        if (!b.enemy_sprite_key.empty()) {
+            auto it = game.atlas_cache.find(b.enemy_sprite_key);
+            if (it != game.atlas_cache.end()) {
+                battle_atlas = it->second.get();
+                battle_desc = game.atlas_descs[b.enemy_sprite_key];
+            }
+        }
+        if (!battle_atlas && b.enemy_sprite_id >= 0 && b.enemy_sprite_id < (int)game.npc_atlases.size()) {
+            battle_atlas = game.npc_atlases[b.enemy_sprite_id].get();
+            battle_desc = game.npc_descs[b.enemy_sprite_id];
+        }
+        if (battle_atlas && battle_desc) {
+            auto sr = get_character_sprite(*battle_atlas, 0, false, 0);
+            batch.set_texture(battle_desc);
+            batch.draw_quad({enemy_cx - ew*0.5f, enemy_y}, {ew, eh}, sr.uv_min, sr.uv_max);
+        }
     }
 
     // Enemy name + HP bar
@@ -2800,10 +2851,23 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     // NPCs (skip scheduled-out NPCs)
     for (const auto& npc : game.npcs) {
         if (!npc.schedule.currently_visible) continue;
-        if (npc.sprite_atlas_id >= 0 && npc.sprite_atlas_id < (int)game.npc_atlases.size()) {
-            auto& atlas = *game.npc_atlases[npc.sprite_atlas_id];
-            auto desc = game.npc_descs[npc.sprite_atlas_id];
-            auto sr = get_character_sprite(atlas, npc.dir, npc.moving, npc.frame);
+        // Prefer string-keyed atlas cache
+        eb::TextureAtlas* atlas_ptr = nullptr;
+        VkDescriptorSet desc = VK_NULL_HANDLE;
+        if (!npc.sprite_atlas_key.empty()) {
+            auto it = game.atlas_cache.find(npc.sprite_atlas_key);
+            if (it != game.atlas_cache.end()) {
+                atlas_ptr = it->second.get();
+                desc = game.atlas_descs[npc.sprite_atlas_key];
+            }
+        }
+        // Fallback to legacy indexed lookup
+        if (!atlas_ptr && npc.sprite_atlas_id >= 0 && npc.sprite_atlas_id < (int)game.npc_atlases.size()) {
+            atlas_ptr = game.npc_atlases[npc.sprite_atlas_id].get();
+            desc = game.npc_descs[npc.sprite_atlas_id];
+        }
+        if (atlas_ptr && desc) {
+            auto sr = get_character_sprite(*atlas_ptr, npc.dir, npc.moving, npc.frame);
             float rw=48, rh=64;
             eb::Vec2 dp = {npc.position.x-rw*0.5f, npc.position.y-rh+4};
             batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, npc.position.y, desc);
@@ -2948,12 +3012,12 @@ static void sync_hud_values(GameState& game) {
     set_vis("pause_bg", paused);
     set_vis("pause_title", paused);
     set_vis("pause_cursor", paused);
+    static const char* pause_item_ids[5] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4"};
     for (int i = 0; i < 5; i++) {
-        std::string item_id = "pause_item_" + std::to_string(i);
-        set_vis(item_id, paused);
+        set_vis(pause_item_ids[i], paused);
 
         // Highlight selected item
-        if (auto* l = find_label(item_id)) {
+        if (auto* l = find_label(pause_item_ids[i])) {
             if (i == game.pause_selection && paused) {
                 l->color = {1.0f, 1.0f, 0.9f, 1.0f};
             } else {
@@ -2967,12 +3031,8 @@ static void sync_hud_values(GameState& game) {
         for (auto& img : game.script_ui.images) {
             if (img.id == "pause_cursor") {
                 // Match the Y position of the selected item label
-                std::string sel_id = "pause_item_" + std::to_string(game.pause_selection);
-                for (auto& l : game.script_ui.labels) {
-                    if (l.id == sel_id) {
-                        img.position.y = l.position.y;
-                        break;
-                    }
+                if (auto* l = find_label(pause_item_ids[game.pause_selection])) {
+                    img.position.y = l->position.y;
                 }
                 break;
             }

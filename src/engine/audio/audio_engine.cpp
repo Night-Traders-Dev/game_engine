@@ -4,11 +4,16 @@
 
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 namespace eb {
 
 AudioEngine::AudioEngine() {
-    engine_ = new ma_engine();
+    engine_ = new(std::nothrow) ma_engine();
+    if (!engine_) {
+        std::fprintf(stderr, "[Audio] Failed to allocate audio engine\n");
+        return;
+    }
     ma_engine_config config = ma_engine_config_init();
     config.channels = 2;
     config.sampleRate = 44100;

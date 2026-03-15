@@ -23,8 +23,9 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Script-Driven HUD** — Built-in C++ HUD panels OFF by default; all HUD layout defined inline in `default.sage`. C++ auto-syncs values each frame by well-known component IDs (HP bar auto-colors green/yellow/red, sun/moon icon auto-swaps by time)
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; 9 scripting API functions (`play_music`, `stop_music`, `crossfade_music`, `play_sfx`, etc.) plus an event library (`lib/audio.sage`) for context-based music management
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
-- **SageLang Scripting** — 130+ API functions across 25+ modules driving all game systems with hot reload; all engine-loaded scripts share a global environment (functions callable across files without imports). Includes Player, Camera, Platform, NPC Runtime, Screen Effects, Tile Map Query, Input, Dialogue, Battle, and Renderer APIs
-- **Test Suite** — `--test` CLI flag runs 90+ assertions across 24 modules (Engine Core, Flags, Inventory, Gold, Stats, Day-Night, Survival, UI, HUD, NPC, Spawn, Audio, Map, Player, Camera, Platform, NPC Runtime, Screen Effects, Tile Map, Input, Dialogue, Battle, Renderer, Level API); also callable from the F4 debug console via `run_all_tests()`
+- **SageLang Scripting** — 130+ API functions across 25+ modules driving all game systems with hot reload; all engine-loaded scripts share a global environment (functions callable across files without imports). Includes Player, Camera, Platform, NPC Runtime, Screen Effects, Tile Map Query, Input, Dialogue, Battle, and Renderer APIs. See [SCRIPTING.md](SCRIPTING.md) for the full API reference
+- **Test Suite** — `--test` CLI flag runs 100+ assertions across 28 modules (Engine Core, Flags, Inventory, Gold, Stats, Day-Night, Survival, UI, HUD, NPC, Spawn, Audio, Map, Player, Camera, Platform, NPC Runtime, Screen Effects, Tile Map, Input, Dialogue, Battle, Renderer, Level API, Flag Persistence, Value Clamping, Atlas Cache); also callable from the F4 debug console via `run_all_tests()`
+- **Security Hardened** — Path traversal protection on all script file operations, input value clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup
 - **Map Scripting** — Visual Basic-style editor: every editor action (spawn NPC, place object, set portal) auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
@@ -253,7 +254,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 130+ API functions)
+- SageLang (scripting — 130+ API functions, string-keyed atlas cache)
 - tinyfiledialogs (native file dialogs, desktop only)
 
 ## License
@@ -262,4 +263,4 @@ MIT
 
 ---
 
-*Twilight Engine v1.1.0*
+*Twilight Engine v1.2.0*

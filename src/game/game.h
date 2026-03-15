@@ -18,6 +18,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_map>
 #include <random>
 #include <cmath>
 #include <cstring>
@@ -277,7 +278,8 @@ struct NPC {
     bool has_battle = false;
     std::string battle_enemy_name;
     int battle_enemy_hp = 0, battle_enemy_atk = 0;
-    int sprite_atlas_id = -1;
+    int sprite_atlas_id = -1;       // Legacy (kept for JSON compat)
+    std::string sprite_atlas_key;   // Texture path key into GameState::atlas_cache
     bool hostile = false;
     float aggro_range = 150.0f, attack_range = 32.0f;
     float wander_timer = 0.0f, wander_interval = 3.0f;
@@ -306,7 +308,8 @@ struct BattleState {
     BattlePhase phase = BattlePhase::None;
     std::string enemy_name;
     int enemy_hp_actual = 0, enemy_hp_max = 0, enemy_atk = 0;
-    int enemy_sprite_id = -1;
+    int enemy_sprite_id = -1;       // Legacy
+    std::string enemy_sprite_key;   // Atlas cache key for battle enemy sprite
     int player_hp_actual = 0, player_hp_max = 0;
     float player_hp_display = 0.0f;
     int player_atk = 0, player_def = 0;
@@ -457,8 +460,12 @@ struct GameState {
     float trail_step_accum = 0.0f;
 
     std::vector<NPC> npcs;
+    // Legacy indexed atlas storage (kept for backward compat with old save files)
     std::vector<std::unique_ptr<eb::TextureAtlas>> npc_atlases;
     std::vector<VkDescriptorSet> npc_descs;
+    // String-keyed atlas cache (new system — shared across levels)
+    std::unordered_map<std::string, std::shared_ptr<eb::TextureAtlas>> atlas_cache;
+    std::unordered_map<std::string, VkDescriptorSet> atlas_descs;
 
     eb::DialogueBox dialogue;
     int pending_battle_npc = -1;

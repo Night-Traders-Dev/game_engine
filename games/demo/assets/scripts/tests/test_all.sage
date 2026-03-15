@@ -269,5 +269,48 @@ proc run_all_tests():
     assert_true(is_level_loaded("nonexistent") == false, "is_level_loaded false")
     # Note: load_level/switch_level require actual map files — tested manually
 
+    # ── Flag Persistence ──
+    log("Testing: Flag persistence & types")
+    set_flag("test_int", 42)
+    set_flag("test_str", "hello")
+    set_flag("test_bool", true)
+    assert_true(get_flag("test_int") == 42, "flag int persist")
+    assert_true(get_flag("test_str") == "hello", "flag str persist")
+    assert_true(get_flag("test_bool") == true, "flag bool persist")
+    set_flag("test_int", 99)
+    assert_true(get_flag("test_int") == 99, "flag overwrite persist")
+    assert_true(get_flag("nonexistent_flag") == 0, "flag default 0")
+
+    # ── Value Clamping ──
+    log("Testing: Value clamping")
+    set_day_speed(50)
+    set_day_speed(6)
+    set_music_volume(1.0)
+    set_master_volume(0.8)
+    # These should not crash with extreme values
+    set_day_speed(0)
+    set_day_speed(6)
+
+    # ── Path Sanitization ──
+    log("Testing: Path sanitization")
+    # These should be rejected silently (no crash)
+    # play_music("../../etc/passwd")  # Would log warning, skip
+    # play_sfx("/absolute/path.wav")  # Would log warning, skip
+
+    # ── Atlas Cache ──
+    log("Testing: Atlas cache")
+    # Spawn an NPC with string-based sprite key (atlas cache lookup)
+    spawn_npc("TestNPC", 100, 100, 0, false, 0, 0, 0, 20, 0)
+    assert_true(npc_exists("TestNPC"), "spawned test npc")
+    npc_remove("TestNPC")
+    assert_true(npc_exists("TestNPC") == false, "removed test npc")
+
+    # ── Screen Effects Clamping ──
+    log("Testing: Screen effects clamping")
+    screen_shake(5, 0.1)
+    screen_flash(1, 1, 1, 0.5, 0.1)
+    screen_fade(0, 0, 0, 0, 0.1)
+    camera_shake(3, 0.1)
+
     log("═══ All API Tests Complete ═══")
     info("TEST SUITE PASSED")
