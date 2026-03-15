@@ -2,6 +2,7 @@
 #include "engine/resource/file_io.h"
 #include "engine/core/debug_log.h"
 #include "game/game.h"
+#include "game/ui/merchant_ui.h"
 
 extern "C" {
 #include <setjmp.h>
@@ -189,24 +190,24 @@ static Value native_item_count(int argc, Value* args) {
 
 // ═══════════════ Skills API ═══════════════
 
-static HunterSkills* resolve_skills(const char* character) {
+static CharacterStats* resolve_skills(const char* character) {
     if (!s_active_engine || !s_active_engine->game_state_) return nullptr;
     auto* gs = s_active_engine->game_state_;
-    if (std::strcmp(character, "dean") == 0 || std::strcmp(character, "Dean") == 0)
-        return &gs->dean_skills;
-    if (std::strcmp(character, "sam") == 0 || std::strcmp(character, "Sam") == 0)
-        return &gs->sam_skills;
+    if (std::strcmp(character, "player") == 0 || std::strcmp(character, "Player") == 0)
+        return &gs->player_stats;
+    if (std::strcmp(character, "ally") == 0 || std::strcmp(character, "Ally") == 0)
+        return &gs->ally_stats;
     return nullptr;
 }
 
-static int* resolve_skill_field(HunterSkills* skills, const char* name) {
+static int* resolve_skill_field(CharacterStats* skills, const char* name) {
     if (!skills) return nullptr;
-    if (std::strcmp(name, "hardiness") == 0)  return &skills->hardiness;
-    if (std::strcmp(name, "unholiness") == 0) return &skills->unholiness;
-    if (std::strcmp(name, "nerve") == 0)      return &skills->nerve;
+    if (std::strcmp(name, "vitality") == 0)   return &skills->vitality;
+    if (std::strcmp(name, "arcana") == 0)     return &skills->arcana;
+    if (std::strcmp(name, "agility") == 0)    return &skills->agility;
     if (std::strcmp(name, "tactics") == 0)    return &skills->tactics;
-    if (std::strcmp(name, "exorcism") == 0)   return &skills->exorcism;
-    if (std::strcmp(name, "riflery") == 0)    return &skills->riflery;
+    if (std::strcmp(name, "spirit") == 0)     return &skills->spirit;
+    if (std::strcmp(name, "strength") == 0)   return &skills->strength;
     return nullptr;
 }
 
@@ -227,7 +228,7 @@ static Value native_set_skill(int argc, Value* args) {
     auto* field = resolve_skill_field(skills, args[1].as.string);
     if (field) {
         int val = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 5;
-        *field = std::max(HunterSkills::MIN_STAT, std::min(HunterSkills::MAX_STAT, val));
+        *field = std::max(CharacterStats::MIN_STAT, std::min(CharacterStats::MAX_STAT, val));
     }
     return val_nil();
 }
@@ -242,10 +243,10 @@ static Value native_get_skill_bonus(int argc, Value* args) {
     if (std::strcmp(bonus, "hp") == 0)         return val_number(skills->hp_bonus());
     if (std::strcmp(bonus, "crit") == 0)       return val_number(skills->crit_chance() * 100);
     if (std::strcmp(bonus, "defense") == 0)    return val_number(skills->defense_bonus());
-    if (std::strcmp(bonus, "holy_mult") == 0)  return val_number(skills->holy_damage_mult() * 100);
-    if (std::strcmp(bonus, "weapon_dmg") == 0) return val_number(skills->weapon_damage_bonus());
-    if (std::strcmp(bonus, "dodge") == 0)      return val_number(skills->dodge_chance() * 100);
-    if (std::strcmp(bonus, "dark_mult") == 0)  return val_number(skills->dark_power_mult() * 100);
+    if (std::strcmp(bonus, "magic_mult") == 0)  return val_number(skills->magic_damage_mult() * 100);
+    if (std::strcmp(bonus, "weapon_dmg") == 0)  return val_number(skills->weapon_damage_bonus());
+    if (std::strcmp(bonus, "dodge") == 0)       return val_number(skills->dodge_chance() * 100);
+    if (std::strcmp(bonus, "spell_mult") == 0)  return val_number(skills->spell_power_mult() * 100);
     return val_number(0);
 }
 
@@ -308,6 +309,58 @@ static Value native_debug_assert(int argc, Value* args) {
     return val_nil();
 }
 
+// ═══════════════ Shop API ═══════════════
+
+// Temporary shop item list built up by script calls, then opened
+static std::vector<eb::ShopItem> s_pending_shop_items;
+static std::string s_pending_shop_name;
+
+// add_shop_item(id, name, price, type, description, heal, dmg, element, sage_func)
+static Value native_add_shop_item(int argc, Value* args) {
+    if (argc < 3) return val_nil();
+    eb::ShopItem item;
+    item.id   = (args[0].type == VAL_STRING) ? args[0].as.string : "item";
+    item.name = (args[1].type == VAL_STRING) ? args[1].as.string : "Item";
+    item.price = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 10;
+    if (argc > 3) {
+        const char* type_str = (args[3].type == VAL_STRING) ? args[3].as.string : "consumable";
+        if (std::strcmp(type_str, "weapon") == 0) item.type = eb::ShopItemType::Weapon;
+        else if (std::strcmp(type_str, "key") == 0) item.type = eb::ShopItemType::KeyItem;
+        else item.type = eb::ShopItemType::Consumable;
+    }
+    if (argc > 4 && args[4].type == VAL_STRING) item.description = args[4].as.string;
+    if (argc > 5 && args[5].type == VAL_NUMBER) item.heal_hp = (int)args[5].as.number;
+    if (argc > 6 && args[6].type == VAL_NUMBER) item.damage = (int)args[6].as.number;
+    if (argc > 7 && args[7].type == VAL_STRING) item.element = args[7].as.string;
+    if (argc > 8 && args[8].type == VAL_STRING) item.sage_func = args[8].as.string;
+    s_pending_shop_items.push_back(item);
+    return val_nil();
+}
+
+// open_shop(merchant_name) — opens the merchant UI with all pending items
+static Value native_open_shop(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
+    std::string name = "Merchant";
+    if (argc > 0 && args[0].type == VAL_STRING) name = args[0].as.string;
+    s_active_engine->game_state_->merchant_ui.open(s_pending_shop_items, name);
+    s_pending_shop_items.clear();
+    return val_nil();
+}
+
+// set_gold(amount) — set player gold
+static Value native_set_gold(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
+    if (argc > 0 && args[0].type == VAL_NUMBER)
+        s_active_engine->game_state_->gold = (int)args[0].as.number;
+    return val_nil();
+}
+
+// get_gold() — get player gold
+static Value native_get_gold(int argc, Value* /*args*/) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->gold);
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -321,6 +374,7 @@ ScriptEngine::ScriptEngine() {
         register_inventory_api();
         register_skills_api();
         register_debug_api();
+        register_shop_api();
         s_active_engine = this;
     }
 }
@@ -347,12 +401,12 @@ void ScriptEngine::register_battle_api() {
     // Battle state variables are synced before/after script calls
     // These are readable/writable SageLang globals:
     // enemy_hp, enemy_max_hp, enemy_atk, enemy_name
-    // dean_hp, dean_max_hp, dean_atk, dean_def
-    // sam_hp, sam_max_hp, sam_atk
-    // active_fighter (0=Dean, 1=Sam)
+    // player_hp, player_max_hp, player_atk, player_def
+    // ally_hp, ally_max_hp, ally_atk
+    // active_fighter (0=Player, 1=Ally)
     // battle_result: set to "damage", "heal", "miss" etc by scripts
     // battle_damage: the amount of damage/healing
-    // battle_target: "enemy", "dean", "sam"
+    // battle_target: "enemy", "player", "ally"
     std::printf("[ScriptEngine] Battle API registered\n");
 }
 
@@ -384,6 +438,15 @@ void ScriptEngine::register_inventory_api() {
     std::printf("[ScriptEngine] Inventory API registered\n");
 }
 
+void ScriptEngine::register_shop_api() {
+    if (!env_) return;
+    env_define(env_, "add_shop_item", 13, val_native(native_add_shop_item));
+    env_define(env_, "open_shop", 9, val_native(native_open_shop));
+    env_define(env_, "set_gold", 8, val_native(native_set_gold));
+    env_define(env_, "get_gold", 8, val_native(native_get_gold));
+    std::printf("[ScriptEngine] Shop API registered\n");
+}
+
 void ScriptEngine::sync_item_to_script(const std::string& item_id) {
     if (!env_ || !game_state_) return;
     auto* item = game_state_->inventory.find(item_id);
@@ -404,23 +467,23 @@ void ScriptEngine::sync_battle_to_script() {
     set_number("enemy_max_hp", b.enemy_hp_max);
     set_number("enemy_atk", b.enemy_atk);
     set_string("enemy_name", b.enemy_name);
-    set_number("dean_hp", b.player_hp_actual);
-    set_number("dean_max_hp", b.player_hp_max);
-    set_number("dean_atk", b.player_atk);
-    set_number("dean_def", b.player_def);
-    set_number("sam_hp", b.sam_hp_actual);
-    set_number("sam_max_hp", b.sam_hp_max);
-    set_number("sam_atk", b.sam_atk);
+    set_number("player_hp", b.player_hp_actual);
+    set_number("player_max_hp", b.player_hp_max);
+    set_number("player_atk", b.player_atk);
+    set_number("player_def", b.player_def);
+    set_number("ally_hp", b.sam_hp_actual);
+    set_number("ally_max_hp", b.sam_hp_max);
+    set_number("ally_atk", b.sam_atk);
     set_number("active_fighter", b.active_fighter);
 
     // Sync skill values for current fighter
-    auto& skills = (b.active_fighter == 0) ? game_state_->dean_skills : game_state_->sam_skills;
-    set_number("skill_hardiness", skills.hardiness);
-    set_number("skill_unholiness", skills.unholiness);
-    set_number("skill_nerve", skills.nerve);
+    auto& skills = (b.active_fighter == 0) ? game_state_->player_stats : game_state_->ally_stats;
+    set_number("skill_vitality", skills.vitality);
+    set_number("skill_arcana", skills.arcana);
+    set_number("skill_agility", skills.agility);
     set_number("skill_tactics", skills.tactics);
-    set_number("skill_exorcism", skills.exorcism);
-    set_number("skill_riflery", skills.riflery);
+    set_number("skill_spirit", skills.spirit);
+    set_number("skill_strength", skills.strength);
 
     // Reset result vars
     set_string("battle_result", "");
@@ -437,9 +500,9 @@ void ScriptEngine::sync_battle_from_script() {
     Value v;
     if (env_get(env_, "enemy_hp", 8, &v) && v.type == VAL_NUMBER)
         b.enemy_hp_actual = (int)v.as.number;
-    if (env_get(env_, "dean_hp", 7, &v) && v.type == VAL_NUMBER)
+    if (env_get(env_, "player_hp", 9, &v) && v.type == VAL_NUMBER)
         b.player_hp_actual = (int)v.as.number;
-    if (env_get(env_, "sam_hp", 6, &v) && v.type == VAL_NUMBER)
+    if (env_get(env_, "ally_hp", 7, &v) && v.type == VAL_NUMBER)
         b.sam_hp_actual = (int)v.as.number;
     if (env_get(env_, "battle_damage", 13, &v) && v.type == VAL_NUMBER)
         b.last_damage = (int)v.as.number;

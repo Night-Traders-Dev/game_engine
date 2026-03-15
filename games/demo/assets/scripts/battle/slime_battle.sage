@@ -12,11 +12,11 @@
 
 proc slime_attack():
     let target = random(0, 1)
-    if dean_hp <= 0:
+    if player_hp <= 0:
         target = 1
-    if sam_hp <= 0:
+    if ally_hp <= 0:
         target = 0
-    let target_name = "Warrior"
+    let target_name = "Mage"
     if target == 1:
         target_name = "Black Mage"
     let pattern = random(1, 10)
@@ -24,9 +24,9 @@ proc slime_attack():
         # Normal attack
         let damage = enemy_atk + random(0, 3)
         if target == 0:
-            dean_hp = dean_hp - damage
+            player_hp = player_hp - damage
         else:
-            sam_hp = sam_hp - damage
+            ally_hp = ally_hp - damage
         battle_msg = "Slime oozes onto " + target_name + "! " + str(damage) + " damage!"
         battle_damage = damage
         battle_target = target_name
@@ -35,9 +35,9 @@ proc slime_attack():
             # Acid Spit — hits one target, may reduce defense
             let damage = enemy_atk + random(2, 6)
             if target == 0:
-                dean_hp = dean_hp - damage
+                player_hp = player_hp - damage
             else:
-                sam_hp = sam_hp - damage
+                ally_hp = ally_hp - damage
             battle_msg = "Slime spits acid at " + target_name + "! " + str(damage) + " damage!"
             battle_damage = damage
             battle_target = target_name
@@ -61,11 +61,11 @@ proc slime_attack():
 
 proc skeleton_attack():
     let target = random(0, 1)
-    if dean_hp <= 0:
+    if player_hp <= 0:
         target = 1
-    if sam_hp <= 0:
+    if ally_hp <= 0:
         target = 0
-    let target_name = "Warrior"
+    let target_name = "Mage"
     if target == 1:
         target_name = "Black Mage"
     let pattern = random(1, 10)
@@ -73,23 +73,23 @@ proc skeleton_attack():
         # Bone Strike
         let damage = enemy_atk + random(1, 5)
         if target == 0:
-            dean_hp = dean_hp - damage
+            player_hp = player_hp - damage
         else:
-            sam_hp = sam_hp - damage
+            ally_hp = ally_hp - damage
         battle_msg = "Skeleton strikes with a bone! " + str(damage) + " damage to " + target_name + "!"
         battle_damage = damage
         battle_target = target_name
     else:
         if pattern <= 7:
             # Bone Throw — ranged attack, targets Black Mage preferentially
-            if sam_hp > 0:
+            if ally_hp > 0:
                 target = 1
                 target_name = "Black Mage"
             let damage = enemy_atk + random(3, 8)
             if target == 0:
-                dean_hp = dean_hp - damage
+                player_hp = player_hp - damage
             else:
-                sam_hp = sam_hp - damage
+                ally_hp = ally_hp - damage
             battle_msg = "Skeleton hurls a bone at " + target_name + "! " + str(damage) + " damage!"
             battle_damage = damage
             battle_target = target_name
@@ -98,9 +98,9 @@ proc skeleton_attack():
                 # Shadow Claw — dark damage
                 let damage = enemy_atk + random(4, 10)
                 if target == 0:
-                    dean_hp = dean_hp - damage
+                    player_hp = player_hp - damage
                 else:
-                    sam_hp = sam_hp - damage
+                    ally_hp = ally_hp - damage
                 battle_msg = "Skeleton slashes with shadow claws! " + str(damage) + " dark damage to " + target_name + "!"
                 battle_damage = damage
                 battle_target = target_name

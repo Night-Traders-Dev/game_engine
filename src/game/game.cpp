@@ -1207,6 +1207,24 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
             }
         }
 
+        // UI sprite sheet (for merchant store, menus, etc.)
+        auto* ui_tex = try_load("assets/textures/ui_spritesheet.png");
+        if (ui_tex) {
+            game.ui_atlas = std::make_unique<eb::TextureAtlas>(ui_tex);
+            eb::define_ui_atlas_regions(*game.ui_atlas);
+            game.ui_desc = renderer.get_texture_descriptor(*ui_tex);
+            std::printf("[Game] UI sprite sheet loaded (%dx%d)\n", ui_tex->width(), ui_tex->height());
+        }
+
+        // Icons sprite sheet
+        auto* icons_tex = try_load("assets/textures/demo_srw_free_icons1.png");
+        if (icons_tex) {
+            game.icons_atlas = std::make_unique<eb::TextureAtlas>(icons_tex);
+            eb::define_icons_atlas_regions(*game.icons_atlas);
+            game.icons_desc = renderer.get_texture_descriptor(*icons_tex);
+            std::printf("[Game] Icons sprite sheet loaded\n");
+        }
+
         // Camera
         game.camera.set_viewport(viewport_w, viewport_h);
         game.camera.set_bounds(0, 0, game.tile_map.world_width(), game.tile_map.world_height());
@@ -1232,15 +1250,15 @@ void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bo
     b.enemy_sprite_id = sprite_id;
     b.sam_hp_actual = game.sam_hp; b.sam_hp_max = game.sam_hp_max;
     b.sam_hp_display = static_cast<float>(game.sam_hp);
-    b.sam_atk = game.sam_atk + game.sam_skills.weapon_damage_bonus();
-    b.active_fighter = 0; // Dean goes first
+    b.sam_atk = game.sam_atk + game.ally_stats.weapon_damage_bonus();
+    b.active_fighter = 0; // Player goes first
     b.attack_anim_timer = 0.0f;
     b.player_hp_actual = game.player_hp;
     b.player_hp_max = game.player_hp_max;
     b.player_hp_display = static_cast<float>(game.player_hp);
-    // Apply H.U.N.T.E.R. skill bonuses
-    b.player_atk = game.player_atk + game.dean_skills.weapon_damage_bonus();
-    b.player_def = game.player_def + game.dean_skills.defense_bonus();
+    // Apply character stat bonuses
+    b.player_atk = game.player_atk + game.player_stats.weapon_damage_bonus();
+    b.player_def = game.player_def + game.player_stats.defense_bonus();
     b.menu_selection = 0; b.phase_timer = 0.0f;
     b.item_menu_open = false; b.item_menu_selection = 0;
     b.message = "A " + enemy + " appeared!";
@@ -1294,7 +1312,7 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
                     game.script_engine->sync_battle_from_script();
                 } else {
                     // Fallback: generic item use
-                    const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                    const char* fighter = (b.active_fighter == 0) ? "Hero" : "Ally";
                     if (item->heal_hp > 0) {
                         int heal = item->heal_hp;
                         if (b.active_fighter == 0)
@@ -1326,7 +1344,7 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
                         game.script_engine->call_function("attack_normal");
                         game.script_engine->sync_battle_from_script();
                     } else {
-                        const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                        const char* fighter = (b.active_fighter == 0) ? "Hero" : "Ally";
                         int atk = (b.active_fighter == 0) ? b.player_atk : b.sam_atk;
                         int damage = atk + (game.rng() % 5) - 2;
                         if (damage < 1) damage = 1;
@@ -1351,7 +1369,7 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
                         game.script_engine->call_function("defend");
                         game.script_engine->sync_battle_from_script();
                     } else {
-                        const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                        const char* fighter = (b.active_fighter == 0) ? "Hero" : "Ally";
                         int heal = 8 + game.rng() % 8;
                         if (b.active_fighter == 0)
                             b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
@@ -1382,7 +1400,7 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
                 b.message = "Victory! Gained " + std::to_string(xp) + " XP!";
                 game.player_xp += xp;
             } else if (b.active_fighter == 0 && b.sam_hp_actual > 0) {
-                // Sam's turn next
+                // Ally's turn next
                 b.active_fighter = 1; b.menu_selection = 0;
                 b.phase = BattlePhase::PlayerTurn; b.message = "";
             } else {
@@ -1419,10 +1437,10 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
             if (damage < 1) damage = 1;
             if (target == 0) {
                 b.player_hp_actual -= damage;
-                b.message = b.enemy_name + " attacks Dean! " + std::to_string(damage) + " damage!";
+                b.message = b.enemy_name + " attacks Hero! " + std::to_string(damage) + " damage!";
             } else {
                 b.sam_hp_actual -= damage;
-                b.message = b.enemy_name + " attacks Sam! " + std::to_string(damage) + " damage!";
+                b.message = b.enemy_name + " attacks Ally! " + std::to_string(damage) + " damage!";
             }
             b.last_damage = damage;
         }
@@ -1434,14 +1452,14 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
 
     case BattlePhase::EnemyAttack:
         if (b.phase_timer > 1.2f || confirm) {
-            bool dean_down = b.player_hp_actual <= 0;
-            bool sam_down = b.sam_hp_actual <= 0;
-            if (dean_down && sam_down) {
+            bool player_down = b.player_hp_actual <= 0;
+            bool ally_down = b.sam_hp_actual <= 0;
+            if (player_down && ally_down) {
                 b.player_hp_actual = 0; b.sam_hp_actual = 0;
-                b.phase = BattlePhase::Defeat; b.message = "The Winchesters are down!";
+                b.phase = BattlePhase::Defeat; b.message = "The party has fallen!";
             } else {
                 b.active_fighter = 0; b.menu_selection = 0;
-                // Skip Dean if he's down
+                // Skip player if they're down
                 if (b.player_hp_actual <= 0) b.active_fighter = 1;
                 b.phase = BattlePhase::PlayerTurn; b.message = "";
             }
@@ -1480,6 +1498,19 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                       input.is_pressed(eb::InputAction::Confirm),
                       input.is_pressed(eb::InputAction::MoveUp),
                       input.is_pressed(eb::InputAction::MoveDown));
+        return;
+    }
+
+    // Merchant UI mode
+    if (game.merchant_ui.is_open()) {
+        game.merchant_ui.update(game,
+            input.is_pressed(eb::InputAction::MoveUp),
+            input.is_pressed(eb::InputAction::MoveDown),
+            input.is_pressed(eb::InputAction::MoveLeft),
+            input.is_pressed(eb::InputAction::MoveRight),
+            input.is_pressed(eb::InputAction::Confirm),
+            input.is_pressed(eb::InputAction::Cancel),
+            dt);
         return;
     }
 
@@ -1665,16 +1696,24 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                     // Replace spaces/special chars with underscore
                     for (auto& c : npc_lower) if (c == ' ' || c == '?' || c == '!') c = '_';
 
-                    // Try: npc_name_greeting (e.g. "merchant_greeting")
-                    std::string specific = npc_lower + "_greeting";
-                    if (game.script_engine->has_function(specific)) {
-                        game.script_engine->call_function(specific);
+                    // Check if this NPC has a shop (e.g. "merchant_shop_items")
+                    std::string shop_func = npc_lower + "_shop_items";
+                    if (game.script_engine->has_function(shop_func)) {
+                        game.script_engine->call_function(shop_func);
                         handled = true;
                     }
-                    // Try: just "greeting" (last-loaded script wins)
-                    else if (game.script_engine->has_function("greeting")) {
-                        game.script_engine->call_function("greeting");
-                        handled = true;
+                    // Try: npc_name_greeting (e.g. "merchant_greeting")
+                    else {
+                        std::string specific = npc_lower + "_greeting";
+                        if (game.script_engine->has_function(specific)) {
+                            game.script_engine->call_function(specific);
+                            handled = true;
+                        }
+                        // Try: just "greeting" (last-loaded script wins)
+                        else if (game.script_engine->has_function("greeting")) {
+                            game.script_engine->call_function("greeting");
+                            handled = true;
+                        }
                     }
                 }
                 // Fallback: use static dialogue lines (from .dialogue file or default)
@@ -1804,45 +1843,45 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
     text.draw_text(batch,game.font_desc,std::to_string(std::max(0,b.enemy_hp_actual))+"/"+std::to_string(b.enemy_hp_max),
                    {ebx+185,eby+22},{1,1,1,1},0.6f);
 
-    // ── Dean + Sam sprites (lower area, backs to us) ──
+    // ── Player + Ally sprites (lower area, backs to us) ──
     float party_y = sh * 0.42f;
     float party_cx = sw * 0.5f;
-    float dean_x = party_cx - sprite_w - 10.0f;
-    float sam_x = party_cx + 10.0f;
+    float player_x = party_cx - sprite_w - 10.0f;
+    float ally_x = party_cx + 10.0f;
 
     // Attack animation: lunge forward during PlayerAttack phase
-    float dean_offset_y = 0, sam_offset_y = 0;
+    float player_offset_y = 0, ally_offset_y = 0;
     if (b.phase == BattlePhase::PlayerAttack && b.attack_anim_timer < 0.5f) {
         float t = b.attack_anim_timer / 0.5f;
         float lunge = std::sin(t * 3.14159f) * 30.0f; // Lunge forward and back
-        if (b.active_fighter == 0) dean_offset_y = -lunge;
-        else sam_offset_y = -lunge;
+        if (b.active_fighter == 0) player_offset_y = -lunge;
+        else ally_offset_y = -lunge;
     }
 
-    // Dean (left) — flash red if hit
-    bool dean_hit = (b.phase == BattlePhase::EnemyAttack &&
-                     b.message.find("Dean") != std::string::npos &&
+    // Player (left) — flash red if hit
+    bool player_hit = (b.phase == BattlePhase::EnemyAttack &&
+                     b.message.find("Hero") != std::string::npos &&
                      b.attack_anim_timer < 0.6f &&
                      std::fmod(b.attack_anim_timer, 0.12f) < 0.06f);
-    if (!dean_hit && b.player_hp_actual > 0 && game.dean_atlas) {
-        bool dean_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 0);
-        int dean_frame = dean_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
-        auto sr = get_character_sprite(*game.dean_atlas, 1, dean_attacking, dean_frame);
+    if (!player_hit && b.player_hp_actual > 0 && game.dean_atlas) {
+        bool player_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 0);
+        int player_frame = player_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
+        auto sr = get_character_sprite(*game.dean_atlas, 1, player_attacking, player_frame);
         batch.set_texture(game.dean_desc);
-        batch.draw_quad({dean_x, party_y + dean_offset_y}, {sprite_w, sprite_h}, sr.uv_min, sr.uv_max);
+        batch.draw_quad({player_x, party_y + player_offset_y}, {sprite_w, sprite_h}, sr.uv_min, sr.uv_max);
     }
 
-    // Sam (right)
-    bool sam_hit = (b.phase == BattlePhase::EnemyAttack &&
-                    b.message.find("Sam") != std::string::npos &&
+    // Ally (right)
+    bool ally_hit = (b.phase == BattlePhase::EnemyAttack &&
+                    b.message.find("Ally") != std::string::npos &&
                     b.attack_anim_timer < 0.6f &&
                     std::fmod(b.attack_anim_timer, 0.12f) < 0.06f);
-    if (!sam_hit && b.sam_hp_actual > 0 && game.sam_atlas) {
-        bool sam_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 1);
-        int sam_frame = sam_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
-        auto sr = get_character_sprite(*game.sam_atlas, 1, sam_attacking, sam_frame);
+    if (!ally_hit && b.sam_hp_actual > 0 && game.sam_atlas) {
+        bool ally_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 1);
+        int ally_frame = ally_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
+        auto sr = get_character_sprite(*game.sam_atlas, 1, ally_attacking, ally_frame);
         batch.set_texture(game.sam_desc);
-        batch.draw_quad({sam_x, party_y + sam_offset_y}, {sprite_w, sprite_h}, sr.uv_min, sr.uv_max);
+        batch.draw_quad({ally_x, party_y + ally_offset_y}, {sprite_w, sprite_h}, sr.uv_min, sr.uv_max);
     }
 
     // ── Party stats (bottom right) ──
@@ -1852,10 +1891,10 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
     batch.draw_quad({pbx,pby},{240,2},{0,0},{1,1},{0.5f,0.5f,0.8f,1});
     batch.draw_quad({pbx,pby+90},{240,2},{0,0},{1,1},{0.5f,0.5f,0.8f,1});
 
-    // Dean HP
-    eb::Vec4 dean_name_col = (b.phase == BattlePhase::PlayerTurn && b.active_fighter == 0)
+    // Player HP
+    eb::Vec4 player_name_col = (b.phase == BattlePhase::PlayerTurn && b.active_fighter == 0)
         ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{1,1,1,1};
-    text.draw_text(batch,game.font_desc,"Dean",{pbx+8,pby+4},dean_name_col,0.7f);
+    text.draw_text(batch,game.font_desc,"Hero",{pbx+8,pby+4},player_name_col,0.7f);
     float dhp = b.player_hp_display;
     float dp = std::max(0.0f,dhp/b.player_hp_max);
     batch.set_texture(game.white_desc);
@@ -1865,10 +1904,10 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
     char dhs[32]; std::snprintf(dhs,sizeof(dhs),"%d/%d",(int)std::ceil(dhp),b.player_hp_max);
     text.draw_text(batch,game.font_desc,dhs,{pbx+186,pby+5},{1,1,1,1},0.5f);
 
-    // Sam HP
-    eb::Vec4 sam_name_col = (b.phase == BattlePhase::PlayerTurn && b.active_fighter == 1)
+    // Ally HP
+    eb::Vec4 ally_name_col = (b.phase == BattlePhase::PlayerTurn && b.active_fighter == 1)
         ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{1,1,1,1};
-    text.draw_text(batch,game.font_desc,"Sam",{pbx+8,pby+24},sam_name_col,0.7f);
+    text.draw_text(batch,game.font_desc,"Ally",{pbx+8,pby+24},ally_name_col,0.7f);
     float shp = b.sam_hp_display;
     float sp = std::max(0.0f,shp/b.sam_hp_max);
     batch.set_texture(game.white_desc);
@@ -1883,7 +1922,7 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
 
     // ── Battle menu (player turn) ──
     if (b.phase == BattlePhase::PlayerTurn) {
-        const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+        const char* fighter = (b.active_fighter == 0) ? "Hero" : "Ally";
 
         if (b.item_menu_open) {
             // ── Item submenu ──
@@ -1955,7 +1994,7 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     batch.draw_quad({hx,hy+hh-2},{hw,2},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
     batch.draw_quad({hx,hy},{2,hh},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
     batch.draw_quad({hx+hw-2,hy},{2,hh},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
-    char ns[64]; std::snprintf(ns,sizeof(ns),"Dean  Lv.%d",game.player_level);
+    char ns[64]; std::snprintf(ns,sizeof(ns),"Mage  Lv.%d",game.player_level);
     text.draw_text(batch,game.font_desc,ns,{hx+10,hy+6},{1,1,1,1},0.8f);
     float hp_pct=std::max(0.0f,(float)game.player_hp/game.player_hp_max);
     float bx=hx+10, by=hy+28, bw=130, bh=12;
@@ -1965,6 +2004,9 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     batch.draw_quad({bx,by},{bw*hp_pct,bh},{0,0},{1,1},hc);
     char hs[32]; std::snprintf(hs,sizeof(hs),"%d/%d",game.player_hp,game.player_hp_max);
     text.draw_text(batch,game.font_desc,hs,{bx+bw+6,by-1},{1,1,1,1},0.6f);
+    // Gold
+    char gs[32]; std::snprintf(gs,sizeof(gs),"%dG",game.gold);
+    text.draw_text(batch,game.font_desc,gs,{hx+hw-50,hy+6},{1.0f,0.95f,0.3f,1},0.6f);
 }
 
 // ─── Render world ───
@@ -2018,7 +2060,11 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     // Player character
     if (game.dean_atlas) {
         auto sr = get_character_sprite(*game.dean_atlas, game.player_dir, game.player_moving, game.player_frame);
-        float rw=48, rh=64;
+        // Use sprite's native pixel size scaled for rendering
+        float sprite_scale = (sr.pixel_w <= 24) ? 3.0f : 1.5f;
+        float rw = (float)sr.pixel_w * sprite_scale;
+        float rh = (float)sr.pixel_h * sprite_scale;
+        if (rw < 16) { rw = 48; rh = 60; } // Fallback for missing regions
         float bob = game.player_moving ? std::sin(game.anim_timer*15.0f)*2.0f : 0.0f;
         eb::Vec2 dp = {game.player_pos.x-rw*0.5f, game.player_pos.y-rh+4+bob};
         batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, game.player_pos.y, game.dean_desc);
@@ -2076,5 +2122,10 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     // Dialogue
     if (game.dialogue.is_active()) {
         game.dialogue.render(batch, text, game.font_desc, game.white_desc, sw, sh);
+    }
+
+    // Merchant UI
+    if (game.merchant_ui.is_open()) {
+        game.merchant_ui.render(batch, text, game, sw, sh);
     }
 }

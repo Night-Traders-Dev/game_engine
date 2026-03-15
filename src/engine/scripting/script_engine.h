@@ -59,6 +59,7 @@ private:
     void register_inventory_api();
     void register_skills_api();
     void register_debug_api();
+    void register_shop_api();
 
     Env* env_ = nullptr;
 

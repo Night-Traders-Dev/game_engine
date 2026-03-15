@@ -7,9 +7,9 @@
   },
 
   "player": {
-    "name": "Warrior",
-    "sprite": "assets/textures/cf_player.png",
-    "sprite_grid": [32, 32],
+    "name": "Mage",
+    "sprite": "assets/textures/mage_player.png",
+    "sprite_grid": [16, 20],
     "hp": 120, "hp_max": 120,
     "atk": 18, "def": 8,
     "level": 1, "xp": 0,
@@ -97,8 +97,8 @@
 
   "init_scripts": [
     "give_starter_items",
-    "init_dean_skills",
-    "init_sam_skills"
+    "init_player_stats",
+    "init_ally_stats"
   ],
 
   "audio": {

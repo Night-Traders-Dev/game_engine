@@ -9,17 +9,17 @@
 # ── Fight Command ──
 
 proc attack_normal():
-    let fighter_name = "Warrior"
-    let base_atk = dean_atk
+    let fighter_name = "Mage"
+    let base_atk = player_atk
     if active_fighter == 1:
         fighter_name = "Black Mage"
-        base_atk = sam_atk
+        base_atk = ally_atk
     let damage = base_atk + random(-1, 4)
     if damage < 1:
         damage = 1
     # Critical hit based on Luck (exorcism)
     let crit_roll = random(1, 100)
-    if crit_roll <= skill_exorcism * 3:
+    if crit_roll <= skill_spirit * 3:
         damage = damage * 2
         battle_msg = fighter_name + " scores a critical hit! " + str(damage) + " damage!"
     else:
@@ -31,19 +31,19 @@ proc attack_normal():
 # ── Defend Command ──
 
 proc defend():
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
     # Spirit (tactics) boosts healing from Defend
     let heal = 8 + random(0, 6) + skill_tactics
     if active_fighter == 0:
-        dean_hp = dean_hp + heal
-        if dean_hp > dean_max_hp:
-            dean_hp = dean_max_hp
+        player_hp = player_hp + heal
+        if player_hp > player_max_hp:
+            player_hp = player_max_hp
     else:
-        sam_hp = sam_hp + heal
-        if sam_hp > sam_max_hp:
-            sam_hp = sam_max_hp
+        ally_hp = ally_hp + heal
+        if ally_hp > ally_max_hp:
+            ally_hp = ally_max_hp
     battle_damage = heal
     battle_msg = fighter_name + " guards... Recovered " + str(heal) + " HP."
     battle_target = fighter_name
@@ -52,11 +52,11 @@ proc defend():
 
 proc enemy_turn():
     let target = random(0, 1)
-    if dean_hp <= 0:
+    if player_hp <= 0:
         target = 1
-    if sam_hp <= 0:
+    if ally_hp <= 0:
         target = 0
-    let target_name = "Warrior"
+    let target_name = "Mage"
     if target == 1:
         target_name = "Black Mage"
     let damage = enemy_atk + random(-2, 3)
@@ -64,7 +64,7 @@ proc enemy_turn():
         damage = 1
     # Evasion check based on Speed (nerve)
     let evade_roll = random(1, 100)
-    let target_speed = skill_nerve
+    let target_speed = skill_agility
     if evade_roll <= target_speed * 2:
         battle_msg = target_name + " dodges the attack!"
         battle_damage = 0
@@ -77,9 +77,9 @@ proc enemy_turn():
         else:
             battle_msg = enemy_name + " attacks " + target_name + "! " + str(damage) + " damage!"
         if target == 0:
-            dean_hp = dean_hp - damage
+            player_hp = player_hp - damage
         else:
-            sam_hp = sam_hp - damage
+            ally_hp = ally_hp - damage
         battle_damage = damage
         battle_target = target_name
 

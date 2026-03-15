@@ -31,16 +31,16 @@ proc give_starter_items():
 
 proc use_potion():
     let heal = 50 + random(0, 10)
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
-        sam_hp = sam_hp + heal
-        if sam_hp > sam_max_hp:
-            sam_hp = sam_max_hp
+        ally_hp = ally_hp + heal
+        if ally_hp > ally_max_hp:
+            ally_hp = ally_max_hp
     else:
-        dean_hp = dean_hp + heal
-        if dean_hp > dean_max_hp:
-            dean_hp = dean_max_hp
+        player_hp = player_hp + heal
+        if player_hp > player_max_hp:
+            player_hp = player_max_hp
     battle_damage = heal
     battle_msg = fighter_name + " uses Potion! Recovered " + str(heal) + " HP."
     battle_target = fighter_name
@@ -48,16 +48,16 @@ proc use_potion():
 
 proc use_ether():
     let heal = 20 + random(0, 10)
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
-        sam_hp = sam_hp + heal
-        if sam_hp > sam_max_hp:
-            sam_hp = sam_max_hp
+        ally_hp = ally_hp + heal
+        if ally_hp > ally_max_hp:
+            ally_hp = ally_max_hp
     else:
-        dean_hp = dean_hp + heal
-        if dean_hp > dean_max_hp:
-            dean_hp = dean_max_hp
+        player_hp = player_hp + heal
+        if player_hp > player_max_hp:
+            player_hp = player_max_hp
     battle_damage = heal
     battle_msg = fighter_name + " uses Ether! Recovered " + str(heal) + " HP."
     battle_target = fighter_name
@@ -65,29 +65,29 @@ proc use_ether():
 
 proc use_phoenix_down():
     # Revive the other party member (heal to 25% HP)
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
     if active_fighter == 0:
-        if sam_hp <= 0:
-            sam_hp = sam_max_hp / 4
-            if sam_hp < 1:
-                sam_hp = 1
+        if ally_hp <= 0:
+            ally_hp = ally_max_hp / 4
+            if ally_hp < 1:
+                ally_hp = 1
             battle_msg = fighter_name + " uses Phoenix Down! Black Mage is revived!"
-            battle_damage = sam_hp
+            battle_damage = ally_hp
             battle_target = "Black Mage"
             remove_item("phoenix_down", 1)
         else:
             battle_msg = "Black Mage is not KO'd!"
             battle_damage = 0
     else:
-        if dean_hp <= 0:
-            dean_hp = dean_max_hp / 4
-            if dean_hp < 1:
-                dean_hp = 1
+        if player_hp <= 0:
+            player_hp = player_max_hp / 4
+            if player_hp < 1:
+                player_hp = 1
             battle_msg = fighter_name + " uses Phoenix Down! Warrior is revived!"
-            battle_damage = dean_hp
-            battle_target = "Warrior"
+            battle_damage = player_hp
+            battle_target = "Mage"
             remove_item("phoenix_down", 1)
         else:
             battle_msg = "Warrior is not KO'd!"
@@ -98,11 +98,11 @@ proc use_phoenix_down():
 # ═══════════════════════════════════════════════
 
 proc use_fire():
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
     # Magic power scales with MAG stat (unholiness)
-    let damage = 30 + random(0, 12) + skill_unholiness * 3
+    let damage = 30 + random(0, 12) + skill_arcana * 3
     # Fire is super effective against undead and slimes
     if enemy_name == "Skeleton" or enemy_name == "Slime":
         damage = damage + damage / 2
@@ -115,10 +115,10 @@ proc use_fire():
     remove_item("fire", 1)
 
 proc use_blizzard():
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
-    let damage = 30 + random(0, 12) + skill_unholiness * 3
+    let damage = 30 + random(0, 12) + skill_arcana * 3
     battle_msg = fighter_name + " casts Blizzard! " + str(damage) + " ice damage!"
     enemy_hp = enemy_hp - damage
     battle_damage = damage
@@ -126,10 +126,10 @@ proc use_blizzard():
     remove_item("blizzard", 1)
 
 proc use_thunder():
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
-    let damage = 30 + random(0, 12) + skill_unholiness * 3
+    let damage = 30 + random(0, 12) + skill_arcana * 3
     # Thunder has a chance to stun (skip enemy turn — simulated as extra damage)
     let stun = random(1, 4)
     if stun == 4:
@@ -147,19 +147,19 @@ proc use_thunder():
 # ═══════════════════════════════════════════════
 
 proc use_cure():
-    let fighter_name = "Warrior"
+    let fighter_name = "Mage"
     if active_fighter == 1:
         fighter_name = "Black Mage"
     # Cure scales with Spirit (tactics)
     let heal = 40 + random(0, 15) + skill_tactics * 3
     if active_fighter == 0:
-        dean_hp = dean_hp + heal
-        if dean_hp > dean_max_hp:
-            dean_hp = dean_max_hp
+        player_hp = player_hp + heal
+        if player_hp > player_max_hp:
+            player_hp = player_max_hp
     else:
-        sam_hp = sam_hp + heal
-        if sam_hp > sam_max_hp:
-            sam_hp = sam_max_hp
+        ally_hp = ally_hp + heal
+        if ally_hp > ally_max_hp:
+            ally_hp = ally_max_hp
     battle_damage = heal
     battle_msg = fighter_name + " casts Cure! Recovered " + str(heal) + " HP."
     battle_target = fighter_name

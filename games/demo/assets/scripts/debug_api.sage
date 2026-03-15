@@ -31,7 +31,7 @@ proc debug_test():
 proc dump_battle_state():
     print("=== Battle State ===")
     print("Enemy:", enemy_name, "HP:", enemy_hp, "/", enemy_max_hp, "ATK:", enemy_atk)
-    print("Warrior HP:", dean_hp, "/", dean_max_hp, "ATK:", dean_atk, "DEF:", dean_def)
-    print("Black Mage HP:", sam_hp, "/", sam_max_hp, "ATK:", sam_atk)
+    print("Warrior HP:", player_hp, "/", player_max_hp, "ATK:", player_atk, "DEF:", player_def)
+    print("Black Mage HP:", ally_hp, "/", ally_max_hp, "ATK:", ally_atk)
     print("Active fighter:", active_fighter)
     print("====================")

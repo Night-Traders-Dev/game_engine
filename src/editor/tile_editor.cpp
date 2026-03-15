@@ -1577,13 +1577,14 @@ void TileEditor::render_imgui(GameState& game) {
         if (ImGui::Button("Spawn at Player", ImVec2(-1, 0))) {
             spawn_npc_at(game.player_pos.x, game.player_pos.y);
         }
-        if (click_spawn_mode) {
+        bool was_active = click_spawn_mode;
+        if (was_active) {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1));
         }
         if (ImGui::Button(click_spawn_mode ? "Click Map to Spawn (active)" : "Click Map to Spawn", ImVec2(-1, 0))) {
             click_spawn_mode = !click_spawn_mode;
         }
-        if (click_spawn_mode) {
+        if (was_active) {
             ImGui::PopStyleColor();
             // Intercept next map click for NPC placement
             if (!ImGui::GetIO().WantCaptureMouse && ImGui::IsMouseClicked(0)) {

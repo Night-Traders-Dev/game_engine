@@ -96,6 +96,7 @@ add_library(tw_engine STATIC
     src/engine/audio/audio_engine.cpp
     src/third_party/miniaudio_impl.cpp
     src/game/dialogue/dialogue_box.cpp
+    src/game/ui/merchant_ui.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp
 )
@@ -183,8 +184,15 @@ if(NOT EB_ANDROID)
     # Symlink assets directory into build dir so the binary can find them
     add_custom_command(TARGET twilight_game_binary POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E create_symlink
-            ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            ${CMAKE_CURRENT_SOURCE_DIR}/games/demo/assets
             ${CMAKE_CURRENT_BINARY_DIR}/assets
         COMMENT "Symlinking assets into build directory"
+    )
+    # Also symlink game.json
+    add_custom_command(TARGET twilight_game_binary POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${CMAKE_CURRENT_SOURCE_DIR}/games/demo/game.json
+            ${CMAKE_CURRENT_BINARY_DIR}/game.json
+        COMMENT "Symlinking game.json into build directory"
     )
 endif()

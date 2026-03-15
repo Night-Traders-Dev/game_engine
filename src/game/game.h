@@ -12,6 +12,7 @@
 #include "game/overworld/camera.h"
 #include "game/overworld/tile_map.h"
 #include "game/dialogue/dialogue_box.h"
+#include "game/ui/merchant_ui.h"
 
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -130,6 +131,8 @@ struct Item {
     ItemType type = ItemType::Consumable;
     int quantity = 0;
     int max_stack = 99;
+    int buy_price = 0;      // Cost to buy from merchant (0 = not for sale)
+    int sell_price = 0;     // Value when selling to merchant
     // Battle effects (read by SageLang)
     int heal_hp = 0;
     int damage = 0;
@@ -158,7 +161,7 @@ struct Inventory {
             return true;
         }
         if ((int)items.size() >= MAX_SLOTS) return false;
-        items.push_back({id, name, desc, type, count, 99, heal, dmg, elem, sage});
+        items.push_back({id, name, desc, type, count, 99, 0, 0, heal, dmg, elem, sage});
         return true;
     }
     bool remove(const std::string& id, int count = 1) {
@@ -184,29 +187,29 @@ struct Inventory {
     }
 };
 
-// ─── H.U.N.T.E.R. Skills (Fallout S.P.E.C.I.A.L. style) ───
-struct HunterSkills {
-    int hardiness  = 5;  // HP bonus, damage resistance
-    int unholiness = 3;  // Dark knowledge, demon deal power
-    int nerve      = 5;  // Courage, crit chance, dodge
-    int tactics    = 5;  // Combat strategy, defense bonus
-    int exorcism   = 4;  // Holy power, bonus vs supernatural
-    int riflery    = 5;  // Weapon damage, ranged accuracy
+// ─── Character Stats (Fallout S.P.E.C.I.A.L. style) ───
+struct CharacterStats {
+    int vitality  = 5;  // HP bonus, damage resistance
+    int arcana    = 3;  // Magic power, spell damage
+    int agility   = 5;  // Speed, crit chance, dodge
+    int tactics   = 5;  // Combat strategy, defense bonus
+    int spirit    = 4;  // Healing power, magic resistance
+    int strength  = 5;  // Physical damage, weapon scaling
 
     static constexpr int MIN_STAT = 1;
     static constexpr int MAX_STAT = 10;
-    static constexpr int STARTING_POINTS = 27; // Total starting allocation
+    static constexpr int STARTING_POINTS = 27;
 
-    int total() const { return hardiness + unholiness + nerve + tactics + exorcism + riflery; }
+    int total() const { return vitality + arcana + agility + tactics + spirit + strength; }
 
     // Derived stat bonuses
-    int hp_bonus() const { return hardiness * 10; }           // +10 HP per point
-    float crit_chance() const { return nerve * 0.03f; }       // +3% crit per point
-    int defense_bonus() const { return tactics * 2; }         // +2 def per point
-    float holy_damage_mult() const { return 1.0f + exorcism * 0.1f; } // +10% holy dmg per point
-    int weapon_damage_bonus() const { return riflery * 2; }   // +2 weapon dmg per point
-    float dark_power_mult() const { return 1.0f + unholiness * 0.08f; } // +8% dark ability per point
-    float dodge_chance() const { return nerve * 0.02f; }      // +2% dodge per point
+    int hp_bonus() const { return vitality * 10; }             // +10 HP per point
+    float crit_chance() const { return agility * 0.03f; }      // +3% crit per point
+    int defense_bonus() const { return tactics * 2; }          // +2 def per point
+    float magic_damage_mult() const { return 1.0f + spirit * 0.1f; }  // +10% magic dmg per point
+    int weapon_damage_bonus() const { return strength * 2; }   // +2 weapon dmg per point
+    float spell_power_mult() const { return 1.0f + arcana * 0.08f; }  // +8% spell power per point
+    float dodge_chance() const { return agility * 0.02f; }     // +2% dodge per point
 };
 
 // ─── Party follower ───
@@ -243,9 +246,9 @@ struct GameState {
     int player_level = 1, player_xp = 0;
     int sam_hp = 90, sam_hp_max = 90, sam_atk = 15;
 
-    // H.U.N.T.E.R. skills
-    HunterSkills dean_skills;  // Dean: higher riflery & nerve
-    HunterSkills sam_skills;   // Sam: higher exorcism & tactics
+    // Character stats
+    CharacterStats player_stats;
+    CharacterStats ally_stats;
 
     std::vector<PartyMember> party;
     static constexpr int TRAIL_SIZE = 256, FOLLOW_DISTANCE = 8;
@@ -264,6 +267,8 @@ struct GameState {
     std::mt19937 rng{std::random_device{}()};
 
     Inventory inventory;
+    int gold = 200;  // Player's currency
+    eb::MerchantUI merchant_ui;
     eb::ScriptEngine* script_engine = nullptr;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;
@@ -271,6 +276,10 @@ struct GameState {
     VkDescriptorSet sam_desc = VK_NULL_HANDLE;
     VkDescriptorSet font_desc = VK_NULL_HANDLE;
     VkDescriptorSet white_desc = VK_NULL_HANDLE;
+    VkDescriptorSet ui_desc = VK_NULL_HANDLE;
+    VkDescriptorSet icons_desc = VK_NULL_HANDLE;
+    std::unique_ptr<eb::TextureAtlas> ui_atlas;
+    std::unique_ptr<eb::TextureAtlas> icons_atlas;
     bool initialized = false;
 };
 
