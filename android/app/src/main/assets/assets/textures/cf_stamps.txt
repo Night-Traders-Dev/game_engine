@@ -1,0 +1,29 @@
+House|0|160|96|128|building
+Bridge|96|160|144|64|building
+Oak Tree|240|160|64|80|tree
+Small Oak|304|160|96|48|tree
+Flower Red|400|160|32|32|misc
+Flower Yellow|432|160|32|32|misc
+Grass Tuft|464|160|32|32|misc
+Bush Small|496|160|32|32|misc
+Pumpkin|528|160|32|32|misc
+Carrot|560|160|32|32|misc
+Crate|592|160|32|32|misc
+Barrel|0|288|32|32|misc
+Rock 1|32|288|32|32|misc
+Rock 2|64|288|32|32|misc
+Rock 3|96|288|32|32|misc
+Rock Pile|128|288|32|32|misc
+Wheat 1|160|288|32|32|misc
+Wheat 2|192|288|32|32|misc
+Hay Bale|224|288|32|32|misc
+Sign Post|256|288|32|64|misc
+Lamp Post|288|288|32|96|misc
+Log|320|288|64|32|misc
+Flower Bed|384|288|96|32|misc
+Chicken|480|288|32|32|misc
+Cow|512|288|32|32|misc
+Pig|544|288|32|32|misc
+Sheep|576|288|32|32|misc
+Skeleton|608|288|32|32|misc
+Slime|0|384|32|32|misc

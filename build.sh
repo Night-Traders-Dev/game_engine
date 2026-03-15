@@ -53,17 +53,24 @@ case "${1}" in
         mkdir -p "${ASSETS_DIR}/shaders"
         cp -f "${SHADER_DIR}"/*.spv "${ASSETS_DIR}/shaders/" 2>/dev/null || true
 
-        # Copy game assets preserving the assets/ prefix so paths match desktop
-        if [ -d "${PROJECT_DIR}/assets" ]; then
-            echo "Copying game assets..."
-            mkdir -p "${ASSETS_DIR}/assets/textures" "${ASSETS_DIR}/assets/maps" "${ASSETS_DIR}/assets/fonts"
-            cp -ru "${PROJECT_DIR}/assets/textures/"* "${ASSETS_DIR}/assets/textures/" 2>/dev/null || true
-            cp -ru "${PROJECT_DIR}/assets/maps/"* "${ASSETS_DIR}/assets/maps/" 2>/dev/null || true
-            cp -ru "${PROJECT_DIR}/assets/fonts/"* "${ASSETS_DIR}/assets/fonts/" 2>/dev/null || true
-            mkdir -p "${ASSETS_DIR}/assets/dialogue" "${ASSETS_DIR}/assets/scripts" "${ASSETS_DIR}/assets/audio"
-            cp -ru "${PROJECT_DIR}/assets/audio/"* "${ASSETS_DIR}/assets/audio/" 2>/dev/null || true
-            cp -ru "${PROJECT_DIR}/assets/dialogue/"* "${ASSETS_DIR}/assets/dialogue/" 2>/dev/null || true
-            cp -ru "${PROJECT_DIR}/assets/scripts/"* "${ASSETS_DIR}/assets/scripts/" 2>/dev/null || true
+        # Copy demo game assets (preserving assets/ prefix so paths match desktop)
+        GAME_DIR="${PROJECT_DIR}/games/demo"
+        if [ -d "${GAME_DIR}/assets" ]; then
+            echo "Copying demo game assets..."
+            cp -f "${GAME_DIR}/game.json" "${ASSETS_DIR}/" 2>/dev/null || true
+            for subdir in textures maps fonts dialogue scripts audio; do
+                if [ -d "${GAME_DIR}/assets/${subdir}" ]; then
+                    mkdir -p "${ASSETS_DIR}/assets/${subdir}"
+                    cp -ru "${GAME_DIR}/assets/${subdir}/"* "${ASSETS_DIR}/assets/${subdir}/" 2>/dev/null || true
+                fi
+            done
+            for subdir in battle inventory; do
+                if [ -d "${GAME_DIR}/assets/scripts/${subdir}" ]; then
+                    mkdir -p "${ASSETS_DIR}/assets/scripts/${subdir}"
+                    cp -ru "${GAME_DIR}/assets/scripts/${subdir}/"* "${ASSETS_DIR}/assets/scripts/${subdir}/" 2>/dev/null || true
+                fi
+            done
+            echo "Demo game assets copied"
         fi
 
         echo "Building Android APK (Debug)..."
