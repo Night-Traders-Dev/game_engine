@@ -936,14 +936,21 @@ Press **Tab** to toggle the editor. The game world renders underneath; editor UI
 
 | Tool | Key | Description |
 |------|-----|-------------|
-| Paint | P | Place selected tile or stamp object |
-| Erase | E | Remove tiles (right-click also erases) |
+| Paint | P | Place selected tile or stamp object (supports 1x1, 2x2, 3x3 brush) |
+| Erase | E | Remove tiles (right-click also erases, brush-size aware) |
 | Fill | F | Flood fill area with selected tile |
 | Eyedrop | I | Pick tile from map |
 | Select | R | Rectangle selection (then Copy/Fill/Delete) |
 | Collision | C | Cycle collision types (None → Solid → Portal) |
-| Line | L | Draw straight lines of tiles |
-| Rectangle | B | Draw filled rectangles |
+| Line | L | Draw straight lines of tiles (Bresenham algorithm) |
+| Rectangle | B | Draw filled or outlined rectangles (toggle in UI) |
+
+### Brush Sizes
+
+Paint and Erase tools support three brush sizes selectable via radio buttons in the Tools panel:
+- **1x1** — single tile (default)
+- **2x2** — 4-tile square
+- **3x3** — 9-tile square
 
 ### ImGui Panels
 
@@ -954,8 +961,18 @@ Press **Tab** to toggle the editor. The game world renders underneath; editor UI
 - Zoom display + reset
 - Undo/Redo buttons with counts
 - Save As... / Load... (native file dialogs) + Quick Save
+- Brush size radio buttons (1x1, 2x2, 3x3)
+- Filled Rectangle toggle (when Rect tool selected)
+- Import Asset... button (opens file dialog for PNG/JPG/BMP)
 - Selection tools (Copy, Fill, Delete, Flip H/V)
 - Status messages
+
+**Minimap Window** (bottom-left):
+- Color-coded tile overview (green=grass, blue=water, grey=roads, brown=dirt)
+- Solid collision tiles darkened
+- Yellow dot: player position
+- Blue/red dots: friendly/hostile NPCs
+- Click to teleport camera to that location
 
 **Assets Window** (right, tabbed):
 - **Tiles** — all 54 ground tiles as image buttons with actual texture previews
@@ -1062,30 +1079,71 @@ Maps are saved as JSON (version 2):
 
 ## Asset Pipeline
 
-### Tileset Processing
+### Asset Requirements
 
-The engine uses `new_tileset.png` with transparent backgrounds (green background removed via flood-fill). All sprite regions are defined with precise bounding boxes from automated sprite detection.
+All textures must be:
 
-```cpp
-atlas.add_region(x, y, width, height);     // Tile region (ground tiles)
-atlas.add_region(x, y, width, height);     // Object region (buildings, trees, etc.)
+- **PNG format** with **RGBA transparency** (no colored backgrounds)
+- **32x32 pixel tiles** for tilesets (or 16x16 scaled 2x with nearest neighbor)
+- **Named regions** for character sprites (direction + animation frame)
+
+### Importing Assets
+
+Use the **Import Asset...** button in the editor's Tools panel, or manually place files in the game's `assets/textures/` directory.
+
+### Converting External Sprite Sheets
+
+External sprite sheets often need conversion before the engine can use them:
+
+1. **Background removal** — Remove solid or checkerboard backgrounds to RGBA transparency
+2. **Scale to 32px** — If source is 16x16 tiles, scale 2x with nearest-neighbor interpolation
+3. **Grid alignment** — Ensure sprites are on a regular grid for atlas region mapping
+
+```python
+# Example: scale 16x16 tileset to 32x32
+from PIL import Image
+img = Image.open("tileset_16.png").convert("RGBA")
+scaled = img.resize((img.width * 2, img.height * 2), Image.NEAREST)
+scaled.save("tileset_32.png")
 ```
+
+### Included Sample Assets
+
+| Asset | Source | Format | Tiles/Sprites |
+|-------|--------|--------|---------------|
+| `earthbound/nes_sprites.png` | EarthBound NES | 996x1030, RGBA | Ness walk cycles, 4 rows |
+| `earthbound/nes_sprites_2x.png` | Same, 2x scaled | 1992x2060, RGBA | Pixel-art upscale |
+| `village/village_tileset_32.png` | Village tileset | 640x256, RGBA | 160 tiles (20x8 grid) |
+| `sprite/free_campfire_32.png` | Campfire anim | 96x256, RGBA | 6 animation frames |
+| `sprite/free_chests_32.png` | Chest variants | 432x512, RGBA | 208 chest sprites |
+| `sprite/free_doors1_32.png` | Door variants | 384x256, RGBA | 96 door sprites |
+| `sprite/free_icons1_32.png` | Heart icons | 96x128, RGBA | 12 heart sprites |
+| `sprite/free_icons2_32.png` | Gem icons | 96x128, RGBA | 12 gem sprites |
 
 ### Character Sprite Sheets
 
-Sprite sheets with named regions for each direction/animation:
-- `idle_down`, `idle_up`, `idle_right` (left = flipped right)
+Sprite sheets use named regions for each direction/animation:
+
+- `idle_down`, `idle_up`, `idle_right` (left = UV-flipped right)
 - `walk_down_0/1`, `walk_up_0/1`, `walk_right_0/1`
 
-Processing pipeline (Python):
-1. Remove background (flood fill from edges)
+Two formats supported:
+
+- **Grid-based**: Uniform cell size (e.g., 158x210), specified as `"sprite_grid": [158, 210]` in game.json
+- **Custom regions**: Per-region pixel coordinates, specified as `"sprite_regions": { "idle_down": [x,y,w,h], ... }` in game.json
+
+### Tileset Processing
+
+Tilesets use transparent backgrounds. If source has a colored background:
+
+1. Remove background via flood-fill from edges or color-key removal
 2. Find sprite bounding boxes via connected component analysis
-3. Arrange into engine grid format (3 cols x 3 rows)
-4. Save as `*_sprites.png`
+3. Define atlas regions with `atlas.add_region(x, y, width, height)`
 
 ### Fonts
 
 TTF fonts baked into texture atlases at runtime via stb_truetype.
+
 - Default: DejaVu Sans Mono Bold
 - Game text: 7px with 6px letter spacing
 - Editor text: Rendered via Dear ImGui's built-in font
@@ -1192,4 +1250,4 @@ proc use_machete():
 
 ---
 
-*Twilight Engine v0.4.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v0.5.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
