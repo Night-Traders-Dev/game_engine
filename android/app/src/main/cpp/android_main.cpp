@@ -2,6 +2,7 @@
 #include <android/native_window.h>
 #include <android/log.h>
 #include <android_native_app_glue.h>
+#include <sys/system_properties.h>
 
 #include "game/game.h"
 #include "engine/core/engine.h"
@@ -113,6 +114,22 @@ static bool init_all(AppState& state) {
         for (const auto& init_func : state.manifest.init_scripts) {
             if (state.script_engine->has_function(init_func)) {
                 state.script_engine->call_function(init_func);
+            }
+        }
+
+        // Detect Meta Quest devices
+        {
+            char manufacturer[PROP_VALUE_MAX] = {0};
+            char model[PROP_VALUE_MAX] = {0};
+            __system_property_get("ro.product.manufacturer", manufacturer);
+            __system_property_get("ro.product.model", model);
+            bool is_quest = (std::strstr(manufacturer, "Oculus") != nullptr ||
+                              std::strstr(manufacturer, "Meta") != nullptr ||
+                              std::strstr(model, "Quest") != nullptr);
+            if (is_quest) {
+                state.script_engine->set_bool("IS_QUEST", true);
+                state.script_engine->set_string("PLATFORM", "quest");
+                LOGI("Meta Quest device detected: %s %s", manufacturer, model);
             }
         }
 

@@ -98,16 +98,42 @@ void PlatformAndroid::handle_resize(int width, int height) {
 
 int32_t PlatformAndroid::handle_input(AInputEvent* event) {
     int32_t type = AInputEvent_getType(event);
+    int32_t source = AInputEvent_getSource(event);
+
     if (type == AINPUT_EVENT_TYPE_MOTION) {
+        // Gamepad/joystick axis events (Quest controllers, generic gamepads)
+        if ((source & AINPUT_SOURCE_JOYSTICK) || (source & AINPUT_SOURCE_GAMEPAD)) {
+            float lx = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_X, 0);
+            float ly = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Y, 0);
+            float deadzone = 0.25f;
+
+            // Left stick → movement
+            int up = static_cast<int>(InputAction::MoveUp);
+            int dn = static_cast<int>(InputAction::MoveDown);
+            int lt = static_cast<int>(InputAction::MoveLeft);
+            int rt = static_cast<int>(InputAction::MoveRight);
+            input_.actions[up] = (ly < -deadzone);
+            input_.actions[dn] = (ly > deadzone);
+            input_.actions[lt] = (lx < -deadzone);
+            input_.actions[rt] = (lx > deadzone);
+
+            // Right trigger → Run
+            float rtrigger = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_RTRIGGER, 0);
+            input_.actions[static_cast<int>(InputAction::Run)] = (rtrigger > 0.3f);
+
+            return 1;
+        }
+        // Touch events
         process_touch(event);
         return 1;
     }
+
     if (type == AINPUT_EVENT_TYPE_KEY) {
         int32_t key = AKeyEvent_getKeyCode(event);
         int32_t action = AKeyEvent_getAction(event);
-        // Handle back button as Menu/Cancel
-        if (key == AKEYCODE_BACK) {
-            int idx = static_cast<int>(InputAction::Menu);
+
+        auto set_action = [&](InputAction ia) {
+            int idx = static_cast<int>(ia);
             if (action == AKEY_EVENT_ACTION_DOWN) {
                 input_.actions[idx] = true;
                 input_.actions_pressed[idx] = true;
@@ -115,7 +141,44 @@ int32_t PlatformAndroid::handle_input(AInputEvent* event) {
                 input_.actions[idx] = false;
                 input_.actions_released[idx] = true;
             }
-            return 1;
+        };
+
+        switch (key) {
+            // Back button → Menu (pause)
+            case AKEYCODE_BACK:
+                set_action(InputAction::Menu);
+                return 1;
+
+            // Gamepad buttons (Quest controllers + generic gamepads)
+            case AKEYCODE_BUTTON_A:     // Quest A / Gamepad A
+            case AKEYCODE_BUTTON_SELECT:
+                set_action(InputAction::Confirm);
+                return 1;
+            case AKEYCODE_BUTTON_B:     // Quest B / Gamepad B
+                set_action(InputAction::Cancel);
+                return 1;
+            case AKEYCODE_BUTTON_X:     // Quest X (left controller)
+                set_action(InputAction::Confirm);
+                return 1;
+            case AKEYCODE_BUTTON_Y:     // Quest Y (left controller)
+                set_action(InputAction::Cancel);
+                return 1;
+            case AKEYCODE_BUTTON_START: // Menu/Start
+            case AKEYCODE_MENU:
+                set_action(InputAction::Menu);
+                return 1;
+            case AKEYCODE_BUTTON_R1:    // Right bumper → Run
+            case AKEYCODE_BUTTON_R2:
+                set_action(InputAction::Run);
+                return 1;
+
+            // D-pad (some controllers)
+            case AKEYCODE_DPAD_UP:    set_action(InputAction::MoveUp); return 1;
+            case AKEYCODE_DPAD_DOWN:  set_action(InputAction::MoveDown); return 1;
+            case AKEYCODE_DPAD_LEFT:  set_action(InputAction::MoveLeft); return 1;
+            case AKEYCODE_DPAD_RIGHT: set_action(InputAction::MoveRight); return 1;
+
+            default: break;
         }
     }
     return 0;

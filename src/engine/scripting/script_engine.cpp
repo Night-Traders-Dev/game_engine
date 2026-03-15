@@ -1892,14 +1892,17 @@ void ScriptEngine::register_platform_api() {
     set_string("PLATFORM", "android");
     set_bool("IS_ANDROID", true);
     set_bool("IS_DESKTOP", false);
+    set_bool("IS_QUEST", false);  // Set to true at runtime if Quest detected
 #elif _WIN32
     set_string("PLATFORM", "windows");
     set_bool("IS_ANDROID", false);
     set_bool("IS_DESKTOP", true);
+    set_bool("IS_QUEST", false);
 #else
     set_string("PLATFORM", "linux");
     set_bool("IS_ANDROID", false);
     set_bool("IS_DESKTOP", true);
+    set_bool("IS_QUEST", false);
 #endif
     env_define(env_, "get_screen_w", 12, val_native(native_get_screen_w));
     env_define(env_, "get_screen_h", 12, val_native(native_get_screen_h));

@@ -85,6 +85,26 @@ case "${1}" in
             echo "Build complete. Check android/app/build/outputs/apk/ for APK."
         fi
         ;;
+    quest)
+        # Meta Quest 2/3/Pro — same as Android build, just sideload the APK
+        echo "Building for Meta Quest (flat mode + controller mapping)..."
+        "${PROJECT_DIR}/build.sh" android "${BUILD_TYPE}"
+        APK="${PROJECT_DIR}/android/app/build/outputs/apk/debug/app-debug.apk"
+        echo ""
+        echo "=== Quest Build Complete ==="
+        echo "APK: ${APK}"
+        echo ""
+        echo "To install on Quest via ADB:"
+        echo "  adb install ${APK}"
+        echo ""
+        echo "Controller mapping:"
+        echo "  Left Stick    → Move"
+        echo "  A / X Button  → Confirm / Talk / Buy"
+        echo "  B / Y Button  → Cancel / Close"
+        echo "  Right Trigger → Run"
+        echo "  Start / Menu  → Pause Menu"
+        echo "  D-Pad         → Navigate menus"
+        ;;
     clean)
         rm -rf "${PROJECT_DIR}"/build-*
         rm -rf "${PROJECT_DIR}/android/app/build"
@@ -102,13 +122,13 @@ case "${1}" in
         echo "── Windows (win64) ──"
         "${PROJECT_DIR}/build.sh" win64 "${BUILD_TYPE}"
         echo ""
-        echo "── Android ──"
+        echo "── Android / Quest ──"
         "${PROJECT_DIR}/build.sh" android "${BUILD_TYPE}"
         echo ""
-        echo "=== All platforms built ==="
+        echo "=== All platforms built (Linux, Windows, Android/Quest) ==="
         ;;
     *)
-        echo "Usage: $0 {linux|win64|android|all|clean} [Debug|Release]"
+        echo "Usage: $0 {linux|win64|android|quest|all|clean} [Debug|Release]"
         exit 1
         ;;
 esac
