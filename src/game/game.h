@@ -163,6 +163,11 @@ struct HUDConfig {
     bool show_time = true;
     bool show_inventory = true;
     bool show_survival = true;
+
+    // Inventory selection (overworld item use)
+    bool inv_open = false;      // Item bar is in selection mode
+    int inv_selected = 0;       // Currently highlighted slot
+    float inv_use_cooldown = 0; // Prevent rapid-fire use
 };
 
 // ─── Script UI ───

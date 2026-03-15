@@ -1576,6 +1576,54 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         return;
     }
 
+    // ── Inventory quick-use (Cancel/X toggles, Left/Right browses, Confirm uses) ──
+    if (game.hud.inv_use_cooldown > 0) game.hud.inv_use_cooldown -= dt;
+    if (input.is_pressed(eb::InputAction::Cancel)) {
+        game.hud.inv_open = !game.hud.inv_open;
+        if (game.hud.inv_open) game.hud.inv_selected = 0;
+    }
+    if (game.hud.inv_open && !game.inventory.items.empty()) {
+        int max_idx = std::min(game.hud.inv_max_slots, (int)game.inventory.items.size()) - 1;
+        if (input.is_pressed(eb::InputAction::MoveRight) && game.hud.inv_selected < max_idx)
+            game.hud.inv_selected++;
+        if (input.is_pressed(eb::InputAction::MoveLeft) && game.hud.inv_selected > 0)
+            game.hud.inv_selected--;
+        // Clamp if items were removed
+        if (game.hud.inv_selected > max_idx) game.hud.inv_selected = max_idx;
+
+        // Use item on Confirm
+        if (input.is_pressed(eb::InputAction::Confirm) && game.hud.inv_use_cooldown <= 0) {
+            int idx = game.hud.inv_selected;
+            if (idx >= 0 && idx < (int)game.inventory.items.size()) {
+                auto& item = game.inventory.items[idx];
+                bool used = false;
+                // Direct healing (no sage_func needed)
+                if (item.heal_hp > 0 && game.player_hp < game.player_hp_max) {
+                    game.player_hp = std::min(game.player_hp + item.heal_hp, game.player_hp_max);
+                    used = true;
+                }
+                // Call sage_func if defined (for custom item effects)
+                if (!item.sage_func.empty() && game.script_engine) {
+                    if (game.script_engine->has_function(item.sage_func)) {
+                        game.script_engine->call_function(item.sage_func);
+                        used = true;
+                    }
+                }
+                if (used) {
+                    std::string msg = "Used " + item.name;
+                    game.script_ui.notifications.push_back({msg, 2.0f, 0.0f});
+                    game.inventory.remove(item.id, 1);
+                    if (game.hud.inv_selected >= (int)game.inventory.items.size())
+                        game.hud.inv_selected = std::max(0, (int)game.inventory.items.size() - 1);
+                    game.hud.inv_use_cooldown = 0.3f;
+                }
+                if (game.inventory.items.empty()) game.hud.inv_open = false;
+            }
+        }
+        // While inventory is open, don't move the player
+        return;
+    }
+
     // Player movement
     eb::Vec2 move = {0.0f, 0.0f};
     if (input.is_held(eb::InputAction::MoveUp))    move.y -= 1.0f;
@@ -2248,19 +2296,56 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         float pad = H.inv_padding * S;
         float ix = 8, iy_base = screen_h - H.inv_y_offset * S;
         int max_slots = std::min(H.inv_max_slots, (int)game.inventory.items.size());
+        bool sel_mode = game.hud.inv_open;
 
         float strip_w = max_slots * (slot_w + pad) + pad;
         draw_ui_region(batch, game, "panel_dark", ix - 3, iy_base - 3, strip_w + 6, slot_h + 8);
 
+        // Hint text above the bar
+        if (sel_mode) {
+            const char* hint = "[Left/Right] Select  [Z] Use  [X] Close";
+            float hint_scale = 0.5f * S;
+            auto hsz = text.measure_text(hint, hint_scale);
+            batch.set_texture(game.white_desc);
+            batch.draw_quad({ix, iy_base - 22*S}, {hsz.x + 12, hsz.y + 6},
+                            {0,0}, {1,1}, {0, 0, 0, 0.7f});
+            text.draw_text(batch, game.font_desc, hint,
+                           {ix + 6, iy_base - 20*S}, {0.7f, 0.8f, 1.0f, 0.9f}, hint_scale);
+        } else if (game.inventory.items.size() > 0) {
+            // Show "X: Items" hint
+            const char* open_hint = "[X] Items";
+            float oh_scale = 0.45f * S;
+            text.draw_text(batch, game.font_desc, open_hint,
+                           {ix, iy_base - 14*S}, {0.5f, 0.5f, 0.55f, 0.6f}, oh_scale);
+        }
+
         for (int i = 0; i < max_slots; i++) {
             auto& item = game.inventory.items[i];
             float sx = ix + i * (slot_w + pad) + pad;
+            bool selected = sel_mode && i == game.hud.inv_selected;
 
+            // Slot background
             batch.set_texture(game.white_desc);
-            batch.draw_quad({sx, iy_base}, {slot_w, slot_h}, {0,0}, {1,1}, {0.1f, 0.1f, 0.18f, 0.8f});
+            if (selected) {
+                // Bright highlight for selected slot
+                batch.draw_quad({sx - 2, iy_base - 2}, {slot_w + 4, slot_h + 4},
+                                {0,0}, {1,1}, {1.0f, 0.9f, 0.3f, 0.35f});
+                batch.draw_quad({sx - 2, iy_base - 2}, {slot_w + 4, 2.5f},
+                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
+                batch.draw_quad({sx - 2, iy_base + slot_h}, {slot_w + 4, 2.5f},
+                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
+                batch.draw_quad({sx - 2, iy_base - 2}, {2.5f, slot_h + 4},
+                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
+                batch.draw_quad({sx + slot_w, iy_base - 2}, {2.5f, slot_h + 4},
+                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
+            }
+            batch.draw_quad({sx, iy_base}, {slot_w, slot_h}, {0,0}, {1,1},
+                            selected ? eb::Vec4{0.15f, 0.15f, 0.25f, 0.9f}
+                                     : eb::Vec4{0.1f, 0.1f, 0.18f, 0.8f});
             batch.draw_quad({sx, iy_base}, {slot_w, 1.5f}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.6f});
             batch.draw_quad({sx, iy_base + slot_h - 1.5f}, {slot_w, 1.5f}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.6f});
 
+            // Item icon
             const char* icon_name = "icon_gem_blue";
             if (item.damage > 0) icon_name = "icon_sword";
             else if (item.heal_hp > 0) icon_name = "icon_potion";
@@ -2271,6 +2356,7 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             float icon_sz = slot_w * 0.55f;
             draw_ui_icon(batch, game, icon_name, sx + (slot_w - icon_sz) * 0.5f, iy_base + 4*S, icon_sz);
 
+            // Quantity badge
             if (item.quantity > 1) {
                 char qty[8]; std::snprintf(qty, sizeof(qty), "%d", item.quantity);
                 text.draw_text(batch, game.font_desc, qty,
@@ -2279,10 +2365,31 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             }
         }
 
+        // "..." if more items
         if ((int)game.inventory.items.size() > max_slots) {
             float dx = ix + max_slots * (slot_w + pad) + pad + 4;
             text.draw_text(batch, game.font_desc, "...", {dx, iy_base + slot_h * 0.3f},
                            {0.6f, 0.6f, 0.6f, 0.8f}, 0.6f * S);
+        }
+
+        // Show selected item name + description below the bar
+        if (sel_mode && game.hud.inv_selected < (int)game.inventory.items.size()) {
+            auto& sel_item = game.inventory.items[game.hud.inv_selected];
+            float desc_y = iy_base + slot_h + 8*S;
+            float desc_w = strip_w + 6;
+
+            // Description panel
+            draw_ui_region(batch, game, "panel_mini", ix - 3, desc_y, desc_w, 36*S);
+
+            // Item name (bright)
+            text.draw_text(batch, game.font_desc, sel_item.name,
+                           {ix + 6, desc_y + 4*S}, {1, 1, 0.9f, 1}, 0.7f * S);
+
+            // Description (dim)
+            if (!sel_item.description.empty()) {
+                text.draw_text(batch, game.font_desc, sel_item.description,
+                               {ix + 6, desc_y + 20*S}, {0.7f, 0.7f, 0.65f, 0.9f}, 0.5f * S);
+            }
         }
     }
 }
