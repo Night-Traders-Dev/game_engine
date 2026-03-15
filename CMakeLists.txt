@@ -101,6 +101,7 @@ add_library(tw_engine STATIC
     src/game/systems/day_night.cpp
     src/game/systems/survival.cpp
     src/game/systems/spawn_system.cpp
+    src/game/systems/level_manager.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp
 )

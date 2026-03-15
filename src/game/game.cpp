@@ -5,6 +5,7 @@
 #include "game/systems/day_night.h"
 #include "game/systems/survival.h"
 #include "game/systems/spawn_system.h"
+#include "game/systems/level_manager.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -1257,6 +1258,9 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
         game.camera.set_follow_offset(eb::Vec2(0.0f, -viewport_h * 0.1f));
         game.camera.center_on(game.player_pos);
 
+        // Initialize level manager
+        game.level_manager = std::make_unique<eb::LevelManager>();
+
         game.initialized = true;
         std::printf("[Game] Initialized from manifest: %s\n", manifest.title.c_str());
         return true;
@@ -2190,6 +2194,32 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                 break;
             }
         }
+    }
+
+    // ── Portal auto-transition ──
+    if (game.level_manager) {
+        int ts = game.tile_map.tile_size();
+        if (ts > 0) {
+            int ptx = (int)(game.player_pos.x / ts);
+            int pty = (int)(game.player_pos.y / ts);
+            if (game.tile_map.collision_at(ptx, pty) == eb::CollisionType::Portal) {
+                auto* portal = game.tile_map.get_portal_at(ptx, pty);
+                if (portal && !portal->target_map.empty()) {
+                    std::string target = portal->target_map;
+                    float tx = portal->target_x * (float)ts;
+                    float ty = portal->target_y * (float)ts;
+                    // Load target level if not cached
+                    if (!game.level_manager->is_loaded(target)) {
+                        game.level_manager->load_level(target, "assets/maps/" + target, game);
+                    }
+                    game.level_manager->switch_level_at(target, tx, ty, game);
+                    game.script_ui.notifications.push_back({"Entered: " + target, 2.0f, 0.0f});
+                }
+            }
+        }
+
+        // Tick background levels
+        game.level_manager->tick_background(game, dt);
     }
 
     game.camera.follow(game.player_pos, 4.0f);

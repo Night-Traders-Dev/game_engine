@@ -31,9 +31,10 @@
 27. [Shop System](#shop-system)
 28. [Map Scripting (Visual Basic Style)](#map-scripting-visual-basic-style)
 29. [Pause Menu](#pause-menu)
-30. [SageLang API Reference](#sagelang-api-reference)
-31. [Testing](#testing)
-32. [Adding New Content](#adding-new-content)
+30. [Level System](#level-system)
+31. [SageLang API Reference](#sagelang-api-reference)
+32. [Testing](#testing)
+33. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -148,6 +149,7 @@ The engine's `GameManifest` loader (`src/engine/resource/game_manifest.h`) parse
 ./twilight-build.sh demo linux
 ./twilight-build.sh supernatural win64
 ./twilight-build.sh supernatural android
+./twilight-build.sh supernatural quest
 ./twilight-build.sh supernatural all
 
 # List available games:
@@ -181,6 +183,7 @@ Steps performed:
 | Linux    | GCC/Clang with C++20, Vulkan SDK, CMake 3.20+ |
 | Windows  | MinGW-w64 cross-compiler (`x86_64-w64-mingw32-g++`) |
 | Android  | Android SDK, NDK 27+, Gradle, Java 17+ |
+| Quest    | Android SDK, NDK 27+, Gradle, Java 17+ (Quest runtime) |
 
 ### Build Commands
 
@@ -190,12 +193,14 @@ Steps performed:
 ./twilight-build.sh demo linux
 ./twilight-build.sh supernatural win64
 ./twilight-build.sh supernatural android
+./twilight-build.sh supernatural quest
 ./twilight-build.sh supernatural all
 
 # Engine-only build (legacy, no game assets)
 ./build.sh linux [Debug|Release]
 ./build.sh win64 [Debug|Release]
 ./build.sh android [Debug|Release]
+./build.sh quest [Debug|Release]
 ```
 
 The build script searches `games/` recursively, finding games inside git submodules automatically.
@@ -1285,6 +1290,14 @@ Touch events arrive via `ALooper` before `poll_events()`. The `apply_to()` call 
 
 Touch events are mapped to mouse button events so that all game menus (pause, shop, inventory) respond to touch on Android. Native screen coordinates are converted to virtual coordinates for accurate menu hit detection.
 
+### Meta Quest (Quest 2/3/Pro)
+
+Quest builds run in flat 2D mode using the same Android rendering pipeline. Build with `./build.sh quest` or `./twilight-build.sh <game> quest`.
+
+**Controller mapping**: Left stick = move, A/X = confirm, B/Y = cancel, RT = run, Start = pause.
+
+**Runtime detection**: The `IS_QUEST` constant is `true` on Quest devices; `PLATFORM` is set to `"quest"`. Use these to branch Quest-specific logic in SageLang scripts.
+
 ---
 
 ## Adding New Content
@@ -1971,9 +1984,55 @@ Pressing **ESC** during gameplay opens a pause menu overlay. The pause menu layo
 
 ---
 
+## Level System
+
+The `LevelManager` supports loading, caching, and switching between multiple maps at runtime.
+
+### Core Concepts
+
+- **Active level**: The one visible level that is rendered and fully simulated (pathfinding, AI, rendering).
+- **Cached levels**: Loaded into memory and preserved across transitions. NPC positions, objects, and spawns persist when switching away and back.
+- **Background ticking**: Non-active levels tick each frame — NPC schedules update (merchants appear/disappear by time) and spawn loop timers advance. No pathfinding, AI, or rendering runs on background levels.
+
+### Per-Level vs Global State
+
+| Per-level (swapped on transition) | Global (persist across levels) |
+|-----------------------------------|-------------------------------|
+| tile_map, NPCs, objects, spawn_loops, meet_triggers, drops | player stats, inventory, gold, day-night, survival, HUD, party |
+
+### Portal Auto-Transition
+
+When the player walks onto a portal tile with a non-empty `target_map`, the engine automatically:
+
+1. Loads the target level if not already cached
+2. Switches to it
+3. Teleports the player to the portal's target coordinates
+4. Shows a "Entered: {level}" notification
+
+### Per-Level Map Scripts
+
+Each level can have a companion script at `assets/scripts/maps/{level_id}.sage` that runs on level load (e.g., spawning NPCs, placing objects).
+
+### Level API
+
+| Function | Description |
+|----------|-------------|
+| `load_level(id, map_path)` | Load map into cache |
+| `switch_level(id)` | Make level active |
+| `switch_level_at(id, x, y)` | Switch + set player position |
+| `preload_level(id, map_path)` | Load without switching (cache) |
+| `unload_level(id)` | Free cached level |
+| `get_active_level()` | Sets `_active_level` variable |
+| `is_level_loaded(id) -> bool` | Check if cached |
+| `get_level_count() -> number` | Number of loaded levels |
+| `set_level_spawn(id, x, y)` | Set default spawn point |
+| `level_get_npc_count(id) -> number` | Query background level NPCs |
+
+---
+
 ## SageLang API Reference
 
-Complete reference of all 120+ functions available in `.sage` scripts.
+Complete reference of all 130+ functions available in `.sage` scripts.
 
 ### Engine Core
 
@@ -2162,8 +2221,9 @@ An audio event library is available at `assets/scripts/lib/audio.sage` providing
 
 | Function / Constant | Signature | Description |
 |----------------------|-----------|-------------|
-| `PLATFORM` | constant string | `"linux"`, `"windows"`, or `"android"` |
+| `PLATFORM` | constant string | `"linux"`, `"windows"`, `"android"`, or `"quest"` |
 | `IS_ANDROID` | constant bool | True on Android builds |
+| `IS_QUEST` | constant bool | True on Meta Quest devices |
 | `IS_DESKTOP` | constant bool | True on Linux/Windows |
 | `get_screen_w` | `get_screen_w() → number` | Screen width in pixels |
 | `get_screen_h` | `get_screen_h() → number` | Screen height in pixels |
@@ -2246,6 +2306,21 @@ An audio event library is available at `assets/scripts/lib/audio.sage` providing
 | `print` | `print(a, b, ...)` | Print multiple values (cyan) |
 | `assert_true` | `assert_true(condition, msg)` | Assert, logs error if false |
 
+### Level API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `load_level` | `load_level(id, map_path)` | Load map into cache |
+| `switch_level` | `switch_level(id)` | Make level active |
+| `switch_level_at` | `switch_level_at(id, x, y)` | Switch + set player position |
+| `preload_level` | `preload_level(id, map_path)` | Load without switching (cache) |
+| `unload_level` | `unload_level(id)` | Free cached level |
+| `get_active_level` | `get_active_level()` | Sets `_active_level` variable |
+| `is_level_loaded` | `is_level_loaded(id) → bool` | Check if cached |
+| `get_level_count` | `get_level_count() → number` | Number of loaded levels |
+| `set_level_spawn` | `set_level_spawn(id, x, y)` | Set default spawn point |
+| `level_get_npc_count` | `level_get_npc_count(id) → number` | Query background level NPCs |
+
 ### Battle Variables
 
 These globals are automatically synced before/after battle script calls:
@@ -2292,7 +2367,7 @@ The `--test` flag launches the engine, executes the test suite, and exits immedi
 
 ### What's Tested
 
-The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests()` proc that runs 90+ assertions across 23 modules:
+The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests()` proc that runs 90+ assertions across 24 modules:
 
 | Module | Coverage |
 | ------ | -------- |
@@ -2319,6 +2394,7 @@ The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests
 | Dialogue | `set_dialogue_speed`, `set_dialogue_scale` |
 | Battle Ext | `start_battle`, `is_in_battle`, `set_xp_formula` |
 | Renderer | `set_clear_color` |
+| Level API | `load_level`, `switch_level`, `get_active_level`, `is_level_loaded`, `get_level_count` |
 
 ### Adding New Tests
 
@@ -2329,4 +2405,4 @@ The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests
 
 ---
 
-*Twilight Engine v1.0.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v1.1.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

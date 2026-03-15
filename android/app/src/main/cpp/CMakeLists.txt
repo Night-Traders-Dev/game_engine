@@ -56,6 +56,7 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/game/systems/day_night.cpp
     ${ENGINE_ROOT}/src/game/systems/survival.cpp
     ${ENGINE_ROOT}/src/game/systems/spawn_system.cpp
+    ${ENGINE_ROOT}/src/game/systems/level_manager.cpp
     ${ENGINE_ROOT}/src/third_party/stb_image_impl.cpp
     ${ENGINE_ROOT}/src/third_party/stb_truetype_impl.cpp
     ${ENGINE_ROOT}/src/third_party/miniaudio_impl.cpp

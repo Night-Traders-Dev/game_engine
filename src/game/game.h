@@ -26,6 +26,7 @@
 
 // Forward declare
 namespace eb { class ScriptEngine; class AudioEngine; class Renderer; }
+#include "game/systems/level_manager.h"
 
 // ─── Tile IDs (1-indexed, 0 = empty) ───
 enum Tile : int {
@@ -513,6 +514,9 @@ struct GameState {
     bool pause_request_editor = false;
     bool pause_request_reset = false;
     bool pause_request_quit = false;
+
+    // Level system
+    std::unique_ptr<eb::LevelManager> level_manager;
 };
 
 // ─── Map file I/O ───

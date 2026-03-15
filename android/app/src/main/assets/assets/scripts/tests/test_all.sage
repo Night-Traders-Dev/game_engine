@@ -263,5 +263,11 @@ proc run_all_tests():
     log("Testing: Renderer")
     set_clear_color(0.05, 0.05, 0.12)
 
+    # ── Level API ──
+    log("Testing: Level API")
+    assert_true(get_level_count() >= 0, "get_level_count")
+    assert_true(is_level_loaded("nonexistent") == false, "is_level_loaded false")
+    # Note: load_level/switch_level require actual map files — tested manually
+
     log("═══ All API Tests Complete ═══")
     info("TEST SUITE PASSED")

@@ -5,6 +5,7 @@
 #include "game/ui/merchant_ui.h"
 #include "game/ai/pathfinding.h"
 #include "game/systems/day_night.h"
+#include "game/systems/level_manager.h"
 #include "engine/audio/audio_engine.h"
 #include "engine/graphics/renderer.h"
 
@@ -1469,6 +1470,103 @@ static Value native_set_clear_color(int argc, Value* args) {
     return val_nil();
 }
 
+// load_level(id, map_path)
+static Value native_load_level(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_bool(0);
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    std::string path = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    return val_bool(gs->level_manager->load_level(id, path, *gs));
+}
+
+// switch_level(id)
+static Value native_switch_level(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_bool(0);
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    return val_bool(gs->level_manager->switch_level(id, *gs));
+}
+
+// switch_level_at(id, x, y)
+static Value native_switch_level_at(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_bool(0);
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    return val_bool(gs->level_manager->switch_level_at(id, x, y, *gs));
+}
+
+// preload_level(id, map_path) — same as load_level, just a semantic alias
+static Value native_preload_level(int argc, Value* args) {
+    return native_load_level(argc, args); // Same implementation
+}
+
+// unload_level(id)
+static Value native_unload_level(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_nil();
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    gs->level_manager->unload_level(id);
+    return val_nil();
+}
+
+// get_active_level() -> string
+static Value native_get_active_level(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_number(0);
+    // Can't easily return string from native — use set_string pattern
+    if (s_active_engine) s_active_engine->set_string("_active_level", gs->level_manager->active_level);
+    return val_number(0);
+}
+
+// is_level_loaded(id) -> bool
+static Value native_is_level_loaded(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_bool(0);
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    return val_bool(gs->level_manager->is_loaded(id));
+}
+
+// get_level_count() -> number
+static Value native_get_level_count(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_number(0);
+    return val_number(gs->level_manager->count());
+}
+
+// set_level_spawn(id, x, y)
+static Value native_set_level_spawn(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_nil();
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    auto it = gs->level_manager->levels.find(id);
+    if (it != gs->level_manager->levels.end()) {
+        it->second.player_start.x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+        it->second.player_start.y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    }
+    return val_nil();
+}
+
+// level_get_npc_count(id) -> number
+static Value native_level_get_npc_count(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_number(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_number(0);
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    auto it = gs->level_manager->levels.find(id);
+    if (it != gs->level_manager->levels.end()) return val_number((int)it->second.npcs.size());
+    return val_number(0);
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -1513,6 +1611,7 @@ ScriptEngine::ScriptEngine() {
         register_dialogue_ext_api();
         register_battle_ext_api();
         register_renderer_api();
+        register_level_api();
         s_active_engine = this;
     }
 }
@@ -1974,6 +2073,21 @@ void ScriptEngine::register_renderer_api() {
     if (!env_) return;
     env_define(env_, "set_clear_color", 15, val_native(native_set_clear_color));
     std::printf("[ScriptEngine] Renderer API registered\n");
+}
+
+void ScriptEngine::register_level_api() {
+    if (!env_) return;
+    env_define(env_, "load_level", 10, val_native(native_load_level));
+    env_define(env_, "switch_level", 12, val_native(native_switch_level));
+    env_define(env_, "switch_level_at", 15, val_native(native_switch_level_at));
+    env_define(env_, "preload_level", 13, val_native(native_preload_level));
+    env_define(env_, "unload_level", 12, val_native(native_unload_level));
+    env_define(env_, "get_active_level", 16, val_native(native_get_active_level));
+    env_define(env_, "is_level_loaded", 15, val_native(native_is_level_loaded));
+    env_define(env_, "get_level_count", 15, val_native(native_get_level_count));
+    env_define(env_, "set_level_spawn", 15, val_native(native_set_level_spawn));
+    env_define(env_, "level_get_npc_count", 19, val_native(native_level_get_npc_count));
+    std::printf("[ScriptEngine] Level API registered\n");
 }
 
 void ScriptEngine::sync_item_to_script(const std::string& item_id) {
