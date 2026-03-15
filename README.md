@@ -18,11 +18,11 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, and callbacks via `set_spawn_callback()` for auto-configuring spawned NPCs
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
 - **Script-Driven UI** — Labels, progress bars, panels, images, and timed notifications created from SageLang scripts; any component property modifiable via `ui_set()`; `reload_all()` clears all script UI before re-executing
-- **Script-Driven Pause Menu** — Pause menu layout defined in `default.sage` via the HUD library; C++ handles dim overlay, show/hide on ESC, selection highlight, cursor movement, and mouse click support
-- **Script-Driven HUD** — Built-in C++ HUD panels OFF by default; all HUD layout defined in `default.sage` using the `hud` library. C++ auto-syncs values each frame by well-known component IDs (HP bar auto-colors green/yellow/red, sun/moon icon auto-swaps by time)
+- **Script-Driven Pause Menu** — Pause menu layout defined inline in `default.sage`; C++ handles dim overlay, show/hide on ESC, selection highlight, cursor movement, and mouse click support
+- **Script-Driven HUD** — Built-in C++ HUD panels OFF by default; all HUD layout defined inline in `default.sage`. C++ auto-syncs values each frame by well-known component IDs (HP bar auto-colors green/yellow/red, sun/moon icon auto-swaps by time)
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
-- **SageLang Scripting** — 60+ API functions across 16 modules driving all game systems with hot reload; native `import` system with three styles (`import mod`, `from mod import fn`, `import mod as alias`)
+- **SageLang Scripting** — 60+ API functions across 16 modules driving all game systems with hot reload; all engine-loaded scripts share a global environment (functions callable across files without imports)
 - **Map Scripting** — Visual Basic-style editor: every editor action (spawn NPC, place object, set portal) auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
@@ -99,10 +99,14 @@ hud_set("inv_max_slots", 10)
 ### Import System
 
 ```sage
-# Three import styles
-import hud                              # then hud.setup_player_panel(...)
-from hud import setup_player_panel      # use setup_player_panel(...) directly
-import hud as ui                        # then ui.setup_player_panel(...)
+# All scripts share a global environment.
+# Functions from lib/hud.sage are available directly:
+setup_player_panel(8, 8, 340, 90)    # Defined in lib/hud.sage
+setup_time_panel(780, 8, 170, 80)    # No import needed
+
+# The `import` keyword is supported for SageLang's native module system,
+# but parametric cross-file calls (e.g. hud.func(x, y)) may crash due to
+# AST source-buffer limitations. Use direct calls instead.
 
 # Search paths: scripts/, scripts/lib/, scripts/battle/,
 #               scripts/inventory/, scripts/maps/

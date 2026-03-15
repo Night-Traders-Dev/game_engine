@@ -64,7 +64,7 @@ case "${1}" in
                     cp -ru "${GAME_DIR}/assets/${subdir}/"* "${ASSETS_DIR}/assets/${subdir}/" 2>/dev/null || true
                 fi
             done
-            for subdir in battle inventory lib maps; do
+            for subdir in battle inventory lib maps tests; do
                 if [ -d "${GAME_DIR}/assets/scripts/${subdir}" ]; then
                     mkdir -p "${ASSETS_DIR}/assets/scripts/${subdir}"
                     cp -ru "${GAME_DIR}/assets/scripts/${subdir}/"* "${ASSETS_DIR}/assets/scripts/${subdir}/" 2>/dev/null || true

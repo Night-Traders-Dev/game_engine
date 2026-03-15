@@ -952,7 +952,26 @@ script_engine.sync_battle_from_script(); // Pull SageLang globals → C++ state
 
 ## Module & Import System
 
-SageLang's native `import` system is wired into the engine, enabling modular script organization and reusable libraries.
+### Shared Environment
+
+All `.sage` scripts loaded by the engine share a **single global SageLang environment**. This means functions defined in ANY `.sage` file are callable from any other file by name -- no `import` needed.
+
+```sage
+# default.sage — game startup script
+# Functions from lib/hud.sage are available directly:
+setup_player_panel(8, 8, 340, 90)    # Defined in lib/hud.sage
+setup_time_panel(780, 8, 170, 80)    # No import needed
+```
+
+### Native Import System
+
+SageLang also has a native `import` keyword that supports three styles:
+
+```sage
+import hud                         # module prefix: hud.func()
+from hud import setup_player_panel # direct: setup_player_panel()
+import hud as ui                   # alias: ui.func()
+```
 
 ### Search Paths
 
@@ -964,31 +983,24 @@ When a script uses `import`, the engine searches these directories (relative to 
 4. `assets/scripts/inventory/`
 5. `assets/scripts/maps/`
 
-### Import Styles
+### Known Limitations
 
-SageLang supports three import styles:
+Parametric cross-file function calls via `import module` + `module.func(args)` may **crash** due to AST source-buffer lifetime issues in SageLang. When one file's AST calls a parametric function defined in another file, the parser state can become corrupted.
 
-```sage
-# Style 1: Module import — access functions via module prefix
-import hud
-hud.setup_player_panel(8, 8, 280, 72)
+**What works cross-file:**
 
-# Style 2: Selective import — use functions directly
-from hud import setup_player_panel
-setup_player_panel(8, 8, 280, 72)
+- Simple functions without parameters
+- Direct calls to functions (no module prefix) in the shared global environment
 
-# Style 3: Aliased import — rename the module prefix
-import hud as ui
-ui.setup_player_panel(8, 8, 280, 72)
-```
+**Recommended pattern:** Define functions in library files (e.g., `lib/hud.sage`), then call them directly by name without a module prefix. For maximum reliability, define HUD components inline in `default.sage`.
 
 ### Creating a Library
 
-Place `.sage` files in `assets/scripts/lib/` to make them importable by any script.
+Place `.sage` files in `assets/scripts/lib/` to make them available to all scripts via the shared environment.
 
 #### HUD Library (`assets/scripts/lib/hud.sage`)
 
-A reusable library with UI builder functions for common HUD elements:
+A library with UI builder functions for common HUD elements. These functions are available globally once the file is loaded by the engine:
 
 | Function | Description |
 |----------|-------------|
@@ -998,24 +1010,26 @@ A reusable library with UI builder functions for common HUD elements:
 | `setup_pause_menu(cx, cy, w, spacing)` | Centered pause menu with 5 items |
 | `setup_quest_tracker(x, y, text)` | Quest panel with book icon and text |
 
-#### Example: Building a HUD with Imports
+> **Note:** Due to the cross-file parametric call limitation, the recommended approach is to define HUD components inline in `default.sage` rather than calling these functions from another file. Alternatively, call them directly by name (e.g., `setup_player_panel(...)`) without a module prefix.
+
+#### Example: Building a HUD
 
 ```sage
 # default.sage — game startup script
-import hud
+# Call library functions directly (no import needed):
 
 proc on_init():
     # Player stats (top-left)
-    hud.setup_player_panel(8, 8, 280, 72)
+    setup_player_panel(8, 8, 340, 90)
 
     # Clock (top-right)
-    hud.setup_time_panel(780, 8, 140, 64)
+    setup_time_panel(780, 8, 170, 80)
 
     # Survival bars (below player panel)
-    hud.setup_survival_bars(8, 88, 80, 8, 4)
+    setup_survival_bars(8, 88, 80, 8, 4)
 
     # Pause menu (centered, hidden until ESC)
-    hud.setup_pause_menu(480, 360, 200, 40)
+    setup_pause_menu(480, 360, 200, 40)
 ```
 
 ---
@@ -1709,7 +1723,7 @@ ui_set("quest_bg", "visible", false)  # Hide quest tracker
 
 ### Script-Driven HUD
 
-The built-in C++ HUD panels (player stats, time) are **OFF by default**. All HUD layout is now defined in `default.sage` using the `hud` library (see [Module & Import System](#module--import-system)).
+The built-in C++ HUD panels (player stats, time) are **OFF by default**. All HUD layout is now defined inline in `default.sage` (see [Module & Import System](#module--import-system)). Library functions from `hud.sage` are available globally but the recommended approach is to define HUD components inline in `default.sage` for reliability.
 
 C++ auto-syncs values each frame by **well-known component IDs**:
 
@@ -1925,11 +1939,11 @@ When you save a map (File > Save), the companion `.sage` script is saved alongsi
 
 ## Pause Menu
 
-Pressing **ESC** during gameplay opens a pause menu overlay. The pause menu layout is now **script-driven** -- defined in `default.sage` via the `hud` library's `setup_pause_menu()` function.
+Pressing **ESC** during gameplay opens a pause menu overlay. The pause menu layout is now **script-driven** -- defined inline in `default.sage` (or by calling `setup_pause_menu()` directly without a module prefix).
 
 ### How It Works
 
-- **Layout** is defined in `default.sage` using `hud.setup_pause_menu(cx, cy, w, spacing)`
+- **Layout** is defined inline in `default.sage` using `setup_pause_menu(cx, cy, w, spacing)` (no module prefix)
 - **C++ handles**: dim overlay, show/hide on ESC, selection highlight, cursor movement, mouse click support
 - Components use well-known IDs: `pause_bg`, `pause_title`, `pause_item_0..4`, `pause_cursor`
 - Mouse click support reads positions from script UI components
@@ -2126,4 +2140,4 @@ These globals are automatically synced before/after battle script calls:
 
 ---
 
-*Twilight Engine v0.9.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v0.9.1 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

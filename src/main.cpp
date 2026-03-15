@@ -20,7 +20,12 @@
 #include <set>
 #include <sys/stat.h>
 
-int main(int /*argc*/, char* /*argv*/[]) {
+int main(int argc, char* argv[]) {
+    bool run_tests = false;
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--test") run_tests = true;
+    }
+
     try {
         // ─── Load game manifest ───
         eb::GameManifest manifest;
@@ -110,6 +115,22 @@ int main(int /*argc*/, char* /*argv*/[]) {
         if (script_engine.has_function("map_init")) {
             script_engine.call_function("map_init");
             std::printf("[Main] Executed map_init()\n");
+        }
+
+        // ─── Test mode ───
+        if (run_tests) {
+            std::printf("[Test] Running test suite...\n");
+            if (script_engine.has_function("run_all_tests")) {
+                script_engine.call_function("run_all_tests");
+            } else {
+                std::fprintf(stderr, "[Test] run_all_tests() not found\n");
+            }
+            // Check DebugLog for errors
+            int errs = 0;
+            for (auto& e : eb::DebugLog::instance().entries())
+                if (e.level == eb::LogLevel::Error) errs++;
+            std::printf("[Test] Errors in log: %d\n", errs);
+            return errs > 0 ? 1 : 0;
         }
 
         // ─── Audio engine ───
