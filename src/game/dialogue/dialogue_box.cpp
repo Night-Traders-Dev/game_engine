@@ -60,7 +60,7 @@ int DialogueBox::update(float dt, bool confirm_pressed, bool up_pressed, bool do
 
     if (!line_complete_) {
         char_timer_ += dt;
-        int new_chars = (int)(char_timer_ * CHARS_PER_SEC);
+        int new_chars = (int)(char_timer_ * chars_per_sec_);
         if (new_chars > visible_chars_) visible_chars_ = new_chars;
         const auto& t = lines_[current_line_].text;
         if (visible_chars_ >= (int)t.size()) {
@@ -156,16 +156,16 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
 
     if (is_choice_) {
         text.draw_text(batch, font_desc, choice_prompt_,
-                       {text_x, text_y}, {1.0f, 1.0f, 1.0f, 1.0f}, TEXT_SCALE);
-        float choice_y = text_y + text.line_height() * TEXT_SCALE + 4.0f;
+                       {text_x, text_y}, {1.0f, 1.0f, 1.0f, 1.0f}, text_scale_);
+        float choice_y = text_y + text.line_height() * text_scale_ + 4.0f;
         for (int i = 0; i < (int)choices_.size(); i++) {
             Vec4 color = (i == selected_choice_)
                 ? Vec4{1.0f, 1.0f, 0.3f, 1.0f}
                 : Vec4{0.8f, 0.8f, 0.8f, 1.0f};
             std::string prefix = (i == selected_choice_) ? "> " : "  ";
             text.draw_text(batch, font_desc, prefix + choices_[i].text,
-                           {text_x, choice_y}, color, TEXT_SCALE);
-            choice_y += text.line_height() * TEXT_SCALE;
+                           {text_x, choice_y}, color, text_scale_);
+            choice_y += text.line_height() * text_scale_;
         }
     } else {
         const auto& line = lines_[current_line_];
@@ -173,15 +173,15 @@ void DialogueBox::render(SpriteBatch& batch, TextRenderer& text,
         // Speaker name
         if (!line.speaker.empty()) {
             text.draw_text(batch, font_desc, line.speaker,
-                           {text_x, text_y}, {0.4f, 0.8f, 1.0f, 1.0f}, TEXT_SCALE);
-            text_y += text.line_height() * TEXT_SCALE + 8.0f;
+                           {text_x, text_y}, {0.4f, 0.8f, 1.0f, 1.0f}, text_scale_);
+            text_y += text.line_height() * text_scale_ + 8.0f;
         }
 
         // Dialogue text with typewriter
         std::string visible = line.text.substr(0, visible_chars_);
         text.draw_text_wrapped(batch, font_desc, visible,
                                {text_x, text_y}, text_area_w,
-                               {1.0f, 1.0f, 1.0f, 1.0f}, TEXT_SCALE);
+                               {1.0f, 1.0f, 1.0f, 1.0f}, text_scale_);
 
         // Blinking advance indicator
         if (line_complete_) {

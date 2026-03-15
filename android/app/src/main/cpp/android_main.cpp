@@ -125,6 +125,7 @@ static bool init_all(AppState& state) {
         // Audio engine
         state.audio = std::make_unique<eb::AudioEngine>();
         state.game.audio_engine = state.audio.get();
+        state.game.renderer = state.renderer.get();
         if (state.audio->is_initialized() && !state.manifest.audio.overworld.empty()) {
             state.audio->set_music_volume(0.5f);
             state.audio->play_music(state.manifest.audio.overworld, true);

@@ -138,6 +138,7 @@ int main(int argc, char* argv[]) {
         // ─── Audio engine ───
         eb::AudioEngine audio;
         game.audio_engine = &audio;
+        game.renderer = &engine.renderer();
         if (audio.is_initialized() && !manifest.audio.overworld.empty()) {
             audio.set_music_volume(0.5f);
             audio.play_music(manifest.audio.overworld, true);

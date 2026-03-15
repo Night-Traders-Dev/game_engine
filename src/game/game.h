@@ -25,7 +25,7 @@
 #include <algorithm>
 
 // Forward declare
-namespace eb { class ScriptEngine; class AudioEngine; }
+namespace eb { class ScriptEngine; class AudioEngine; class Renderer; }
 
 // ─── Tile IDs (1-indexed, 0 = empty) ───
 enum Tile : int {
@@ -480,6 +480,21 @@ struct GameState {
     ScriptUI script_ui;
     std::vector<WorldDrop> world_drops;
     std::vector<LootTable> loot_tables;
+
+    // Screen effects (controlled by scripts)
+    float shake_intensity = 0, shake_timer = 0;
+    float flash_r = 0, flash_g = 0, flash_b = 0, flash_a = 0, flash_timer = 0;
+    float fade_r = 0, fade_g = 0, fade_b = 0, fade_a = 0;
+    float fade_target = 0, fade_timer = 0, fade_duration = 0;
+
+    // Input state snapshot (set each frame for script access)
+    const eb::InputState* current_input = nullptr;
+
+    // Renderer (for script access to clear color, etc.)
+    eb::Renderer* renderer = nullptr;
+
+    // XP multiplier (customizable from scripts)
+    float xp_multiplier = 1.0f;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;
     VkDescriptorSet dean_desc = VK_NULL_HANDLE;

@@ -70,6 +70,16 @@ private:
     void register_spawn_api();
     void register_map_api();
     void register_audio_api();
+    void register_player_api();
+    void register_camera_api();
+    void register_platform_api();
+    void register_npc_runtime_api();
+    void register_effects_api();
+    void register_tilemap_api();
+    void register_input_api();
+    void register_dialogue_ext_api();
+    void register_battle_ext_api();
+    void register_renderer_api();
 
     Env* env_ = nullptr;
 

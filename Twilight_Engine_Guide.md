@@ -1973,7 +1973,7 @@ Pressing **ESC** during gameplay opens a pause menu overlay. The pause menu layo
 
 ## SageLang API Reference
 
-Complete reference of all 70+ functions available in `.sage` scripts.
+Complete reference of all 120+ functions available in `.sage` scripts.
 
 ### Engine Core
 
@@ -2120,6 +2120,121 @@ Complete reference of all 70+ functions available in `.sage` scripts.
 
 An audio event library is available at `assets/scripts/lib/audio.sage` providing context-based music management (e.g. `set_context("battle")`, `update_ambient()`, SFX helpers).
 
+### Player API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_player_x` | `get_player_x() → number` | Player world X position |
+| `get_player_y` | `get_player_y() → number` | Player world Y position |
+| `set_player_pos` | `set_player_pos(x, y)` | Teleport player |
+| `get_player_speed` | `get_player_speed() → number` | Current move speed |
+| `set_player_speed` | `set_player_speed(speed)` | Set move speed |
+| `get_player_hp` | `get_player_hp() → number` | Current HP |
+| `set_player_hp` | `set_player_hp(hp)` | Set current HP |
+| `get_player_hp_max` | `get_player_hp_max() → number` | Max HP |
+| `get_player_atk` | `get_player_atk() → number` | Attack stat |
+| `set_player_atk` | `set_player_atk(atk)` | Set attack stat |
+| `get_player_def` | `get_player_def() → number` | Defense stat |
+| `set_player_def` | `set_player_def(def)` | Set defense stat |
+| `get_player_level` | `get_player_level() → number` | Current level |
+| `get_player_xp` | `get_player_xp() → number` | Current XP |
+| `add_player_xp` | `add_player_xp(amount)` | Grant XP (triggers level-up) |
+| `get_player_dir` | `get_player_dir() → number` | Facing direction (0-3) |
+| `set_player_dir` | `set_player_dir(dir)` | Set facing direction |
+| `get_ally_hp` | `get_ally_hp() → number` | Ally current HP |
+| `set_ally_hp` | `set_ally_hp(hp)` | Set ally HP |
+| `get_ally_atk` | `get_ally_atk() → number` | Ally attack stat |
+
+### Camera API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_camera_x` | `get_camera_x() → number` | Camera world X |
+| `get_camera_y` | `get_camera_y() → number` | Camera world Y |
+| `set_camera_pos` | `set_camera_pos(x, y)` | Set camera position |
+| `camera_follow` | `camera_follow(x, y, speed)` | Smooth follow target |
+| `camera_center` | `camera_center(x, y)` | Instantly center on point |
+| `camera_shake` | `camera_shake(intensity, duration)` | Screen shake effect |
+| `camera_set_zoom` | `camera_set_zoom(zoom)` | Set zoom level |
+| `camera_get_zoom` | `camera_get_zoom() → number` | Get current zoom |
+
+### Platform API
+
+| Function / Constant | Signature | Description |
+|----------------------|-----------|-------------|
+| `PLATFORM` | constant string | `"linux"`, `"windows"`, or `"android"` |
+| `IS_ANDROID` | constant bool | True on Android builds |
+| `IS_DESKTOP` | constant bool | True on Linux/Windows |
+| `get_screen_w` | `get_screen_w() → number` | Screen width in pixels |
+| `get_screen_h` | `get_screen_h() → number` | Screen height in pixels |
+
+### NPC Runtime API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `npc_get_x` | `npc_get_x(name) → number` | NPC world X position |
+| `npc_get_y` | `npc_get_y(name) → number` | NPC world Y position |
+| `npc_set_pos` | `npc_set_pos(name, x, y)` | Teleport NPC |
+| `npc_get_speed` | `npc_get_speed(name) → number` | NPC move speed |
+| `npc_set_speed` | `npc_set_speed(name, speed)` | Set NPC move speed |
+| `npc_get_dir` | `npc_get_dir(name) → number` | NPC facing direction |
+| `npc_set_dir` | `npc_set_dir(name, dir)` | Set NPC facing direction |
+| `npc_set_hostile` | `npc_set_hostile(name, hostile)` | Set hostile flag |
+| `npc_is_hostile` | `npc_is_hostile(name) → bool` | Check hostile flag |
+| `npc_count` | `npc_count() → number` | Total NPC count |
+| `npc_exists` | `npc_exists(name) → bool` | Check if NPC exists |
+| `npc_remove` | `npc_remove(name)` | Remove NPC from world |
+
+### Screen Effects API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `screen_shake` | `screen_shake(intensity, duration)` | Shake screen with auto-decay |
+| `screen_flash` | `screen_flash(r, g, b, a, duration)` | Flash overlay with fade-out |
+| `screen_fade` | `screen_fade(r, g, b, target_alpha, duration)` | Fade to/from color |
+
+### Tile Map Query API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_tile` | `get_tile(layer, tx, ty) → number` | Get tile ID at grid position |
+| `is_solid` | `is_solid(tx, ty) → bool` | Check collision at tile coords |
+| `is_solid_world` | `is_solid_world(wx, wy) → bool` | Check collision at world coords |
+| `get_map_width` | `get_map_width() → number` | Map width in tiles |
+| `get_map_height` | `get_map_height() → number` | Map height in tiles |
+| `get_tile_size` | `get_tile_size() → number` | Tile size in pixels |
+| `get_layer_count` | `get_layer_count() → number` | Number of tile layers |
+
+### Input API
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `is_key_held` | `is_key_held(action) → bool` | True while action held. Actions: "up","down","left","right","confirm","cancel","run" |
+| `is_key_pressed` | `is_key_pressed(action) → bool` | True on first frame of press |
+| `get_mouse_x` | `get_mouse_x() → number` | Mouse/touch X position |
+| `get_mouse_y` | `get_mouse_y() → number` | Mouse/touch Y position |
+
+### Dialogue Extension
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `set_dialogue_speed` | `set_dialogue_speed(chars_per_sec)` | Typewriter speed |
+| `set_dialogue_scale` | `set_dialogue_scale(scale)` | Dialogue box scale |
+
+### Battle Extension
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `start_battle` | `start_battle(name, hp, atk, sprite_id)` | Initiate battle from script |
+| `is_in_battle` | `is_in_battle() → bool` | Check if battle is active |
+| `set_xp_formula` | `set_xp_formula(multiplier)` | Set XP multiplier for rewards |
+
+### Renderer
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `set_clear_color` | `set_clear_color(r, g, b)` | Set background clear color |
+
 ### Debug
 
 | Function | Signature | Description |
@@ -2177,7 +2292,7 @@ The `--test` flag launches the engine, executes the test suite, and exits immedi
 
 ### What's Tested
 
-The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests()` proc that runs 50+ assertions across 13 modules:
+The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests()` proc that runs 90+ assertions across 23 modules:
 
 | Module | Coverage |
 | ------ | -------- |
@@ -2194,6 +2309,16 @@ The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests
 | Spawn API | `set_spawn_area`, `set_spawn_callback` |
 | Audio API | `set_master_volume`, `set_music_volume`, `is_music_playing` |
 | Map API | `set_tile`, `set_collision`, `set_portal`, `remove_portal` |
+| Player API | `get/set_player_pos`, `get/set_player_hp`, `get/set_player_atk`, `get/set_player_def`, `get/set_player_speed`, `get/set_player_dir`, `add_player_xp` |
+| Camera API | `get_camera_x/y`, `set_camera_pos`, `camera_shake`, `camera_set_zoom`, `camera_get_zoom` |
+| Platform API | `PLATFORM`, `IS_DESKTOP`, `IS_ANDROID`, `get_screen_w`, `get_screen_h` |
+| NPC Runtime | `npc_get_x/y`, `npc_set_pos`, `npc_get/set_speed`, `npc_get/set_dir`, `npc_set_hostile`, `npc_is_hostile`, `npc_count`, `npc_exists`, `npc_remove` |
+| Screen Effects | `screen_shake`, `screen_flash`, `screen_fade` |
+| Tile Map Query | `get_tile`, `is_solid`, `is_solid_world`, `get_map_width/height`, `get_tile_size`, `get_layer_count` |
+| Input API | `is_key_held`, `is_key_pressed`, `get_mouse_x`, `get_mouse_y` |
+| Dialogue | `set_dialogue_speed`, `set_dialogue_scale` |
+| Battle Ext | `start_battle`, `is_in_battle`, `set_xp_formula` |
+| Renderer | `set_clear_color` |
 
 ### Adding New Tests
 
@@ -2204,4 +2329,4 @@ The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests
 
 ---
 
-*Twilight Engine v0.9.2 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v1.0.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

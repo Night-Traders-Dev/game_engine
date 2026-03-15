@@ -44,6 +44,9 @@ public:
 
     bool is_active() const { return active_; }
 
+    void set_chars_per_sec(float cps) { chars_per_sec_ = cps; }
+    void set_text_scale(float scale) { text_scale_ = scale; }
+
 private:
     bool active_ = false;
     bool is_choice_ = false;
@@ -54,7 +57,8 @@ private:
     float char_timer_ = 0.0f;
     int visible_chars_ = 0;
     bool line_complete_ = false;
-    static constexpr float CHARS_PER_SEC = 35.0f;
+    float chars_per_sec_ = 35.0f;
+    static constexpr float CHARS_PER_SEC = 35.0f; // default
 
     std::string choice_prompt_;
     std::vector<DialogueChoice> choices_;
@@ -63,7 +67,8 @@ private:
     static constexpr float BOX_MARGIN = 12.0f;
     static constexpr float BOX_HEIGHT_FRAC = 0.28f; // Fraction of screen height
     static constexpr float BOX_PADDING = 16.0f;
-    static constexpr float TEXT_SCALE = 1.0f;
+    float text_scale_ = 1.0f;
+    static constexpr float TEXT_SCALE = 1.0f; // default
 
     // Textures
     VkDescriptorSet bg_desc_ = VK_NULL_HANDLE;

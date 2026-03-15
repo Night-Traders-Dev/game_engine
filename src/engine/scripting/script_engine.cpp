@@ -6,6 +6,7 @@
 #include "game/ai/pathfinding.h"
 #include "game/systems/day_night.h"
 #include "engine/audio/audio_engine.h"
+#include "engine/graphics/renderer.h"
 
 extern "C" {
 #include <setjmp.h>
@@ -1006,6 +1007,468 @@ static Value native_set_tile(int argc, Value* args) {
     return val_nil();
 }
 
+// ═══════════════ Player API ═══════════════
+
+static Value native_get_player_x(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_pos.x);
+}
+
+static Value native_get_player_y(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_pos.y);
+}
+
+static Value native_set_player_pos(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    if (args[0].type == VAL_NUMBER) gs->player_pos.x = (float)args[0].as.number;
+    if (args[1].type == VAL_NUMBER) gs->player_pos.y = (float)args[1].as.number;
+    gs->camera.center_on(gs->player_pos);
+    return val_nil();
+}
+
+static Value native_get_player_speed(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_speed);
+}
+
+static Value native_set_player_speed(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->player_speed = (float)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_player_hp(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_hp);
+}
+
+static Value native_get_player_hp_max(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_hp_max);
+}
+
+static Value native_set_player_hp(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->player_hp = (int)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_player_atk(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_atk);
+}
+
+static Value native_set_player_atk(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->player_atk = (int)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_player_def(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_def);
+}
+
+static Value native_set_player_def(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->player_def = (int)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_player_level(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_level);
+}
+
+static Value native_get_player_xp(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_xp);
+}
+
+static Value native_add_player_xp(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->player_xp += (int)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_player_dir(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->player_dir);
+}
+
+static Value native_set_player_dir(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->player_dir = (int)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_ally_hp(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->sam_hp);
+}
+
+static Value native_set_ally_hp(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->sam_hp = (int)args[0].as.number;
+    return val_nil();
+}
+
+static Value native_get_ally_atk(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->sam_atk);
+}
+
+// ═══════════════ Camera API ═══════════════
+
+static Value native_get_camera_x(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->camera.position().x);
+}
+
+static Value native_get_camera_y(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->camera.position().y);
+}
+
+static Value native_set_camera_pos(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    gs->camera.set_position({x, y});
+    return val_nil();
+}
+
+static Value native_camera_follow(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float tx = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float ty = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float speed = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 1.0f;
+    gs->camera.follow({tx, ty}, speed);
+    return val_nil();
+}
+
+static Value native_camera_center(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    gs->camera.center_on({x, y});
+    return val_nil();
+}
+
+static Value native_camera_shake(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    gs->shake_intensity = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 4.0f;
+    gs->shake_timer = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0.3f;
+    return val_nil();
+}
+
+static Value native_camera_set_zoom(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    float zoom = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 1.0f;
+    if (zoom < 0.1f) zoom = 0.1f;
+    float base_w = s_active_engine->game_state_->hud.screen_w;
+    float base_h = s_active_engine->game_state_->hud.screen_h;
+    s_active_engine->game_state_->camera.set_viewport(base_w / zoom, base_h / zoom);
+    return val_nil();
+}
+
+static Value native_camera_get_zoom(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(1);
+    float base_w = s_active_engine->game_state_->hud.screen_w;
+    float vp_w = s_active_engine->game_state_->camera.viewport().x;
+    return val_number(vp_w > 0 ? base_w / vp_w : 1.0f);
+}
+
+// ═══════════════ Platform API ═══════════════
+
+static Value native_get_screen_w(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->hud.native_w);
+}
+
+static Value native_get_screen_h(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->hud.native_h);
+}
+
+// ═══════════════ NPC Runtime API ═══════════════
+
+static Value native_npc_get_x(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_number(0);
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    return val_number(npc ? npc->position.x : 0);
+}
+
+static Value native_npc_get_y(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_number(0);
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    return val_number(npc ? npc->position.y : 0);
+}
+
+static Value native_npc_set_pos(int argc, Value* args) {
+    if (argc < 3 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc) {
+        if (args[1].type == VAL_NUMBER) npc->position.x = (float)args[1].as.number;
+        if (args[2].type == VAL_NUMBER) npc->position.y = (float)args[2].as.number;
+    }
+    return val_nil();
+}
+
+static Value native_npc_get_speed(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_number(0);
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    return val_number(npc ? npc->move_speed : 0);
+}
+
+static Value native_npc_set_speed(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc && args[1].type == VAL_NUMBER) npc->move_speed = (float)args[1].as.number;
+    return val_nil();
+}
+
+static Value native_npc_get_dir(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_number(0);
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    return val_number(npc ? npc->dir : 0);
+}
+
+static Value native_npc_set_dir(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc && args[1].type == VAL_NUMBER) npc->dir = (int)args[1].as.number;
+    return val_nil();
+}
+
+static Value native_npc_set_hostile(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc) npc->hostile = (args[1].type == VAL_BOOL) ? args[1].as.boolean :
+                            (args[1].type == VAL_NUMBER && args[1].as.number != 0);
+    return val_nil();
+}
+
+static Value native_npc_is_hostile(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_bool(0);
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    return val_bool(npc ? npc->hostile : false);
+}
+
+static Value native_npc_count(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number((int)s_active_engine->game_state_->npcs.size());
+}
+
+static Value native_npc_exists(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_bool(0);
+    return val_bool(find_npc_by_name(args[0].as.string) != nullptr);
+}
+
+static Value native_npc_remove(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1 || args[0].type != VAL_STRING) return val_nil();
+    std::string name = args[0].as.string;
+    auto& npcs = s_active_engine->game_state_->npcs;
+    npcs.erase(std::remove_if(npcs.begin(), npcs.end(),
+        [&](auto& n) { return n.name == name; }), npcs.end());
+    return val_nil();
+}
+
+// ═══════════════ Screen Effects API ═══════════════
+
+static Value native_screen_shake(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    gs->shake_intensity = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 4.0f;
+    gs->shake_timer = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0.3f;
+    return val_nil();
+}
+
+static Value native_screen_flash(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 5) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    gs->flash_r = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 1.0f;
+    gs->flash_g = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1.0f;
+    gs->flash_b = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 1.0f;
+    gs->flash_a = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 1.0f;
+    gs->flash_timer = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 0.2f;
+    return val_nil();
+}
+
+static Value native_screen_fade(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 5) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    gs->fade_r = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    gs->fade_g = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    gs->fade_b = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    gs->fade_target = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 1.0f;
+    gs->fade_duration = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 1.0f;
+    gs->fade_timer = gs->fade_duration;
+    return val_nil();
+}
+
+// ═══════════════ Tile Map Query API ═══════════════
+
+static Value native_get_tile(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_number(0);
+    auto& map = s_active_engine->game_state_->tile_map;
+    int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    return val_number(map.tile_at(layer, tx, ty));
+}
+
+static Value native_is_solid(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_bool(0);
+    auto& map = s_active_engine->game_state_->tile_map;
+    int tx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int ty = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    return val_bool(map.is_solid(tx, ty));
+}
+
+static Value native_is_solid_world(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_bool(0);
+    auto& map = s_active_engine->game_state_->tile_map;
+    float wx = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float wy = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    int ts = map.tile_size();
+    int tx = (int)(wx / ts);
+    int ty = (int)(wy / ts);
+    return val_bool(map.is_solid(tx, ty));
+}
+
+static Value native_get_map_width(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->tile_map.width());
+}
+
+static Value native_get_map_height(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->tile_map.height());
+}
+
+static Value native_get_tile_size(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->tile_map.tile_size());
+}
+
+static Value native_get_layer_count(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number(s_active_engine->game_state_->tile_map.layer_count());
+}
+
+// ═══════════════ Input API ═══════════════
+
+static Value native_is_key_held(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_bool(0);
+    auto* input = s_active_engine->game_state_->current_input;
+    if (!input || args[0].type != VAL_STRING) return val_bool(0);
+    const char* a = args[0].as.string;
+    if (std::strcmp(a, "up") == 0)       return val_bool(input->is_held(eb::InputAction::MoveUp));
+    if (std::strcmp(a, "down") == 0)     return val_bool(input->is_held(eb::InputAction::MoveDown));
+    if (std::strcmp(a, "left") == 0)     return val_bool(input->is_held(eb::InputAction::MoveLeft));
+    if (std::strcmp(a, "right") == 0)    return val_bool(input->is_held(eb::InputAction::MoveRight));
+    if (std::strcmp(a, "confirm") == 0)  return val_bool(input->is_held(eb::InputAction::Confirm));
+    if (std::strcmp(a, "cancel") == 0)   return val_bool(input->is_held(eb::InputAction::Cancel));
+    if (std::strcmp(a, "run") == 0)      return val_bool(input->is_held(eb::InputAction::Run));
+    return val_bool(0);
+}
+
+static Value native_is_key_pressed(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_bool(0);
+    auto* input = s_active_engine->game_state_->current_input;
+    if (!input || args[0].type != VAL_STRING) return val_bool(0);
+    const char* a = args[0].as.string;
+    if (std::strcmp(a, "up") == 0)       return val_bool(input->is_pressed(eb::InputAction::MoveUp));
+    if (std::strcmp(a, "down") == 0)     return val_bool(input->is_pressed(eb::InputAction::MoveDown));
+    if (std::strcmp(a, "left") == 0)     return val_bool(input->is_pressed(eb::InputAction::MoveLeft));
+    if (std::strcmp(a, "right") == 0)    return val_bool(input->is_pressed(eb::InputAction::MoveRight));
+    if (std::strcmp(a, "confirm") == 0)  return val_bool(input->is_pressed(eb::InputAction::Confirm));
+    if (std::strcmp(a, "cancel") == 0)   return val_bool(input->is_pressed(eb::InputAction::Cancel));
+    if (std::strcmp(a, "run") == 0)      return val_bool(input->is_pressed(eb::InputAction::Run));
+    return val_bool(0);
+}
+
+static Value native_get_mouse_x(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    auto* input = s_active_engine->game_state_->current_input;
+    return val_number(input ? input->mouse.x : 0);
+}
+
+static Value native_get_mouse_y(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    auto* input = s_active_engine->game_state_->current_input;
+    return val_number(input ? input->mouse.y : 0);
+}
+
+// ═══════════════ Dialogue Extension API ═══════════════
+
+static Value native_set_dialogue_speed(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER)
+        s_active_engine->game_state_->dialogue.set_chars_per_sec((float)args[0].as.number);
+    return val_nil();
+}
+
+static Value native_set_dialogue_scale(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER)
+        s_active_engine->game_state_->dialogue.set_text_scale((float)args[0].as.number);
+    return val_nil();
+}
+
+// ═══════════════ Battle Extension API ═══════════════
+
+static Value native_start_battle(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    gs->battle.enemy_name = (args[0].type == VAL_STRING) ? args[0].as.string : "Enemy";
+    gs->battle.enemy_hp_actual = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 10;
+    gs->battle.enemy_hp_max = gs->battle.enemy_hp_actual;
+    gs->battle.enemy_atk = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 3;
+    gs->battle.enemy_sprite_id = (args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    gs->battle.phase = BattlePhase::Intro;
+    gs->battle.phase_timer = 0;
+    gs->battle.player_hp_actual = gs->player_hp;
+    gs->battle.player_hp_max = gs->player_hp_max;
+    gs->battle.player_atk = gs->player_atk;
+    gs->battle.player_def = gs->player_def;
+    gs->battle.sam_hp_actual = gs->sam_hp;
+    gs->battle.sam_hp_max = gs->sam_hp_max;
+    gs->battle.sam_atk = gs->sam_atk;
+    return val_nil();
+}
+
+static Value native_is_in_battle(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_bool(0);
+    return val_bool(s_active_engine->game_state_->battle.phase != BattlePhase::None);
+}
+
+static Value native_set_xp_formula(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER) s_active_engine->game_state_->xp_multiplier = (float)args[0].as.number;
+    return val_nil();
+}
+
+// ═══════════════ Renderer API ═══════════════
+
+static Value native_set_clear_color(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* renderer = s_active_engine->game_state_->renderer;
+    if (!renderer) return val_nil();
+    float r = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float g = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float b = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    renderer->set_clear_color(r, g, b);
+    return val_nil();
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -1040,6 +1503,16 @@ ScriptEngine::ScriptEngine() {
         register_spawn_api();
         register_map_api();
         register_audio_api();
+        register_player_api();
+        register_camera_api();
+        register_platform_api();
+        register_npc_runtime_api();
+        register_effects_api();
+        register_tilemap_api();
+        register_input_api();
+        register_dialogue_ext_api();
+        register_battle_ext_api();
+        register_renderer_api();
         s_active_engine = this;
     }
 }
@@ -1373,6 +1846,131 @@ void ScriptEngine::register_audio_api() {
     env_define(env_, "crossfade_music", 15, val_native(native_crossfade_music));
     env_define(env_, "is_music_playing", 16, val_native(native_is_music_playing));
     std::printf("[ScriptEngine] Audio API registered\n");
+}
+
+void ScriptEngine::register_player_api() {
+    if (!env_) return;
+    env_define(env_, "get_player_x", 12, val_native(native_get_player_x));
+    env_define(env_, "get_player_y", 12, val_native(native_get_player_y));
+    env_define(env_, "set_player_pos", 14, val_native(native_set_player_pos));
+    env_define(env_, "get_player_speed", 16, val_native(native_get_player_speed));
+    env_define(env_, "set_player_speed", 16, val_native(native_set_player_speed));
+    env_define(env_, "get_player_hp", 13, val_native(native_get_player_hp));
+    env_define(env_, "get_player_hp_max", 17, val_native(native_get_player_hp_max));
+    env_define(env_, "set_player_hp", 13, val_native(native_set_player_hp));
+    env_define(env_, "get_player_atk", 14, val_native(native_get_player_atk));
+    env_define(env_, "set_player_atk", 14, val_native(native_set_player_atk));
+    env_define(env_, "get_player_def", 14, val_native(native_get_player_def));
+    env_define(env_, "set_player_def", 14, val_native(native_set_player_def));
+    env_define(env_, "get_player_level", 16, val_native(native_get_player_level));
+    env_define(env_, "get_player_xp", 13, val_native(native_get_player_xp));
+    env_define(env_, "add_player_xp", 13, val_native(native_add_player_xp));
+    env_define(env_, "get_player_dir", 14, val_native(native_get_player_dir));
+    env_define(env_, "set_player_dir", 14, val_native(native_set_player_dir));
+    env_define(env_, "get_ally_hp", 11, val_native(native_get_ally_hp));
+    env_define(env_, "set_ally_hp", 11, val_native(native_set_ally_hp));
+    env_define(env_, "get_ally_atk", 12, val_native(native_get_ally_atk));
+    std::printf("[ScriptEngine] Player API registered\n");
+}
+
+void ScriptEngine::register_camera_api() {
+    if (!env_) return;
+    env_define(env_, "get_camera_x", 12, val_native(native_get_camera_x));
+    env_define(env_, "get_camera_y", 12, val_native(native_get_camera_y));
+    env_define(env_, "set_camera_pos", 14, val_native(native_set_camera_pos));
+    env_define(env_, "camera_follow", 13, val_native(native_camera_follow));
+    env_define(env_, "camera_center", 13, val_native(native_camera_center));
+    env_define(env_, "camera_shake", 12, val_native(native_camera_shake));
+    env_define(env_, "camera_set_zoom", 15, val_native(native_camera_set_zoom));
+    env_define(env_, "camera_get_zoom", 15, val_native(native_camera_get_zoom));
+    std::printf("[ScriptEngine] Camera API registered\n");
+}
+
+void ScriptEngine::register_platform_api() {
+    if (!env_) return;
+#ifdef __ANDROID__
+    set_string("PLATFORM", "android");
+    set_bool("IS_ANDROID", true);
+    set_bool("IS_DESKTOP", false);
+#elif _WIN32
+    set_string("PLATFORM", "windows");
+    set_bool("IS_ANDROID", false);
+    set_bool("IS_DESKTOP", true);
+#else
+    set_string("PLATFORM", "linux");
+    set_bool("IS_ANDROID", false);
+    set_bool("IS_DESKTOP", true);
+#endif
+    env_define(env_, "get_screen_w", 12, val_native(native_get_screen_w));
+    env_define(env_, "get_screen_h", 12, val_native(native_get_screen_h));
+    std::printf("[ScriptEngine] Platform API registered\n");
+}
+
+void ScriptEngine::register_npc_runtime_api() {
+    if (!env_) return;
+    env_define(env_, "npc_get_x", 9, val_native(native_npc_get_x));
+    env_define(env_, "npc_get_y", 9, val_native(native_npc_get_y));
+    env_define(env_, "npc_set_pos", 11, val_native(native_npc_set_pos));
+    env_define(env_, "npc_get_speed", 13, val_native(native_npc_get_speed));
+    env_define(env_, "npc_set_speed", 13, val_native(native_npc_set_speed));
+    env_define(env_, "npc_get_dir", 11, val_native(native_npc_get_dir));
+    env_define(env_, "npc_set_dir", 11, val_native(native_npc_set_dir));
+    env_define(env_, "npc_set_hostile", 15, val_native(native_npc_set_hostile));
+    env_define(env_, "npc_is_hostile", 14, val_native(native_npc_is_hostile));
+    env_define(env_, "npc_count", 9, val_native(native_npc_count));
+    env_define(env_, "npc_exists", 10, val_native(native_npc_exists));
+    env_define(env_, "npc_remove", 10, val_native(native_npc_remove));
+    std::printf("[ScriptEngine] NPC Runtime API registered\n");
+}
+
+void ScriptEngine::register_effects_api() {
+    if (!env_) return;
+    env_define(env_, "screen_shake", 12, val_native(native_screen_shake));
+    env_define(env_, "screen_flash", 12, val_native(native_screen_flash));
+    env_define(env_, "screen_fade", 11, val_native(native_screen_fade));
+    std::printf("[ScriptEngine] Effects API registered\n");
+}
+
+void ScriptEngine::register_tilemap_api() {
+    if (!env_) return;
+    env_define(env_, "get_tile", 8, val_native(native_get_tile));
+    env_define(env_, "is_solid", 8, val_native(native_is_solid));
+    env_define(env_, "is_solid_world", 14, val_native(native_is_solid_world));
+    env_define(env_, "get_map_width", 13, val_native(native_get_map_width));
+    env_define(env_, "get_map_height", 14, val_native(native_get_map_height));
+    env_define(env_, "get_tile_size", 13, val_native(native_get_tile_size));
+    env_define(env_, "get_layer_count", 15, val_native(native_get_layer_count));
+    std::printf("[ScriptEngine] Tile Map API registered\n");
+}
+
+void ScriptEngine::register_input_api() {
+    if (!env_) return;
+    env_define(env_, "is_key_held", 11, val_native(native_is_key_held));
+    env_define(env_, "is_key_pressed", 14, val_native(native_is_key_pressed));
+    env_define(env_, "get_mouse_x", 11, val_native(native_get_mouse_x));
+    env_define(env_, "get_mouse_y", 11, val_native(native_get_mouse_y));
+    std::printf("[ScriptEngine] Input API registered\n");
+}
+
+void ScriptEngine::register_dialogue_ext_api() {
+    if (!env_) return;
+    env_define(env_, "set_dialogue_speed", 18, val_native(native_set_dialogue_speed));
+    env_define(env_, "set_dialogue_scale", 18, val_native(native_set_dialogue_scale));
+    std::printf("[ScriptEngine] Dialogue Extension API registered\n");
+}
+
+void ScriptEngine::register_battle_ext_api() {
+    if (!env_) return;
+    env_define(env_, "start_battle", 12, val_native(native_start_battle));
+    env_define(env_, "is_in_battle", 12, val_native(native_is_in_battle));
+    env_define(env_, "set_xp_formula", 14, val_native(native_set_xp_formula));
+    std::printf("[ScriptEngine] Battle Extension API registered\n");
+}
+
+void ScriptEngine::register_renderer_api() {
+    if (!env_) return;
+    env_define(env_, "set_clear_color", 15, val_native(native_set_clear_color));
+    std::printf("[ScriptEngine] Renderer API registered\n");
 }
 
 void ScriptEngine::sync_item_to_script(const std::string& item_id) {

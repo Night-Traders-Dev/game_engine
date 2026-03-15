@@ -1422,7 +1422,7 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
         if (b.phase_timer > 1.2f || confirm) {
             if (b.enemy_hp_actual <= 0) {
                 b.phase = BattlePhase::Victory;
-                int xp = b.enemy_hp_max / 2 + b.enemy_atk;
+                int xp = (int)((b.enemy_hp_max / 2 + b.enemy_atk) * game.xp_multiplier);
                 b.message = "Victory! Gained " + std::to_string(xp) + " XP!";
                 game.player_xp += xp;
             } else if (b.active_fighter == 0 && b.sam_hp_actual > 0) {
@@ -1574,6 +1574,16 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
 
 void update_game(GameState& game, const eb::InputState& input, float dt) {
     game.game_time += dt;
+    game.current_input = &input;
+
+    // ── Screen effects decay ──
+    if (game.shake_timer > 0) game.shake_timer -= dt;
+    if (game.flash_timer > 0) { game.flash_timer -= dt; if (game.flash_timer <= 0) game.flash_a = 0; }
+    if (game.fade_timer > 0) {
+        game.fade_timer -= dt;
+        float t = 1.0f - (game.fade_timer / game.fade_duration);
+        game.fade_a = game.fade_a + (game.fade_target - game.fade_a) * std::min(1.0f, t);
+    }
 
     // ── World systems (always tick, even during menus) ──
     eb::update_day_night(game.day_night, dt);
@@ -2728,7 +2738,15 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
 // ─── Render world ───
 
 void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text) {
-    batch.set_projection(game.camera.projection_matrix());
+    // Apply camera shake offset
+    eb::Mat4 proj = game.camera.projection_matrix();
+    if (game.shake_timer > 0 && game.shake_intensity > 0) {
+        float sx = ((game.rng() % 200) - 100) / 100.0f * game.shake_intensity;
+        float sy = ((game.rng() % 200) - 100) / 100.0f * game.shake_intensity;
+        proj[3][0] += sx;
+        proj[3][1] += sy;
+    }
+    batch.set_projection(proj);
 
     // Tile map with water animation
     batch.set_texture(game.tileset_desc);
@@ -3051,6 +3069,20 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
                         {0,0}, {1,1}, {0, 0, 0, 0.7f * alpha});
         text.draw_text(batch, game.font_desc, n.text,
                        {nx, ny}, {1, 1, 1, alpha}, ns);
+    }
+
+    // ── Screen Effects ──
+    // Flash overlay
+    if (game.flash_a > 0.01f) {
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1},
+                        {game.flash_r, game.flash_g, game.flash_b, game.flash_a});
+    }
+    // Fade overlay
+    if (game.fade_a > 0.01f) {
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1},
+                        {game.fade_r, game.fade_g, game.fade_b, game.fade_a});
     }
 
     // ── Pause Menu (dim overlay only — layout is script-driven) ──
