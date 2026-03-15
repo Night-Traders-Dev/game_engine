@@ -262,6 +262,14 @@ private:
     float highlight_timer_ = 0.0f;
     bool show_api_manual_ = false;
 
+    // Map script generation (Visual Basic-style)
+    std::string map_script_path_;
+    std::string map_script_body_;   // Lines inside map_init()
+    bool map_script_dirty_ = false;
+    void append_map_script(const std::string& line);
+    void save_map_script();
+    void load_map_script(const std::string& map_path);
+
     // Deferred file dialog (must not run during Vulkan rendering)
     enum class PendingDialog { None, Save, Load, ImportAsset };
     PendingDialog pending_dialog_ = PendingDialog::None;

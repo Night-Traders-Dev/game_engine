@@ -694,6 +694,126 @@ static Value native_set_spawn_area(int argc, Value* args) {
     return val_nil();
 }
 
+// ═══════════════ Map API ═══════════════
+
+// spawn_npc(name, x, y, dir, hostile, sprite_id, hp, atk, speed, aggro)
+static Value native_spawn_npc_map(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    NPC npc;
+    npc.name = (args[0].type == VAL_STRING) ? args[0].as.string : "NPC";
+    npc.position.x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    npc.position.y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    npc.home_pos = npc.position;
+    npc.wander_target = npc.position;
+    if (argc > 3 && args[3].type == VAL_NUMBER) npc.dir = (int)args[3].as.number;
+    if (argc > 4) npc.hostile = (args[4].type == VAL_BOOL) ? args[4].as.boolean : (args[4].type == VAL_NUMBER && args[4].as.number != 0);
+    if (argc > 5 && args[5].type == VAL_NUMBER) npc.sprite_atlas_id = (int)args[5].as.number;
+    if (argc > 6 && args[6].type == VAL_NUMBER) { npc.battle_enemy_hp = (int)args[6].as.number; npc.has_battle = npc.battle_enemy_hp > 0; }
+    if (argc > 7 && args[7].type == VAL_NUMBER) npc.battle_enemy_atk = (int)args[7].as.number;
+    if (argc > 8 && args[8].type == VAL_NUMBER) npc.move_speed = (float)args[8].as.number;
+    if (argc > 9 && args[9].type == VAL_NUMBER) npc.aggro_range = (float)args[9].as.number;
+    npc.battle_enemy_name = npc.name;
+    npc.dialogue = {{npc.name, "..."}};
+    gs->npcs.push_back(npc);
+    return val_nil();
+}
+
+// place_object(x, y, stamp_name)
+static Value native_place_object(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    const char* stamp_name = (args[2].type == VAL_STRING) ? args[2].as.string : "";
+    // Find stamp by name
+    for (int i = 0; i < (int)gs->object_stamps.size(); i++) {
+        if (gs->object_stamps[i].name == stamp_name) {
+            WorldObject obj;
+            obj.sprite_id = i;
+            obj.position = {x, y};
+            gs->world_objects.push_back(obj);
+            return val_nil();
+        }
+    }
+    return val_nil();
+}
+
+// remove_object(x, y)
+static Value native_remove_object(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float best_dist = 48.0f;
+    int best_idx = -1;
+    for (int i = 0; i < (int)gs->world_objects.size(); i++) {
+        float dx = gs->world_objects[i].position.x - x;
+        float dy = gs->world_objects[i].position.y - y;
+        float d = std::sqrt(dx*dx + dy*dy);
+        if (d < best_dist) { best_dist = d; best_idx = i; }
+    }
+    if (best_idx >= 0) gs->world_objects.erase(gs->world_objects.begin() + best_idx);
+    return val_nil();
+}
+
+// set_portal(tx, ty, target_map, target_x, target_y, label)
+static Value native_set_portal(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    int tx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int ty = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    gs->tile_map.set_collision_at(tx, ty, eb::CollisionType::Portal);
+    eb::Portal p;
+    p.tile_x = tx; p.tile_y = ty;
+    p.target_map = (argc > 2 && args[2].type == VAL_STRING) ? args[2].as.string : "";
+    p.target_x = (argc > 3 && args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    p.target_y = (argc > 4 && args[4].type == VAL_NUMBER) ? (int)args[4].as.number : 0;
+    p.label = (argc > 5 && args[5].type == VAL_STRING) ? args[5].as.string : "portal";
+    // Remove existing portal at same tile
+    auto& portals = gs->tile_map.portals();
+    for (int i = (int)portals.size()-1; i >= 0; i--)
+        if (portals[i].tile_x == tx && portals[i].tile_y == ty)
+            gs->tile_map.remove_portal(i);
+    portals.push_back(p);
+    return val_nil();
+}
+
+// remove_portal(tx, ty)
+static Value native_remove_portal(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    int tx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int ty = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    gs->tile_map.set_collision_at(tx, ty, eb::CollisionType::None);
+    auto& portals = gs->tile_map.portals();
+    for (int i = (int)portals.size()-1; i >= 0; i--)
+        if (portals[i].tile_x == tx && portals[i].tile_y == ty)
+            gs->tile_map.remove_portal(i);
+    return val_nil();
+}
+
+// set_collision(tx, ty, type) — type: 0=None, 1=Solid, 2=Portal
+static Value native_set_collision(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    int tx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int ty = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int type = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    s_active_engine->game_state_->tile_map.set_collision_at(tx, ty, static_cast<eb::CollisionType>(type));
+    return val_nil();
+}
+
+// set_tile(layer, tx, ty, tile_id)
+static Value native_set_tile(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    int tile_id = (args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    s_active_engine->game_state_->tile_map.set_tile(layer, tx, ty, tile_id);
+    return val_nil();
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -716,6 +836,7 @@ ScriptEngine::ScriptEngine() {
         register_schedule_api();
         register_npc_interact_api();
         register_spawn_api();
+        register_map_api();
         s_active_engine = this;
     }
 }
@@ -859,6 +980,18 @@ void ScriptEngine::register_spawn_api() {
     env_define(env_, "stop_spawn_loop", 15, val_native(native_stop_spawn_loop));
     env_define(env_, "set_spawn_area", 14, val_native(native_set_spawn_area));
     std::printf("[ScriptEngine] Spawn API registered\n");
+}
+
+void ScriptEngine::register_map_api() {
+    if (!env_) return;
+    env_define(env_, "spawn_npc", 9, val_native(native_spawn_npc_map));
+    env_define(env_, "place_object", 12, val_native(native_place_object));
+    env_define(env_, "remove_object", 13, val_native(native_remove_object));
+    env_define(env_, "set_portal", 10, val_native(native_set_portal));
+    env_define(env_, "remove_portal", 13, val_native(native_remove_portal));
+    env_define(env_, "set_collision", 13, val_native(native_set_collision));
+    env_define(env_, "set_tile", 8, val_native(native_set_tile));
+    std::printf("[ScriptEngine] Map API registered\n");
 }
 
 void ScriptEngine::sync_item_to_script(const std::string& item_id) {

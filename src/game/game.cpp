@@ -409,6 +409,27 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
     std::printf("[Map] Loaded: %s (%dx%d, %d objects, %d npcs)\n",
                 path.c_str(), game.tile_map.width(), game.tile_map.height(),
                 (int)game.world_objects.size(), (int)game.npcs.size());
+
+    // Execute companion map script if it exists
+    if (game.script_engine) {
+        // Derive script path: assets/maps/foo.json → assets/scripts/maps/foo.sage
+        std::string name = path;
+        auto slash = name.rfind('/');
+        if (slash != std::string::npos) name = name.substr(slash + 1);
+        auto dot = name.rfind('.');
+        if (dot != std::string::npos) name = name.substr(0, dot);
+        std::string script_path = "assets/scripts/maps/" + name + ".sage";
+        auto script_data = eb::FileIO::read_file(script_path);
+        if (!script_data.empty()) {
+            std::string src(script_data.begin(), script_data.end());
+            game.script_engine->execute(src);
+            if (game.script_engine->has_function("map_init")) {
+                game.script_engine->call_function("map_init");
+                std::printf("[Map] Executed map script: %s\n", script_path.c_str());
+            }
+        }
+    }
+
     return true;
 }
 

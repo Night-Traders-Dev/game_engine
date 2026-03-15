@@ -68,6 +68,7 @@ private:
     void register_schedule_api();
     void register_npc_interact_api();
     void register_spawn_api();
+    void register_map_api();
 
     Env* env_ = nullptr;
 
