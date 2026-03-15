@@ -112,10 +112,76 @@ struct BattleState {
     float sam_hp_display = 0.0f;
     int sam_atk = 0;
     int menu_selection = 0, active_fighter = 0;
+    bool item_menu_open = false;
+    int item_menu_selection = 0;
     float phase_timer = 0.0f, attack_anim_timer = 0.0f;
     std::string message;
     int last_damage = 0;
     bool random_encounter = false;
+};
+
+// ─── Item / Inventory ───
+enum class ItemType { Consumable, Weapon, KeyItem };
+
+struct Item {
+    std::string id;         // e.g. "first_aid_kit"
+    std::string name;       // e.g. "First Aid Kit"
+    std::string description;
+    ItemType type = ItemType::Consumable;
+    int quantity = 0;
+    int max_stack = 99;
+    // Battle effects (read by SageLang)
+    int heal_hp = 0;
+    int damage = 0;
+    std::string element;    // "holy", "silver", "fire", etc.
+    std::string sage_func;  // SageLang function to call on use, e.g. "use_first_aid"
+};
+
+struct Inventory {
+    std::vector<Item> items;
+    static constexpr int MAX_SLOTS = 20;
+
+    Item* find(const std::string& id) {
+        for (auto& it : items) if (it.id == id) return &it;
+        return nullptr;
+    }
+    const Item* find(const std::string& id) const {
+        for (auto& it : items) if (it.id == id) return &it;
+        return nullptr;
+    }
+    bool add(const std::string& id, const std::string& name, int count = 1,
+             ItemType type = ItemType::Consumable, const std::string& desc = "",
+             int heal = 0, int dmg = 0, const std::string& elem = "",
+             const std::string& sage = "") {
+        if (auto* it = find(id)) {
+            it->quantity = std::min(it->quantity + count, it->max_stack);
+            return true;
+        }
+        if ((int)items.size() >= MAX_SLOTS) return false;
+        items.push_back({id, name, desc, type, count, 99, heal, dmg, elem, sage});
+        return true;
+    }
+    bool remove(const std::string& id, int count = 1) {
+        for (auto it = items.begin(); it != items.end(); ++it) {
+            if (it->id == id) {
+                it->quantity -= count;
+                if (it->quantity <= 0) items.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+    int count(const std::string& id) const {
+        auto* it = find(id);
+        return it ? it->quantity : 0;
+    }
+    // Get only usable items (consumable/weapon, not key items)
+    std::vector<const Item*> get_battle_items() const {
+        std::vector<const Item*> result;
+        for (auto& it : items)
+            if (it.type != ItemType::KeyItem && it.quantity > 0) result.push_back(&it);
+        return result;
+    }
 };
 
 // ─── Party follower ───
@@ -168,6 +234,7 @@ struct GameState {
     float game_time = 0.0f, steps_since_encounter = 0.0f;
     std::mt19937 rng{std::random_device{}()};
 
+    Inventory inventory;
     eb::ScriptEngine* script_engine = nullptr;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;

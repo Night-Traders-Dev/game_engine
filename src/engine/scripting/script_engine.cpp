@@ -114,6 +114,67 @@ static Value native_clamp(int argc, Value* args) {
     return val_number(v < lo ? lo : (v > hi ? hi : v));
 }
 
+// ═══════════════ Inventory API ═══════════════
+
+// add_item(id, name, qty, type_str, desc, heal, dmg, element, sage_func)
+static Value native_add_item(int argc, Value* args) {
+    if (!s_active_engine || argc < 2) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs) return val_bool(0);
+
+    const char* id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    const char* name = (args[1].type == VAL_STRING) ? args[1].as.string : id;
+    int qty = (argc > 2 && args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 1;
+    const char* type_str = (argc > 3 && args[3].type == VAL_STRING) ? args[3].as.string : "consumable";
+    const char* desc = (argc > 4 && args[4].type == VAL_STRING) ? args[4].as.string : "";
+    int heal = (argc > 5 && args[5].type == VAL_NUMBER) ? (int)args[5].as.number : 0;
+    int dmg = (argc > 6 && args[6].type == VAL_NUMBER) ? (int)args[6].as.number : 0;
+    const char* elem = (argc > 7 && args[7].type == VAL_STRING) ? args[7].as.string : "";
+    const char* sage = (argc > 8 && args[8].type == VAL_STRING) ? args[8].as.string : "";
+
+    ItemType t = ItemType::Consumable;
+    if (std::strcmp(type_str, "weapon") == 0) t = ItemType::Weapon;
+    else if (std::strcmp(type_str, "key") == 0) t = ItemType::KeyItem;
+
+    bool ok = gs->inventory.add(id, name, qty, t, desc, heal, dmg, elem, sage);
+    std::printf("[Inventory] +%d %s (%s)\n", qty, name, id);
+    return val_bool(ok ? 1 : 0);
+}
+
+// remove_item(id, qty)
+static Value native_remove_item(int argc, Value* args) {
+    if (!s_active_engine || argc < 1) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs) return val_bool(0);
+
+    const char* id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    int qty = (argc > 1 && args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 1;
+
+    bool ok = gs->inventory.remove(id, qty);
+    std::printf("[Inventory] -%d %s\n", qty, id);
+    return val_bool(ok ? 1 : 0);
+}
+
+// has_item(id) -> bool
+static Value native_has_item(int argc, Value* args) {
+    if (!s_active_engine || argc < 1) return val_bool(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs) return val_bool(0);
+
+    const char* id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    return val_bool(gs->inventory.count(id) > 0 ? 1 : 0);
+}
+
+// item_count(id) -> number
+static Value native_item_count(int argc, Value* args) {
+    if (!s_active_engine || argc < 1) return val_number(0);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs) return val_number(0);
+
+    const char* id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    return val_number(gs->inventory.count(id));
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
