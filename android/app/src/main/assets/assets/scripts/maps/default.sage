@@ -1,19 +1,60 @@
-# Default map script — auto-executed on game start
-# This file configures the starting map's UI, NPCs, objects, and game logic.
-# The editor auto-appends lines when you spawn NPCs or place objects.
+# ═══════════════════════════════════════════════════════
+# Default Map Script — Crystal Quest Demo
+# ═══════════════════════════════════════════════════════
+#
+# Uses the HUD library for reusable UI builders.
+# Positions are screen-relative using hud_get("screen_w"/"screen_h").
+# Works on any resolution (desktop, Android, etc.)
+
+import hud
 
 proc map_init():
-    log("Default map loaded")
+    log("Map script loading...")
 
-    # ── Custom UI Components ──
-    # These use the script UI API to create HUD elements from .sage
+    # Get screen dimensions for relative positioning
+    let sw = hud_get("screen_w")
+    let sh = hud_get("screen_h")
 
-    # Example: Quest tracker panel (top-center)
-    ui_panel("quest_bg", 380, 8, 200, 40, "panel_mini")
-    ui_image("quest_icon", 388, 14, 24, 24, "icon_book")
-    ui_label("quest_text", "Explore the village", 418, 16, 0.9, 0.85, 0.7, 1)
-    ui_set("quest_text", "scale", 0.65)
+    # Fallback if screen not yet measured (first frame)
+    if sw < 100:
+        sw = 960
+    if sh < 100:
+        sh = 720
 
-    # Example: compass indicator (below time panel)
-    # ui_panel("compass_bg", 820, 70, 60, 24, "panel_mini")
-    # ui_label("compass", "N", 842, 74, 0.8, 0.8, 0.8, 1)
+    # ═══════════════════════════════════════
+    # HUD — Positioned relative to screen edges
+    # ═══════════════════════════════════════
+    hud.setup_player_panel(8, 8, 340, 90)
+    hud.setup_time_panel(sw - 180, 8, 170, 80)
+    hud.setup_pause_menu(sw / 2, sh / 2, 180, 40)
+
+    # Uncomment to enable survival bars:
+    # hud.setup_survival_bars(8, 104, 100, 10, 4)
+
+    # Uncomment for quest tracker (top-center):
+    # hud.setup_quest_tracker(sw / 2 - 100, 8, "Explore the village")
+
+    # ═══════════════════════════════════════
+    # NPC Setup
+    # ═══════════════════════════════════════
+    npc_set_schedule("Merchant", 6, 20)
+    npc_set_spawn_point("Merchant", 512, 256)
+
+    npc_add_waypoint("Elder", 320, 256)
+    npc_add_waypoint("Elder", 400, 256)
+    npc_add_waypoint("Elder", 400, 320)
+    npc_add_waypoint("Elder", 320, 320)
+    npc_set_route("Elder", "patrol")
+    npc_start_route("Elder")
+
+    npc_on_meet("Elder", "Merchant", "elder_merchant_chat")
+
+    log("Map setup complete (screen: " + str(sw) + "x" + str(sh) + ")")
+
+# ═══════════════════════════════════════
+# NPC Interaction Callbacks
+# ═══════════════════════════════════════
+proc elder_merchant_chat():
+    npc_face_each_other("Elder", "Merchant")
+    say("Elder", "Good morning! How is business?")
+    say("Merchant", "Sales are good today, Elder!")

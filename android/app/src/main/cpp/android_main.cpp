@@ -93,6 +93,10 @@ static bool init_all(AppState& state) {
             }
         }
 
+        // Set screen dimensions before scripts run
+        state.game.hud.screen_w = state.virtual_w;
+        state.game.hud.screen_h = state.virtual_h;
+
         // SageLang scripting
         state.script_engine = std::make_unique<eb::ScriptEngine>();
         state.script_engine->set_game_state(&state.game);
@@ -108,6 +112,12 @@ static bool init_all(AppState& state) {
             if (state.script_engine->has_function(init_func)) {
                 state.script_engine->call_function(init_func);
             }
+        }
+
+        // Execute map script if map_init exists
+        if (state.script_engine->has_function("map_init")) {
+            state.script_engine->call_function("map_init");
+            LOGI("Executed map_init()");
         }
 
         // Audio engine

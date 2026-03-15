@@ -62,6 +62,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
                       (float)config.width, (float)config.height);
         }
 
+        // Set screen dimensions before scripts run (so hud_get("screen_w") works in map_init)
+        game.hud.screen_w = (float)engine.platform().get_width();
+        game.hud.screen_h = (float)engine.platform().get_height();
+
         // ─── SageLang scripting engine ───
         eb::ScriptEngine script_engine;
         script_engine.set_game_state(&game);

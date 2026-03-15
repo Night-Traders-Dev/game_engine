@@ -646,6 +646,8 @@ static Value native_hud_get(int argc, Value* args) {
     if (std::strcmp(prop, "show_survival") == 0)  return val_bool(H.show_survival);
     if (std::strcmp(prop, "show_minimap") == 0)  return val_bool(H.show_minimap);
     if (std::strcmp(prop, "minimap_size") == 0)  return val_number(H.minimap_size);
+    if (std::strcmp(prop, "screen_w") == 0)     return val_number(H.screen_w);
+    if (std::strcmp(prop, "screen_h") == 0)     return val_number(H.screen_h);
     return val_number(0);
 }
 

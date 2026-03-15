@@ -86,6 +86,7 @@
   ],
 
   "scripts": [
+    "assets/scripts/lib/hud.sage",
     "assets/scripts/battle/battle_core.sage",
     "assets/scripts/battle/slime_battle.sage",
     "assets/scripts/inventory/inventory_core.sage",
@@ -93,7 +94,9 @@
     "assets/scripts/elder.sage",
     "assets/scripts/merchant.sage",
     "assets/scripts/debug_api.sage",
-    "assets/scripts/day.sage"
+    "assets/scripts/day.sage",
+    "assets/scripts/patrol.sage",
+    "assets/scripts/maps/default.sage"
   ],
 
   "init_scripts": [

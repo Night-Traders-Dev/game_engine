@@ -3,27 +3,36 @@
 # ═══════════════════════════════════════════════════════
 #
 # Uses the HUD library for reusable UI builders.
-# Edit this file to customize the map's HUD, NPCs, and game logic.
-# Changes apply on Save & Reload in the Script IDE.
+# Positions are screen-relative using hud_get("screen_w"/"screen_h").
+# Works on any resolution (desktop, Android, etc.)
 
 import hud
 
 proc map_init():
     log("Map script loading...")
 
+    # Get screen dimensions for relative positioning
+    let sw = hud_get("screen_w")
+    let sh = hud_get("screen_h")
+
+    # Fallback if screen not yet measured (first frame)
+    if sw < 100:
+        sw = 960
+    if sh < 100:
+        sh = 720
+
     # ═══════════════════════════════════════
-    # HUD — Built using library functions
-    # Change positions/sizes by editing the arguments
+    # HUD — Positioned relative to screen edges
     # ═══════════════════════════════════════
     hud.setup_player_panel(8, 8, 340, 90)
-    hud.setup_time_panel(780, 8, 170, 80)
-    hud.setup_pause_menu(480, 300, 180, 40)
+    hud.setup_time_panel(sw - 180, 8, 170, 80)
+    hud.setup_pause_menu(sw / 2, sh / 2, 180, 40)
 
     # Uncomment to enable survival bars:
     # hud.setup_survival_bars(8, 104, 100, 10, 4)
 
-    # Uncomment for quest tracker:
-    # hud.setup_quest_tracker(380, 8, "Explore the village")
+    # Uncomment for quest tracker (top-center):
+    # hud.setup_quest_tracker(sw / 2 - 100, 8, "Explore the village")
 
     # ═══════════════════════════════════════
     # NPC Setup
@@ -40,7 +49,7 @@ proc map_init():
 
     npc_on_meet("Elder", "Merchant", "elder_merchant_chat")
 
-    log("Map setup complete")
+    log("Map setup complete (screen: " + str(sw) + "x" + str(sh) + ")")
 
 # ═══════════════════════════════════════
 # NPC Interaction Callbacks
