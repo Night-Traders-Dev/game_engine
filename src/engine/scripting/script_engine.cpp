@@ -487,6 +487,65 @@ static Value native_ui_notify(int argc, Value* args) {
     return val_nil();
 }
 
+// ═══════════════ HUD Config API ═══════════════
+
+// hud_set(property, value) — configure HUD dimensions and visibility
+static Value native_hud_set(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto& H = s_active_engine->game_state_->hud;
+    const char* prop = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float v = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    bool bv = (args[1].type == VAL_BOOL) ? args[1].as.boolean : (v != 0);
+
+    if (std::strcmp(prop, "scale") == 0)          H.scale = v;
+    else if (std::strcmp(prop, "player_x") == 0)  H.player_x = v;
+    else if (std::strcmp(prop, "player_y") == 0)  H.player_y = v;
+    else if (std::strcmp(prop, "player_w") == 0)  H.player_w = v;
+    else if (std::strcmp(prop, "player_h") == 0)  H.player_h = v;
+    else if (std::strcmp(prop, "hp_bar_w") == 0)  H.hp_bar_w = v;
+    else if (std::strcmp(prop, "hp_bar_h") == 0)  H.hp_bar_h = v;
+    else if (std::strcmp(prop, "text_scale") == 0) H.text_scale = v;
+    else if (std::strcmp(prop, "time_w") == 0)    H.time_w = v;
+    else if (std::strcmp(prop, "time_h") == 0)    H.time_h = v;
+    else if (std::strcmp(prop, "time_text_scale") == 0) H.time_text_scale = v;
+    else if (std::strcmp(prop, "inv_slot_size") == 0) H.inv_slot_size = v;
+    else if (std::strcmp(prop, "inv_padding") == 0)   H.inv_padding = v;
+    else if (std::strcmp(prop, "inv_max_slots") == 0) H.inv_max_slots = (int)v;
+    else if (std::strcmp(prop, "inv_y_offset") == 0)  H.inv_y_offset = v;
+    else if (std::strcmp(prop, "surv_bar_w") == 0) H.surv_bar_w = v;
+    else if (std::strcmp(prop, "surv_bar_h") == 0) H.surv_bar_h = v;
+    else if (std::strcmp(prop, "show_player") == 0)    H.show_player = bv;
+    else if (std::strcmp(prop, "show_time") == 0)      H.show_time = bv;
+    else if (std::strcmp(prop, "show_inventory") == 0)  H.show_inventory = bv;
+    else if (std::strcmp(prop, "show_survival") == 0)   H.show_survival = bv;
+    return val_nil();
+}
+
+// hud_get(property) -> number
+static Value native_hud_get(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_number(0);
+    auto& H = s_active_engine->game_state_->hud;
+    const char* prop = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+
+    if (std::strcmp(prop, "scale") == 0)          return val_number(H.scale);
+    if (std::strcmp(prop, "player_x") == 0)       return val_number(H.player_x);
+    if (std::strcmp(prop, "player_y") == 0)       return val_number(H.player_y);
+    if (std::strcmp(prop, "player_w") == 0)       return val_number(H.player_w);
+    if (std::strcmp(prop, "player_h") == 0)       return val_number(H.player_h);
+    if (std::strcmp(prop, "hp_bar_w") == 0)       return val_number(H.hp_bar_w);
+    if (std::strcmp(prop, "hp_bar_h") == 0)       return val_number(H.hp_bar_h);
+    if (std::strcmp(prop, "text_scale") == 0)     return val_number(H.text_scale);
+    if (std::strcmp(prop, "time_w") == 0)         return val_number(H.time_w);
+    if (std::strcmp(prop, "time_h") == 0)         return val_number(H.time_h);
+    if (std::strcmp(prop, "inv_slot_size") == 0)  return val_number(H.inv_slot_size);
+    if (std::strcmp(prop, "inv_max_slots") == 0)  return val_number(H.inv_max_slots);
+    if (std::strcmp(prop, "show_player") == 0)    return val_bool(H.show_player);
+    if (std::strcmp(prop, "show_time") == 0)      return val_bool(H.show_time);
+    if (std::strcmp(prop, "show_inventory") == 0) return val_bool(H.show_inventory);
+    if (std::strcmp(prop, "show_survival") == 0)  return val_bool(H.show_survival);
+    return val_number(0);
+}
+
 // ═══════════════ Survival API ═══════════════
 
 // enable_survival(bool)
@@ -926,6 +985,8 @@ void ScriptEngine::register_ui_api() {
     env_define(env_, "ui_bar", 6, val_native(native_ui_bar));
     env_define(env_, "ui_remove", 9, val_native(native_ui_remove));
     env_define(env_, "ui_notify", 9, val_native(native_ui_notify));
+    env_define(env_, "hud_set", 7, val_native(native_hud_set));
+    env_define(env_, "hud_get", 7, val_native(native_hud_get));
     std::printf("[ScriptEngine] UI API registered\n");
 }
 

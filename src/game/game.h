@@ -133,6 +133,38 @@ struct SurvivalStats {
     bool enabled = false;
 };
 
+// ─── HUD Configuration (script-controllable) ───
+struct HUDConfig {
+    // Player panel
+    float player_x = 8, player_y = 8;
+    float player_w = 280, player_h = 72;
+    float hp_bar_w = 170, hp_bar_h = 14;
+    float text_scale = 0.9f;
+
+    // Time panel
+    float time_x_offset = 148;  // from right edge
+    float time_w = 140, time_h = 64;
+    float time_text_scale = 0.9f;
+
+    // Inventory bar
+    float inv_slot_size = 46;
+    float inv_padding = 4;
+    int inv_max_slots = 8;
+    float inv_y_offset = 54;  // from bottom edge
+
+    // Survival bars
+    float surv_bar_w = 80, surv_bar_h = 8;
+
+    // Global scale
+    float scale = 1.5f;
+
+    // Visibility
+    bool show_player = true;
+    bool show_time = true;
+    bool show_inventory = true;
+    bool show_survival = true;
+};
+
 // ─── Script UI ───
 struct ScriptUILabel {
     std::string id, text;
@@ -368,6 +400,7 @@ struct GameState {
     std::vector<NPCMeetTrigger> npc_meet_triggers;
     std::vector<SpawnLoop> spawn_loops;
     SurvivalStats survival;
+    HUDConfig hud;
     ScriptUI script_ui;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;
