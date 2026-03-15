@@ -1,0 +1,129 @@
+{
+  "game": {
+    "title": "Twilight - Supernatural RPG",
+    "version": "0.4.0",
+    "window_width": 960,
+    "window_height": 720
+  },
+
+  "player": {
+    "name": "Dean",
+    "sprite": "assets/textures/dean_sprites.png",
+    "sprite_grid": [158, 210],
+    "portrait": "assets/textures/portrait_dean.png",
+    "hp": 100, "hp_max": 100,
+    "atk": 18, "def": 5,
+    "level": 1, "xp": 0,
+    "start_x": 480, "start_y": 320,
+    "skills": {
+      "hardiness": 5, "unholiness": 3, "nerve": 6,
+      "tactics": 4, "exorcism": 3, "riflery": 6
+    }
+  },
+
+  "party": [
+    {
+      "name": "Sam",
+      "sprite": "assets/textures/sam_sprites.png",
+      "sprite_regions": {
+        "idle_down":     [44, 92, 140, 190],
+        "walk_down_0":   [44, 92, 140, 190],
+        "walk_down_1":   [504, 92, 140, 190],
+        "idle_up":       [734, 92, 140, 190],
+        "walk_up_0":     [734, 92, 140, 190],
+        "walk_up_1":     [275, 350, 140, 190],
+        "idle_right":    [504, 350, 140, 190],
+        "walk_right_0":  [504, 350, 140, 190],
+        "walk_right_1":  [965, 350, 140, 190]
+      },
+      "portrait": "assets/textures/portrait_sam.png",
+      "hp": 90, "hp_max": 90, "atk": 15,
+      "skills": {
+        "hardiness": 4, "unholiness": 5, "nerve": 4,
+        "tactics": 6, "exorcism": 6, "riflery": 3
+      }
+    }
+  ],
+
+  "tileset": "assets/textures/new_tileset.png",
+  "dialog_bg": "assets/textures/dialog_bg.png",
+  "default_font": "assets/fonts/default.ttf",
+
+  "npcs": [
+    {
+      "name": "Bobby", "x": 256, "y": 224, "dir": 0,
+      "sprite": "assets/textures/bobby_sprites.png",
+      "sprite_grid": [123, 174],
+      "portrait": "assets/textures/portrait_bobby.png",
+      "interact_radius": 40, "hostile": false,
+      "aggro_range": 150, "attack_range": 32,
+      "move_speed": 30, "wander_interval": 4,
+      "has_battle": false,
+      "dialogue_file": "assets/dialogue/bobby.dialogue"
+    },
+    {
+      "name": "???", "x": 640, "y": 224, "dir": 1,
+      "sprite": "assets/textures/stranger_sprites.png",
+      "sprite_grid": [70, 140],
+      "interact_radius": 40, "hostile": false,
+      "aggro_range": 150, "attack_range": 32,
+      "move_speed": 25, "wander_interval": 5,
+      "has_battle": false,
+      "dialogue_file": "assets/dialogue/stranger.dialogue"
+    },
+    {
+      "name": "Vampire", "x": 608, "y": 448, "dir": 2,
+      "sprite": "assets/textures/vampire_sprites.png",
+      "sprite_grid": [136, 190],
+      "interact_radius": 40, "hostile": true,
+      "aggro_range": 160, "attack_range": 36,
+      "move_speed": 65, "wander_interval": 3,
+      "has_battle": true,
+      "battle_enemy": "Vampire", "battle_hp": 60, "battle_atk": 15,
+      "dialogue_file": "assets/dialogue/vampire.dialogue"
+    },
+    {
+      "name": "Azazel", "x": 224, "y": 480, "dir": 0,
+      "sprite": "assets/textures/yelloweyes_sprites.png",
+      "sprite_grid": [134, 187],
+      "interact_radius": 40, "hostile": false,
+      "aggro_range": 150, "attack_range": 32,
+      "move_speed": 20, "wander_interval": 6,
+      "has_battle": false,
+      "dialogue_file": "assets/dialogue/azazel.dialogue"
+    }
+  ],
+
+  "scripts": [
+    "assets/scripts/battle/battle_core.sage",
+    "assets/scripts/battle/dean_battle.sage",
+    "assets/scripts/battle/sam_battle.sage",
+    "assets/scripts/battle/vampire_battle.sage",
+    "assets/scripts/battle/demon_battle.sage",
+    "assets/scripts/inventory/inventory_core.sage",
+    "assets/scripts/inventory/dean_inventory.sage",
+    "assets/scripts/inventory/sam_inventory.sage",
+    "assets/scripts/inventory/brothers_inventory.sage",
+    "assets/scripts/inventory/battle_inventory.sage",
+    "assets/scripts/skills.sage",
+    "assets/scripts/bobby.sage",
+    "assets/scripts/vampire.sage",
+    "assets/scripts/stranger.sage",
+    "assets/scripts/azazel.sage",
+    "assets/scripts/map_events.sage"
+  ],
+
+  "init_scripts": [
+    "give_starter_items",
+    "restock_food",
+    "init_dean_skills",
+    "init_sam_skills"
+  ],
+
+  "audio": {
+    "overworld": "assets/audio/overworld.wav",
+    "battle": "assets/audio/battle.wav"
+  },
+
+  "default_map": "assets/maps/current.json"
+}

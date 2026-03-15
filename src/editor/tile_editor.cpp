@@ -23,6 +23,7 @@ extern "C" {
 #include <cmath>
 #include <algorithm>
 #include <queue>
+#include <fstream>
 
 namespace eb {
 
@@ -293,6 +294,44 @@ void TileEditor::process_pending_dialog() {
     if (result) path = result;
 #endif
 
+    if (action == PendingDialog::ImportAsset) {
+        // Import asset — use different dialog filters
+        std::string import_path;
+#ifdef __linux__
+        FILE* fp = popen("zenity --file-selection --title='Import Asset' --file-filter='Images | *.png *.jpg *.bmp' 2>/dev/null", "r");
+        if (fp) { char buf[4096]; if (fgets(buf, sizeof(buf), fp)) { import_path = buf; while (!import_path.empty() && (import_path.back()=='\n'||import_path.back()=='\r')) import_path.pop_back(); } pclose(fp); }
+#else
+        const char* img_filters[] = {"*.png", "*.jpg", "*.bmp"};
+        const char* r = tinyfd_openFileDialog("Import Asset", "assets/textures/", 3, img_filters, "Image Files", 0);
+        if (r) import_path = r;
+#endif
+        if (!import_path.empty()) {
+            // Copy file to assets/textures/ if not already there
+            std::string filename = import_path;
+            auto slash = filename.rfind('/');
+            if (slash != std::string::npos) filename = filename.substr(slash + 1);
+            auto bslash = filename.rfind('\\');
+            if (bslash != std::string::npos) filename = filename.substr(bslash + 1);
+
+            std::string dest = "assets/textures/" + filename;
+            if (import_path != dest) {
+                std::ifstream src(import_path, std::ios::binary);
+                std::ofstream dst(dest, std::ios::binary);
+                if (src && dst) {
+                    dst << src.rdbuf();
+                    set_status("Imported: " + filename);
+                    std::printf("[Editor] Imported asset: %s -> %s\n", import_path.c_str(), dest.c_str());
+                } else {
+                    set_status("Import failed!");
+                }
+            } else {
+                set_status("Asset already in textures/");
+            }
+        }
+        glfwPollEvents();
+        return;
+    }
+
     if (!path.empty()) {
         if (action == PendingDialog::Save) {
             save_map_file(*game_state_, path.c_str()) ? set_status("Saved") : set_status("Failed!");
@@ -428,7 +467,22 @@ void TileEditor::update(const InputState& input, Camera& camera, float dt,
             handle_map_click(mouse_x_, mouse_y_, camera, true);
         }
         if (input.mouse.is_released(MouseButton::Left)) {
-            last_paint_tile_ = {-1, -1}; commit_action();
+            // Commit Line/Rect on release
+            if (tool_ == EditorTool::Line && selection_.x1 >= 0) {
+                begin_action("line");
+                commit_line(selection_.x1, selection_.y1, selection_.x2, selection_.y2, selected_tile_);
+                commit_action();
+                selection_.x1 = -1;
+                set_status("Line drawn");
+            } else if (tool_ == EditorTool::Rect && selection_.x1 >= 0) {
+                begin_action("rect");
+                commit_rect(selection_.x1, selection_.y1, selection_.x2, selection_.y2, selected_tile_, rect_filled_);
+                commit_action();
+                selection_.x1 = -1;
+                set_status("Rect drawn");
+            } else {
+                last_paint_tile_ = {-1, -1}; commit_action();
+            }
         }
         if (input.mouse.is_pressed(MouseButton::Right)) begin_action("erase");
         if (input.mouse.is_pressed(MouseButton::Right) || input.mouse.is_held(MouseButton::Right))
@@ -604,16 +658,36 @@ void TileEditor::handle_map_right_click(float mx, float my, const Camera& camera
 
 void TileEditor::paint_tile(int tx, int ty) {
     if (!map_ || active_layer_ < 0 || active_layer_ >= map_->layer_count()) return;
-    int old_t = map_->tile_at(active_layer_, tx, ty);
-    record_tile_change(active_layer_, tx, ty, old_t, selected_tile_);
-    map_->set_tile(active_layer_, tx, ty, selected_tile_);
+    int w = map_->width(), h = map_->height();
+    int half = (brush_size_ - 1) / 2;
+    for (int dy = -half; dy <= half; dy++) {
+        for (int dx = -half; dx <= half; dx++) {
+            int bx = tx + dx, by = ty + dy;
+            if (bx < 0 || bx >= w || by < 0 || by >= h) continue;
+            int old_t = map_->tile_at(active_layer_, bx, by);
+            if (old_t != selected_tile_) {
+                record_tile_change(active_layer_, bx, by, old_t, selected_tile_);
+                map_->set_tile(active_layer_, bx, by, selected_tile_);
+            }
+        }
+    }
 }
 
 void TileEditor::erase_tile(int tx, int ty) {
     if (!map_ || active_layer_ < 0 || active_layer_ >= map_->layer_count()) return;
-    int old_t = map_->tile_at(active_layer_, tx, ty);
-    record_tile_change(active_layer_, tx, ty, old_t, 0);
-    map_->set_tile(active_layer_, tx, ty, 0);
+    int w = map_->width(), h = map_->height();
+    int half = (brush_size_ - 1) / 2;
+    for (int dy = -half; dy <= half; dy++) {
+        for (int dx = -half; dx <= half; dx++) {
+            int bx = tx + dx, by = ty + dy;
+            if (bx < 0 || bx >= w || by < 0 || by >= h) continue;
+            int old_t = map_->tile_at(active_layer_, bx, by);
+            if (old_t != 0) {
+                record_tile_change(active_layer_, bx, by, old_t, 0);
+                map_->set_tile(active_layer_, bx, by, 0);
+            }
+        }
+    }
 }
 
 void TileEditor::flood_fill(int tx, int ty, int new_tile) {
@@ -653,6 +727,46 @@ void TileEditor::cycle_collision(int tx, int ty) {
     if (next == CollisionType::Portal) {
         Portal p; p.tile_x=tx; p.tile_y=ty; p.label="portal";
         map_->portals().push_back(p);
+    }
+}
+
+void TileEditor::commit_line(int x1, int y1, int x2, int y2, int tile) {
+    if (!map_ || active_layer_ < 0 || active_layer_ >= map_->layer_count()) return;
+    // Bresenham's line algorithm
+    int dx = std::abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+    int dy = -std::abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+    int err = dx + dy;
+    int cx = x1, cy = y1;
+    while (true) {
+        if (cx >= 0 && cx < map_->width() && cy >= 0 && cy < map_->height()) {
+            int old_t = map_->tile_at(active_layer_, cx, cy);
+            if (old_t != tile) {
+                record_tile_change(active_layer_, cx, cy, old_t, tile);
+                map_->set_tile(active_layer_, cx, cy, tile);
+            }
+        }
+        if (cx == x2 && cy == y2) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) { err += dy; cx += sx; }
+        if (e2 <= dx) { err += dx; cy += sy; }
+    }
+}
+
+void TileEditor::commit_rect(int x1, int y1, int x2, int y2, int tile, bool filled) {
+    if (!map_ || active_layer_ < 0 || active_layer_ >= map_->layer_count()) return;
+    int left = std::min(x1, x2), right = std::max(x1, x2);
+    int top = std::min(y1, y2), bottom = std::max(y1, y2);
+    for (int y = top; y <= bottom; y++) {
+        for (int x = left; x <= right; x++) {
+            if (x < 0 || x >= map_->width() || y < 0 || y >= map_->height()) continue;
+            if (filled || x == left || x == right || y == top || y == bottom) {
+                int old_t = map_->tile_at(active_layer_, x, y);
+                if (old_t != tile) {
+                    record_tile_change(active_layer_, x, y, old_t, tile);
+                    map_->set_tile(active_layer_, x, y, tile);
+                }
+            }
+        }
     }
 }
 
@@ -1092,6 +1206,27 @@ void TileEditor::render_imgui(GameState& game) {
                 save_map_file(*game_state_, "assets/maps/current.json") ? set_status("Quick saved") : set_status("Failed!");
         }
 
+        ImGui::Separator();
+        // Brush size
+        ImGui::Text("Brush:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("1x1", brush_size_ == 1)) brush_size_ = 1;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("2x2", brush_size_ == 2)) brush_size_ = 2;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("3x3", brush_size_ == 3)) brush_size_ = 3;
+
+        // Rect filled toggle (only visible when Rect tool is selected)
+        if (tool_ == EditorTool::Rect) {
+            ImGui::Checkbox("Filled Rectangle", &rect_filled_);
+        }
+
+        ImGui::Separator();
+        // Import asset
+        if (ImGui::Button("Import Asset...", ImVec2(-1,0))) {
+            pending_dialog_ = PendingDialog::ImportAsset;
+        }
+
         // Selection/Clipboard
         if (selection_.active) {
             ImGui::Separator();
@@ -1232,6 +1367,67 @@ void TileEditor::render_imgui(GameState& game) {
             if (imgui_tileset_id_) {
                 region_image(selected_tile_ - 1, 64, 64);
             }
+        }
+    }
+    ImGui::End();
+
+    // ═══════════ MINIMAP WINDOW ═══════════
+    ImGui::SetNextWindowPos(ImVec2(8, 500), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(200, 160), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Minimap##editor")) {
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        float mw = (float)map_->width(), mh = (float)map_->height();
+        float scale = std::min(avail.x / mw, avail.y / mh);
+        ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+
+        // Draw tile colors
+        for (int y = 0; y < (int)mh; y++) {
+            for (int x = 0; x < (int)mw; x++) {
+                int t = map_->tile_at(0, x, y);
+                ImU32 col;
+                if (t == 0) col = IM_COL32(20, 20, 30, 255);
+                else if (t >= 42 && t <= 50) col = IM_COL32(30, 60, 120, 255);  // Water
+                else if (t >= 25 && t <= 36) col = IM_COL32(80, 80, 80, 255);   // Roads
+                else if (t >= 5 && t <= 8) col = IM_COL32(120, 90, 60, 255);    // Dirt
+                else if (t >= 19 && t <= 24) col = IM_COL32(50, 30, 40, 255);   // Dark/special
+                else col = IM_COL32(50, 100, 40, 255);  // Grass
+                if (map_->collision_at(x, y) == CollisionType::Solid && t > 0)
+                    col = (col & 0xFF000000) | ((col & 0x00FEFEFE) >> 1); // Darken solid
+
+                ImVec2 p0(origin.x + x * scale, origin.y + y * scale);
+                ImVec2 p1(origin.x + (x + 1) * scale, origin.y + (y + 1) * scale);
+                dl->AddRectFilled(p0, p1, col);
+            }
+        }
+
+        // Player position marker
+        if (game_state_) {
+            float ts = (float)map_->tile_size();
+            float px = game_state_->player_pos.x / ts * scale;
+            float py = game_state_->player_pos.y / ts * scale;
+            dl->AddCircleFilled(ImVec2(origin.x + px, origin.y + py), 3.0f, IM_COL32(255, 255, 50, 255));
+        }
+
+        // NPC markers
+        for (auto& npc : game.npcs) {
+            float ts = (float)map_->tile_size();
+            float nx = npc.position.x / ts * scale;
+            float ny = npc.position.y / ts * scale;
+            ImU32 npc_col = npc.hostile ? IM_COL32(255, 60, 60, 255) : IM_COL32(60, 200, 255, 255);
+            dl->AddCircleFilled(ImVec2(origin.x + nx, origin.y + ny), 2.0f, npc_col);
+        }
+
+        // Border
+        dl->AddRect(origin, ImVec2(origin.x + mw * scale, origin.y + mh * scale),
+                    IM_COL32(100, 100, 140, 200));
+
+        // Click to teleport camera
+        if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0)) {
+            ImVec2 mouse = ImGui::GetMousePos();
+            float tx = (mouse.x - origin.x) / scale * map_->tile_size();
+            float ty = (mouse.y - origin.y) / scale * map_->tile_size();
+            game_state_->player_pos = {tx, ty};
         }
     }
     ImGui::End();

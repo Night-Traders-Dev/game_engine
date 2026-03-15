@@ -7,8 +7,8 @@
     "height": 20,
     "tile_size": 32,
     "tileset": "assets/textures/new_tileset.png",
-    "player_start_x": 356.702,
-    "player_start_y": 207.312
+    "player_start_x": 297.354,
+    "player_start_y": 320
   },
   "layers": [
     {"name": "ground", "data": [
@@ -23,9 +23,9 @@
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
+      21,21,21,21,21,21,21,21,21,21,1,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
-      21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
-      21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
+      21,21,21,21,21,21,21,21,21,21,21,21,21,21,1,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
       21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
@@ -59,12 +59,16 @@
   "portals": [
   ],
   "objects": [
-
+    {"x":471,"y":344,"src_x":1193,"src_y":726,"src_w":122,"src_h":62,"render_w":110,"render_h":56},
+    {"x":385,"y":412,"src_x":1339,"src_y":724,"src_w":73,"src_h":66,"render_w":66,"render_h":60},
+    {"x":385,"y":284,"src_x":1339,"src_y":724,"src_w":73,"src_h":66,"render_w":66,"render_h":60},
+    {"x":545,"y":284,"src_x":1339,"src_y":724,"src_w":73,"src_h":66,"render_w":66,"render_h":60},
+    {"x":545,"y":412,"src_x":1339,"src_y":724,"src_w":73,"src_h":66,"render_w":66,"render_h":60}
   ],
   "npcs": [
-    {"name":"Bobby","x":256.469,"y":224.684,"dir":0,"sprite_atlas_id":0,"interact_radius":40,"hostile":false,"aggro_range":150,"attack_range":32,"move_speed":30,"wander_interval":4,"has_battle":false,"dialogue":[{"speaker":"Bobby","text":"You idjits better be prepared before heading out."},{"speaker":"Bobby","text":"I've got some supplies if you need 'em."},{"speaker":"Bobby","text":"Also, watch your back. Something ain't right in this town."}]},
-    {"name":"???","x":640,"y":224,"dir":1,"sprite_atlas_id":1,"interact_radius":40,"hostile":false,"aggro_range":150,"attack_range":32,"move_speed":25,"wander_interval":5,"has_battle":false,"dialogue":[{"speaker":"???","text":"You shouldn't be poking around here, hunter."},{"speaker":"???","text":"I can smell it on you... the stench of righteousness."}]},
-    {"name":"Vampire","x":575.163,"y":383.784,"dir":1,"sprite_atlas_id":2,"interact_radius":40,"hostile":true,"aggro_range":160,"attack_range":36,"move_speed":65,"wander_interval":3,"has_battle":true,"battle_enemy":"Vampire","battle_hp":60,"battle_atk":15,"dialogue":[{"speaker":"Vampire","text":"The night is young, hunter..."},{"speaker":"Vampire","text":"You reek of dead man's blood. Cute."}]},
+    {"name":"Bobby","x":262.875,"y":256.159,"dir":0,"sprite_atlas_id":0,"interact_radius":40,"hostile":false,"aggro_range":150,"attack_range":32,"move_speed":30,"wander_interval":4,"has_battle":false,"dialogue":[{"speaker":"Bobby","text":"You idjits better be prepared before heading out."},{"speaker":"Bobby","text":"I've got some supplies if you need 'em."},{"speaker":"Bobby","text":"Also, watch your back. Something ain't right in this town."}]},
+    {"name":"???","x":637.89,"y":222.796,"dir":2,"sprite_atlas_id":1,"interact_radius":40,"hostile":false,"aggro_range":150,"attack_range":32,"move_speed":25,"wander_interval":5,"has_battle":false,"dialogue":[{"speaker":"???","text":"You shouldn't be poking around here, hunter."},{"speaker":"???","text":"I can smell it on you... the stench of righteousness."}]},
+    {"name":"Vampire","x":572.388,"y":382.718,"dir":3,"sprite_atlas_id":2,"interact_radius":40,"hostile":true,"aggro_range":160,"attack_range":36,"move_speed":65,"wander_interval":3,"has_battle":true,"battle_enemy":"Vampire","battle_hp":60,"battle_atk":15,"dialogue":[{"speaker":"Vampire","text":"The night is young, hunter..."},{"speaker":"Vampire","text":"You reek of dead man's blood. Cute."}]},
     {"name":"Azazel","x":224,"y":480,"dir":0,"sprite_atlas_id":3,"interact_radius":40,"hostile":false,"aggro_range":150,"attack_range":32,"move_speed":20,"wander_interval":6,"has_battle":false,"dialogue":[{"speaker":"Azazel","text":"Well, well... the Winchester boys."},{"speaker":"Azazel","text":"You have no idea what's coming."},{"speaker":"Azazel","text":"I've got plans for your brother, Dean."},{"speaker":"Dean","text":"You son of a bitch."}]}
   ]
 }

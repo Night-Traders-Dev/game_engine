@@ -41,6 +41,7 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/engine/graphics/texture_atlas.cpp
     ${ENGINE_ROOT}/src/engine/resource/resource_manager.cpp
     ${ENGINE_ROOT}/src/engine/resource/file_io.cpp
+    ${ENGINE_ROOT}/src/engine/resource/game_manifest.cpp
     ${ENGINE_ROOT}/src/engine/platform/platform_android.cpp
     ${ENGINE_ROOT}/src/engine/platform/touch_controls.cpp
     ${ENGINE_ROOT}/src/engine/graphics/text_renderer.cpp

@@ -3,24 +3,25 @@
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Build System](#build-system)
-3. [Engine Core](#engine-core)
-4. [Rendering Pipeline](#rendering-pipeline)
-5. [Tile Map System](#tile-map-system)
-6. [Sprite & Animation System](#sprite--animation-system)
-7. [Battle System](#battle-system)
-8. [Inventory System](#inventory-system)
-9. [H.U.N.T.E.R. Skills System](#hunter-skills-system)
-10. [Audio System](#audio-system)
-11. [SageLang Battle Scripting](#sagelang-battle-scripting)
-12. [Dialogue System](#dialogue-system)
-13. [NPC & AI System](#npc--ai-system)
-14. [Scripting with SageLang](#scripting-with-sagelang)
-15. [Tile Editor](#tile-editor)
-16. [Map File Format](#map-file-format)
-17. [Asset Pipeline](#asset-pipeline)
-18. [Android Platform](#android-platform)
-19. [Adding New Content](#adding-new-content)
+2. [Engine / Game Separation](#engine--game-separation)
+3. [Build System](#build-system)
+4. [Engine Core](#engine-core)
+5. [Rendering Pipeline](#rendering-pipeline)
+6. [Tile Map System](#tile-map-system)
+7. [Sprite & Animation System](#sprite--animation-system)
+8. [Battle System](#battle-system)
+9. [Inventory System](#inventory-system)
+10. [H.U.N.T.E.R. Skills System](#hunter-skills-system)
+11. [Audio System](#audio-system)
+12. [SageLang Battle Scripting](#sagelang-battle-scripting)
+13. [Dialogue System](#dialogue-system)
+14. [NPC & AI System](#npc--ai-system)
+15. [Scripting with SageLang](#scripting-with-sagelang)
+16. [Tile Editor](#tile-editor)
+17. [Map File Format](#map-file-format)
+18. [Asset Pipeline](#asset-pipeline)
+19. [Android Platform](#android-platform)
+20. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -29,33 +30,122 @@
 Twilight Engine is a cross-platform 2D RPG engine built on Vulkan. The codebase is organized into layers:
 
 ```
-Engine Layer (eb:: namespace)
+Engine (src/engine/, standalone reusable library)
   ├── Core:      Engine loop, timer, types (Vec2, Vec4, Mat4)
   ├── Graphics:  VulkanContext, Renderer, SpriteBatch, Texture, TextureAtlas, Pipeline
   ├── Platform:  PlatformDesktop (GLFW), PlatformAndroid (NativeActivity)
-  ├── Resource:  ResourceManager, FileIO (cross-platform asset loading)
+  ├── Resource:  ResourceManager, FileIO, GameManifest (data-driven game loading)
   ├── Audio:     AudioEngine (miniaudio — BGM, SFX, crossfade)
   └── Scripting: ScriptEngine (embedded SageLang interpreter)
 
-Game Layer (global structs)
-  ├── GameState:   All game data (player, NPCs, battle, map, party, script engine)
+Game Framework (src/game/, generic RPG systems)
+  ├── GameState:   All game data (player, NPCs, battle, map, party, inventory, skills)
   ├── game.h/cpp:  Shared game logic (init, update, render, save/load)
   ├── TileMap:     Tile storage, collision, portals, animated tiles
   ├── Camera:      Viewport, follow, bounds, offset
   └── DialogueBox: Typewriter text, portraits, choices
 
-Editor Layer (desktop only)
-  ├── TileEditor:       Tools, undo/redo, zoom, selection, clipboard, object placement
+Editor (src/editor/, desktop only)
+  ├── TileEditor:       Paint, erase, fill, line, rect, brush sizes, minimap, asset import
   ├── ImGuiIntegration: Vulkan+GLFW ImGui backend
   └── Dear ImGui:       Professional windowed UI with tabbed asset panels
+
+Games (games/<game_name>/, separate from engine)
+  └── game.json + assets/   — Game manifest + all game-specific content
 ```
 
 **Key Design Principles**:
+- **Engine is standalone** — no game-specific code in `src/engine/`
+- Games live in `games/<name>/` with a `game.json` manifest defining characters, NPCs, scripts, and assets
+- `twilight-build.sh` compiles the engine and links a game's assets against it
 - Game logic is shared between desktop and Android via `game.h`/`game.cpp`
 - Platform-specific code is conditionally compiled (`#ifndef EB_ANDROID`)
 - Battle logic is scriptable via SageLang with C++ fallback
-- All tileset sprites use transparent backgrounds for clean rendering
 - The editor is desktop-only; the game runs identically on all platforms
+
+---
+
+## Engine / Game Separation
+
+The engine and game content are fully separated. The engine (`src/`) is a reusable library; games live in `games/<name>/` with their own asset trees and a `game.json` manifest.
+
+### Directory Structure
+
+```
+game_engine/
+  src/
+    engine/              # Standalone engine (graphics, audio, scripting, editor)
+    game/                # Generic RPG framework (GameState, TileMap, battle, inventory)
+    editor/              # Tile editor (desktop only)
+    third_party/         # miniaudio, stb, imgui, sagelang, tinyfiledialogs
+  shaders/               # GLSL vertex/fragment shaders
+  assets/
+    engine/fonts/        # Engine default font
+    textures/            # Sample/engine sprite sheets
+      earthbound/        # EarthBound sample sprites (nes_sprites.png)
+      village/           # Village tileset (village_tileset_32.png)
+      sprite/            # RPG object sprites (chests, doors, campfire, icons)
+  games/
+    supernatural/        # First game — Supernatural RPG
+      game.json          # Game manifest
+      assets/
+        textures/        # Character sprites, tilesets, portraits, dialog art
+        scripts/
+          battle/        # Modular battle scripts (battle_core, dean, sam, vampire, demon)
+          inventory/     # Modular inventory scripts (core, dean, sam, brothers, battle)
+        dialogue/        # NPC dialogue files (.dialogue)
+        audio/           # Music tracks (overworld.wav, battle.wav)
+        maps/            # Map JSON files
+        fonts/           # Game-specific fonts
+```
+
+### Game Manifest (`game.json`)
+
+Each game defines a JSON manifest that declares all game-specific data:
+
+```json
+{
+  "game": { "title": "My RPG", "version": "1.0", "window_width": 960, "window_height": 720 },
+  "player": {
+    "name": "Hero", "sprite": "assets/textures/hero.png", "sprite_grid": [32, 48],
+    "hp": 100, "atk": 15, "def": 5,
+    "skills": { "hardiness": 5, "nerve": 5, "tactics": 5, "exorcism": 5, "riflery": 5, "unholiness": 3 }
+  },
+  "party": [ { "name": "Ally", "sprite": "assets/textures/ally.png", ... } ],
+  "tileset": "assets/textures/tileset.png",
+  "npcs": [ { "name": "Shopkeeper", "x": 100, "y": 200, "sprite": "...", ... } ],
+  "scripts": [ "assets/scripts/battle_core.sage", "assets/scripts/items.sage" ],
+  "init_scripts": [ "give_starter_items" ],
+  "audio": { "overworld": "assets/audio/overworld.wav", "battle": "assets/audio/battle.wav" }
+}
+```
+
+The engine's `GameManifest` loader (`src/engine/resource/game_manifest.h`) parses this file and provides structured data for initialization.
+
+### Twilight Build Script
+
+```bash
+./twilight-build.sh <game> <platform> [build_type]
+
+# Examples:
+./twilight-build.sh supernatural linux Release
+./twilight-build.sh supernatural win64
+./twilight-build.sh supernatural android
+./twilight-build.sh supernatural all
+```
+
+The build script:
+1. Compiles the Twilight Engine as a static library
+2. Symlinks the game's `assets/` into the build directory
+3. Copies `game.json` alongside the binary
+4. Outputs a ready-to-run executable with all game content
+
+### Creating a New Game
+
+1. Create `games/my_game/game.json` with your manifest
+2. Create `games/my_game/assets/` with textures, scripts, audio, maps
+3. Run `./twilight-build.sh my_game linux`
+4. The engine loads your game's assets and scripts automatically
 
 ---
 
@@ -72,11 +162,16 @@ Editor Layer (desktop only)
 ### Build Commands
 
 ```bash
+# Engine-only build (legacy)
 ./build.sh linux [Debug|Release]    # Native Linux build
 ./build.sh win64 [Debug|Release]    # Cross-compile for Windows (static linked)
 ./build.sh android [Debug|Release]  # Android APK
-./build.sh all                      # Build all platforms
-./build.sh clean                    # Remove all build artifacts
+
+# Game build (recommended — builds engine + links game assets)
+./twilight-build.sh supernatural linux Release
+./twilight-build.sh supernatural win64
+./twilight-build.sh supernatural android
+./twilight-build.sh supernatural all
 ```
 
 ### Build Outputs

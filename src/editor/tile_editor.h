@@ -115,6 +115,9 @@ private:
     void erase_tile(int tx, int ty);
     void flood_fill(int tx, int ty, int new_tile);
     void cycle_collision(int tx, int ty);
+    void commit_line(int x1, int y1, int x2, int y2, int tile);
+    void commit_rect(int x1, int y1, int x2, int y2, int tile, bool filled);
+    void import_asset_dialog();  // Import single tile / tileset / sprite
 
     // Undo/Redo
     void begin_action(const std::string& desc);
@@ -242,8 +245,11 @@ private:
     float status_timer_ = 0.0f;
     void set_status(const std::string& msg);
 
+    // Brush size (1=1x1, 2=2x2, 3=3x3)
+    int brush_size_ = 1;
+
     // Deferred file dialog (must not run during Vulkan rendering)
-    enum class PendingDialog { None, Save, Load };
+    enum class PendingDialog { None, Save, Load, ImportAsset };
     PendingDialog pending_dialog_ = PendingDialog::None;
 public:
     void process_pending_dialog();
