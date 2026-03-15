@@ -361,6 +361,46 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
         game.player_pos.y = (float)mnum(json, i);
     }
 
+    // Ensure player isn't stuck in a solid tile — find nearest walkable position
+    if (game.tile_map.is_solid_world(game.player_pos.x, game.player_pos.y)) {
+        int ts = game.tile_map.tile_size();
+        int mw = game.tile_map.width(), mh = game.tile_map.height();
+        bool found = false;
+        // Spiral search outward from player's tile
+        int px = (int)(game.player_pos.x / ts), py = (int)(game.player_pos.y / ts);
+        for (int radius = 1; radius < std::max(mw, mh) && !found; radius++) {
+            for (int dx = -radius; dx <= radius && !found; dx++) {
+                for (int dy = -radius; dy <= radius && !found; dy++) {
+                    if (std::abs(dx) != radius && std::abs(dy) != radius) continue;
+                    int tx = px + dx, ty = py + dy;
+                    if (tx >= 0 && tx < mw && ty >= 0 && ty < mh) {
+                        float wx = tx * ts + ts * 0.5f, wy = ty * ts + ts * 0.5f;
+                        if (!game.tile_map.is_solid_world(wx, wy)) {
+                            game.player_pos = {wx, wy};
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+        if (found) {
+            std::printf("[Map] Player repositioned to walkable tile (%.0f, %.0f)\n",
+                        game.player_pos.x, game.player_pos.y);
+        }
+    }
+
+    // Update camera bounds for new map size
+    game.camera.set_bounds(0, 0, game.tile_map.world_width(), game.tile_map.world_height());
+    game.camera.center_on(game.player_pos);
+
+    // Reset party followers to player position
+    for (auto& pm : game.party) {
+        pm.position = game.player_pos;
+        pm.dir = 0; pm.frame = 0; pm.moving = false;
+    }
+    game.trail_head = 0; game.trail_count = 0;
+    for (auto& r : game.trail) { r.pos = game.player_pos; r.dir = 0; }
+
     std::printf("[Map] Loaded: %s (%dx%d, %d objects, %d npcs)\n",
                 path.c_str(), game.tile_map.width(), game.tile_map.height(),
                 (int)game.world_objects.size(), (int)game.npcs.size());

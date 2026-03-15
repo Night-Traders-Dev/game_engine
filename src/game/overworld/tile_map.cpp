@@ -425,8 +425,29 @@ bool TileMap::load_json(const std::string& path) {
         if (json[i] == ':') i++;
         skip_ws(json, i);
 
-        if (key == "version") {
-            version = parse_int(json, i);
+        if (key == "version" || key == "format") {
+            skip_value(json, i);
+        } else if (key == "metadata") {
+            // save_map_file wraps width/height/tile_size/tileset in metadata object
+            if (json[i] == '{') {
+                i++;
+                while (i < json.size() && json[i] != '}') {
+                    skip_ws(json, i);
+                    if (json[i] == '}') break;
+                    std::string mkey = parse_string(json, i);
+                    skip_ws(json, i);
+                    if (json[i] == ':') i++;
+                    skip_ws(json, i);
+                    if (mkey == "width") w = parse_int(json, i);
+                    else if (mkey == "height") h = parse_int(json, i);
+                    else if (mkey == "tile_size") ts = parse_int(json, i);
+                    else if (mkey == "tileset") tileset = parse_string(json, i);
+                    else skip_value(json, i);
+                    skip_ws(json, i);
+                    if (json[i] == ',') i++;
+                }
+                if (i < json.size()) i++; // skip }
+            }
         } else if (key == "width") {
             w = parse_int(json, i);
         } else if (key == "height") {
