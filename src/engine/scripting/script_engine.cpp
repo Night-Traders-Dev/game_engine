@@ -89,22 +89,24 @@ static Value native_log(int argc, Value* args) {
     return val_nil();
 }
 
-static std::vector<std::pair<std::string, bool>> s_flags;
+static std::vector<std::pair<std::string, Value>> s_flags;
 
 static Value native_set_flag(int argc, Value* args) {
     if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
     const char* name = args[0].as.string;
-    bool val = (args[1].type == VAL_BOOL) ? args[1].as.boolean :
-               (args[1].type == VAL_NUMBER) ? (args[1].as.number != 0) : false;
-    for (auto& f : s_flags) { if (f.first == name) { f.second = val; return val_nil(); } }
-    s_flags.push_back({name, val});
+    for (auto& f : s_flags) {
+        if (f.first == name) { f.second = args[1]; return val_nil(); }
+    }
+    s_flags.push_back({name, args[1]});
     return val_nil();
 }
 
 static Value native_get_flag(int argc, Value* args) {
-    if (argc < 1 || args[0].type != VAL_STRING) return val_bool(0);
-    for (auto& f : s_flags) { if (f.first == args[0].as.string) return val_bool(f.second ? 1 : 0); }
-    return val_bool(0);
+    if (argc < 1 || args[0].type != VAL_STRING) return val_number(0);
+    for (auto& f : s_flags) {
+        if (f.first == args[0].as.string) return f.second;
+    }
+    return val_number(0);
 }
 
 // ═══════════════ Battle API ═══════════════

@@ -34,10 +34,13 @@ struct AppState {
     bool has_window = false;
     bool running = true;
 
-    // Mobile editor overlay
+    // Mobile editor
     bool editor_active = false;
-    float editor_btn_x = 0, editor_btn_y = 0;
-    float editor_btn_w = 80, editor_btn_h = 40;
+    int editor_panel = 0;  // 0=menu, 1=tools, 2=layers, 3=tiles, 4=NPCs, 5=info
+    int editor_tool = 0;   // 0=paint, 1=erase, 2=fill, 3=collision
+    int editor_layer = 0;
+    int editor_tile = 1;
+    int editor_brush = 1;
 };
 
 static bool init_all(AppState& state) {
@@ -114,12 +117,6 @@ static bool init_all(AppState& state) {
             state.audio->play_music(state.manifest.audio.overworld, true);
         }
 
-        // Position editor toggle button (top-right corner)
-        state.editor_btn_w = 80;
-        state.editor_btn_h = 40;
-        state.editor_btn_x = native_w - state.editor_btn_w - 16;
-        state.editor_btn_y = 16;
-
         LOGI("Game initialized (virtual %.0fx%.0f, native %.0fx%.0f)",
              state.virtual_w, state.virtual_h, native_w, native_h);
         return true;
@@ -133,24 +130,6 @@ static bool init_all(AppState& state) {
 static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     auto* state = static_cast<AppState*>(app->userData);
     if (!state || !state->platform) return 0;
-
-    // Check for editor toggle button tap (before passing to platform)
-    int32_t type = AInputEvent_getType(event);
-    if (type == AINPUT_EVENT_TYPE_MOTION) {
-        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
-        if (action == AMOTION_EVENT_ACTION_DOWN) {
-            float tx = AMotionEvent_getX(event, 0);
-            float ty = AMotionEvent_getY(event, 0);
-            // Check editor toggle button
-            if (tx >= state->editor_btn_x && tx <= state->editor_btn_x + state->editor_btn_w &&
-                ty >= state->editor_btn_y && ty <= state->editor_btn_y + state->editor_btn_h) {
-                state->editor_active = !state->editor_active;
-                LOGI("Editor %s", state->editor_active ? "ON" : "OFF");
-                return 1;
-            }
-        }
-    }
-
     return state->platform->handle_input(event);
 }
 
@@ -226,54 +205,261 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
                     state->virtual_h = 480.0f;
                     state->virtual_w = 480.0f * (nw / nh);
                     state->game.camera.set_viewport(state->virtual_w, state->virtual_h);
-                    // Reposition editor button
-                    state->editor_btn_x = nw - state->editor_btn_w - 16;
                 }
             }
             break;
     }
 }
 
-// Render the mobile editor overlay (simple touch-friendly panels)
+// ── Mobile editor: touch-friendly menu system ──
+
+// Helper: draw a large touch button, returns true if tapped this frame
+static bool touch_button(eb::SpriteBatch& batch, eb::TextRenderer& text,
+                          VkDescriptorSet font_desc, VkDescriptorSet white_desc,
+                          const char* label, float x, float y, float w, float h,
+                          bool selected, float touch_x, float touch_y, bool touch_down) {
+    eb::Vec4 bg = selected ? eb::Vec4{0.25f, 0.45f, 0.65f, 0.92f}
+                           : eb::Vec4{0.18f, 0.18f, 0.30f, 0.88f};
+    batch.set_texture(white_desc);
+    batch.draw_quad({x, y}, {w, h}, {0,0}, {1,1}, bg);
+    // Border
+    eb::Vec4 bdr = selected ? eb::Vec4{0.4f, 0.7f, 1.0f, 0.9f}
+                            : eb::Vec4{0.35f, 0.35f, 0.50f, 0.6f};
+    batch.draw_quad({x, y}, {w, 2}, {0,0}, {1,1}, bdr);
+    batch.draw_quad({x, y+h-2}, {w, 2}, {0,0}, {1,1}, bdr);
+    batch.draw_quad({x, y}, {2, h}, {0,0}, {1,1}, bdr);
+    batch.draw_quad({x+w-2, y}, {2, h}, {0,0}, {1,1}, bdr);
+    // Label centered
+    float scale = 1.0f;
+    auto sz = text.measure_text(label, scale);
+    // If text too wide, shrink
+    if (sz.x > w - 16) { scale = (w - 16) / sz.x; sz = text.measure_text(label, scale); }
+    text.draw_text(batch, font_desc, label,
+                   {x + (w - sz.x) * 0.5f, y + (h - sz.y) * 0.5f},
+                   selected ? eb::Vec4{1,1,0.9f,1} : eb::Vec4{0.85f,0.85f,0.80f,1}, scale);
+    // Hit test
+    return touch_down && touch_x >= x && touch_x <= x + w &&
+           touch_y >= y && touch_y <= y + h;
+}
+
 static void render_editor_overlay(AppState& state, eb::SpriteBatch& batch,
                                    eb::TextRenderer& text, float sw, float sh) {
     auto& game = state.game;
-
-    // Semi-transparent background for editor panel area
     batch.set_texture(game.white_desc);
 
-    // ── Top toolbar ──
-    float bar_h = 48;
-    batch.draw_quad({0, 0}, {sw, bar_h}, {0,0}, {1,1}, {0.1f, 0.1f, 0.2f, 0.85f});
+    // Get touch state for button hit testing
+    float tx = 0, ty = 0;
+    bool tap = false;
+    auto& tc = state.platform->touch_controls();
+    // Read primary finger position from input
+    auto& input = state.platform->input();
+    tx = input.mouse.x;
+    ty = input.mouse.y;
+    tap = input.mouse.is_pressed(eb::MouseButton::Left);
 
-    // Tool buttons
-    const char* tools[] = {"Paint", "Erase", "Fill", "Coll."};
-    float btn_w = 70, btn_h = 34, btn_y = 7;
-    for (int i = 0; i < 4; i++) {
-        float bx = 8 + i * (btn_w + 6);
-        eb::Vec4 col = {0.3f, 0.3f, 0.5f, 0.9f};
-        batch.draw_quad({bx, btn_y}, {btn_w, btn_h}, {0,0}, {1,1}, col);
-        auto tsz = text.measure_text(tools[i], 0.6f);
-        text.draw_text(batch, game.font_desc, tools[i],
-                       {bx + (btn_w - tsz.x) * 0.5f, btn_y + 8}, {1,1,1,1}, 0.6f);
+    // Scale for readability on high-DPI screens
+    float dpi_scale = std::max(1.0f, std::min(sw, sh) / 720.0f);
+    float btn_w = 240 * dpi_scale;
+    float btn_h = 70 * dpi_scale;
+    float pad = 12 * dpi_scale;
+
+    // ── Status bar (always shown at top in editor) ──
+    float bar_h = 44 * dpi_scale;
+    batch.draw_quad({0, 0}, {sw, bar_h}, {0,0}, {1,1}, {0.08f, 0.08f, 0.16f, 0.9f});
+
+    const char* tool_names[] = {"Paint", "Erase", "Fill", "Collision"};
+    char status[128];
+    std::snprintf(status, sizeof(status), "Tool: %s  |  Layer: %d  |  Tile: %d  |  Brush: %dx%d",
+                  tool_names[state.editor_tool], state.editor_layer,
+                  state.editor_tile, state.editor_brush, state.editor_brush);
+    float status_scale = 0.8f * dpi_scale;
+    text.draw_text(batch, game.font_desc, status, {12 * dpi_scale, 12 * dpi_scale},
+                   {0.7f, 0.8f, 1.0f, 1.0f}, status_scale);
+
+    if (state.editor_panel == 0) {
+        // ═══ MAIN MENU ═══
+        // Full-screen dimmed overlay with large menu buttons
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({0, bar_h}, {sw, sh - bar_h}, {0,0}, {1,1}, {0, 0, 0, 0.55f});
+
+        float menu_w = btn_w * 1.2f;
+        float menu_h = btn_h;
+        float total_h = 6 * (menu_h + pad) - pad;
+        float start_x = (sw - menu_w) * 0.5f;
+        float start_y = (sh - total_h) * 0.5f;
+
+        // Title
+        const char* title = "EDITOR";
+        float title_scale = 1.4f * dpi_scale;
+        auto tsz = text.measure_text(title, title_scale);
+        text.draw_text(batch, game.font_desc, title,
+                       {(sw - tsz.x) * 0.5f, start_y - 50 * dpi_scale},
+                       {1.0f, 0.9f, 0.5f, 1.0f}, title_scale);
+
+        struct MenuItem { const char* label; int panel; };
+        MenuItem items[] = {
+            {"Tools",       1},
+            {"Layers",      2},
+            {"Tile Select", 3},
+            {"Spawn NPC",   4},
+            {"Map Info",    5},
+            {"Resume Game", -1},
+        };
+
+        for (int i = 0; i < 6; i++) {
+            float by = start_y + i * (menu_h + pad);
+            bool hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                     items[i].label, start_x, by, menu_w, menu_h,
+                                     false, tx, ty, tap);
+            if (hit) {
+                if (items[i].panel == -1) {
+                    state.editor_active = false;
+                } else {
+                    state.editor_panel = items[i].panel;
+                }
+            }
+        }
+
+    } else {
+        // ═══ SUB-PANELS ═══
+        // Back button (top-left, always visible in sub-panels)
+        float back_w = 100 * dpi_scale, back_h = bar_h - 4;
+        bool back_hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                      "< Back", sw - back_w - 8, 2, back_w, back_h,
+                                      false, tx, ty, tap);
+        if (back_hit) state.editor_panel = 0;
+
+        float panel_y = bar_h + pad;
+        float panel_w = std::min(sw * 0.85f, 500.0f * dpi_scale);
+        float panel_x = (sw - panel_w) * 0.5f;
+
+        if (state.editor_panel == 1) {
+            // ── Tools ──
+            const char* tools[] = {"Paint", "Erase", "Fill", "Collision"};
+            for (int i = 0; i < 4; i++) {
+                float by = panel_y + i * (btn_h + pad);
+                bool hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                         tools[i], panel_x, by, panel_w, btn_h,
+                                         state.editor_tool == i, tx, ty, tap);
+                if (hit) state.editor_tool = i;
+            }
+            // Brush size
+            float brush_y = panel_y + 4 * (btn_h + pad) + pad;
+            text.draw_text(batch, game.font_desc, "Brush Size:",
+                           {panel_x, brush_y}, {0.8f, 0.8f, 0.8f, 1}, 0.9f * dpi_scale);
+            brush_y += 30 * dpi_scale;
+            float bsz_w = (panel_w - 2 * pad) / 3;
+            for (int b = 1; b <= 3; b++) {
+                char bl[8]; std::snprintf(bl, sizeof(bl), "%dx%d", b, b);
+                float bx = panel_x + (b - 1) * (bsz_w + pad);
+                bool hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                         bl, bx, brush_y, bsz_w, btn_h * 0.8f,
+                                         state.editor_brush == b, tx, ty, tap);
+                if (hit) state.editor_brush = b;
+            }
+
+        } else if (state.editor_panel == 2) {
+            // ── Layers ──
+            int max_layers = game.tile_map.layer_count();
+            for (int i = 0; i < max_layers && i < 9; i++) {
+                char lbl[32]; std::snprintf(lbl, sizeof(lbl), "Layer %d", i);
+                float by = panel_y + i * (btn_h * 0.75f + pad * 0.5f);
+                bool hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                         lbl, panel_x, by, panel_w, btn_h * 0.75f,
+                                         state.editor_layer == i, tx, ty, tap);
+                if (hit) state.editor_layer = i;
+            }
+
+        } else if (state.editor_panel == 3) {
+            // ── Tile Select (grid of tile IDs) ──
+            text.draw_text(batch, game.font_desc, "Select Tile:",
+                           {panel_x, panel_y}, {0.8f, 0.8f, 0.8f, 1}, 0.9f * dpi_scale);
+            float grid_y = panel_y + 30 * dpi_scale;
+            int cols = 6;
+            float cell = (panel_w - (cols - 1) * pad * 0.5f) / cols;
+            int max_tile = game.tileset_atlas ? game.tileset_atlas->region_count() : 24;
+            if (max_tile > 48) max_tile = 48; // Limit for touch
+            for (int t = 0; t < max_tile; t++) {
+                int r = t / cols, c = t % cols;
+                float cx = panel_x + c * (cell + pad * 0.5f);
+                float cy = grid_y + r * (cell + pad * 0.5f);
+                char tl[8]; std::snprintf(tl, sizeof(tl), "%d", t + 1);
+                bool hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                         tl, cx, cy, cell, cell,
+                                         state.editor_tile == t + 1, tx, ty, tap);
+                if (hit) state.editor_tile = t + 1;
+            }
+
+        } else if (state.editor_panel == 4) {
+            // ── NPC Spawner ──
+            struct NPCPreset { const char* label; const char* name; bool hostile; int hp; int atk; };
+            NPCPreset presets[] = {
+                {"Villager",  "Villager",  false, 0,  0},
+                {"Chicken",   "Chicken",   false, 0,  0},
+                {"Cow",       "Cow",       false, 0,  0},
+                {"Slime",     "Slime",     true, 30,  6},
+                {"Skeleton",  "Skeleton",  true, 50, 12},
+            };
+            for (int i = 0; i < 5; i++) {
+                float by = panel_y + i * (btn_h + pad);
+                char lbl[64];
+                if (presets[i].hostile)
+                    std::snprintf(lbl, sizeof(lbl), "%s (HP:%d ATK:%d)", presets[i].label, presets[i].hp, presets[i].atk);
+                else
+                    std::snprintf(lbl, sizeof(lbl), "%s (friendly)", presets[i].label);
+                bool hit = touch_button(batch, text, game.font_desc, game.white_desc,
+                                         lbl, panel_x, by, panel_w, btn_h,
+                                         false, tx, ty, tap);
+                if (hit) {
+                    NPC npc;
+                    npc.name = presets[i].name;
+                    npc.position = game.player_pos;
+                    npc.home_pos = npc.position;
+                    npc.wander_target = npc.position;
+                    npc.hostile = presets[i].hostile;
+                    npc.has_battle = presets[i].hostile;
+                    npc.battle_enemy_name = presets[i].name;
+                    npc.battle_enemy_hp = presets[i].hp;
+                    npc.battle_enemy_atk = presets[i].atk;
+                    npc.dialogue = {{std::string(presets[i].name), "..."}};
+                    game.npcs.push_back(npc);
+                    state.editor_panel = 0; // Return to menu
+                }
+            }
+
+        } else if (state.editor_panel == 5) {
+            // ── Map Info ──
+            float ty_pos = panel_y;
+            float line_h = 32 * dpi_scale;
+            float info_scale = 0.9f * dpi_scale;
+
+            char buf[128];
+            auto info_line = [&](const char* txt) {
+                text.draw_text(batch, game.font_desc, txt,
+                               {panel_x, ty_pos}, {0.8f, 0.85f, 0.9f, 1}, info_scale);
+                ty_pos += line_h;
+            };
+
+            std::snprintf(buf, sizeof(buf), "Map: %d x %d tiles", game.tile_map.width(), game.tile_map.height());
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Tile Size: %d px", game.tile_map.tile_size());
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Layers: %d", game.tile_map.layer_count());
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "NPCs: %d", (int)game.npcs.size());
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Objects: %d", (int)game.world_objects.size());
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Player: %.0f, %.0f", game.player_pos.x, game.player_pos.y);
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Camera: %.0f, %.0f", game.camera.position().x, game.camera.position().y);
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Gold: %d", game.gold);
+            info_line(buf);
+            std::snprintf(buf, sizeof(buf), "Inventory: %d / %d items", (int)game.inventory.items.size(), game.inventory.MAX_SLOTS);
+            info_line(buf);
+        }
     }
-
-    // Layer indicator
-    text.draw_text(batch, game.font_desc, "Layer: 0",
-                   {sw - 200, btn_y + 8}, {0.8f, 0.8f, 1.0f, 1.0f}, 0.6f);
-
-    // ── Bottom info bar ──
-    float info_h = 36;
-    float info_y = sh - info_h;
-    batch.draw_quad({0, info_y}, {sw, info_h}, {0,0}, {1,1}, {0.1f, 0.1f, 0.2f, 0.85f});
-
-    // Camera position and zoom info
-    char info[128];
-    std::snprintf(info, sizeof(info), "Cam: %.0f,%.0f  Zoom: %.1fx  Tile: %dx%d",
-                  game.camera.position().x, game.camera.position().y,
-                  1.0f, game.tile_map.width(), game.tile_map.height());
-    text.draw_text(batch, game.font_desc, info,
-                   {10, info_y + 10}, {0.7f, 0.7f, 0.7f, 1.0f}, 0.5f);
 }
 
 void android_main(struct android_app* app) {
@@ -311,8 +497,15 @@ void android_main(struct android_app* app) {
             float dt = state.timer.tick();
             state.platform->poll_events();
 
+            // Menu button (on-screen hamburger) toggles editor
             if (state.platform->input().is_pressed(eb::InputAction::Menu)) {
-                ANativeActivity_finish(app->activity);
+                if (state.editor_active && state.editor_panel != 0) {
+                    state.editor_panel = 0; // Return to main menu
+                } else {
+                    state.editor_active = !state.editor_active;
+                    state.editor_panel = 0;
+                }
+                LOGI("Editor %s (panel %d)", state.editor_active ? "ON" : "OFF", state.editor_panel);
             }
 
             if (state.game.initialized) {
@@ -361,26 +554,19 @@ void android_main(struct android_app* app) {
                         render_editor_overlay(state, batch, *state.text_renderer, nw, nh);
                     }
 
-                    // Editor toggle button (always visible)
+                    // Touch controls always rendered — menu button doubles as editor toggle
+                    // Color the menu button green when editor is active
                     batch.set_texture(state.renderer->default_texture_descriptor());
-                    eb::Vec4 btn_col = state.editor_active
-                        ? eb::Vec4{0.2f, 0.6f, 0.3f, 0.85f}
-                        : eb::Vec4{0.3f, 0.3f, 0.5f, 0.7f};
-                    batch.draw_quad({state.editor_btn_x, state.editor_btn_y},
-                                   {state.editor_btn_w, state.editor_btn_h},
-                                   {0,0}, {1,1}, btn_col);
-                    const char* edt_label = state.editor_active ? "PLAY" : "EDIT";
-                    auto esz = state.text_renderer->measure_text(edt_label, 0.6f);
-                    state.text_renderer->draw_text(batch, state.game.font_desc, edt_label,
-                        {state.editor_btn_x + (state.editor_btn_w - esz.x) * 0.5f,
-                         state.editor_btn_y + (state.editor_btn_h - esz.y) * 0.5f},
-                        {1,1,1,1}, 0.6f);
+                    state.platform->touch_controls().render(batch,
+                        state.platform->get_width(), state.platform->get_height());
 
-                    // Touch controls (native resolution, only when not in editor)
-                    if (!state.editor_active) {
-                        batch.set_texture(state.renderer->default_texture_descriptor());
-                        state.platform->touch_controls().render(batch,
-                            state.platform->get_width(), state.platform->get_height());
+                    // Draw editor indicator on the menu button when active
+                    if (state.editor_active) {
+                        auto& tc = state.platform->touch_controls();
+                        // Small green dot near the menu button area (top-right)
+                        float ind_x = nw - 12, ind_y = 8;
+                        batch.draw_quad({ind_x, ind_y}, {8, 8}, {0,0}, {1,1},
+                                       {0.2f, 0.9f, 0.3f, 0.9f});
                     }
 
                     state.renderer->end_frame();
