@@ -1601,25 +1601,59 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         game.pause_selection = 0;
     }
 
-    // Pause menu input
+    // Pause menu input (keyboard + mouse)
     if (game.paused) {
         if (input.is_pressed(eb::InputAction::MoveUp) && game.pause_selection > 0)
             game.pause_selection--;
         if (input.is_pressed(eb::InputAction::MoveDown) && game.pause_selection < 4)
             game.pause_selection++;
+
+        // Mouse hover and click on menu items
+        float S = game.hud.scale;
+        float menu_w = 220 * S, menu_h = 300 * S;
+        float sw = game.hud.screen_w;
+        float sh = game.hud.screen_h;
+        float menu_x = (sw - menu_w) * 0.5f;
+        float menu_y = (sh - menu_h) * 0.5f;
+        float item_h = 38 * S;
+        float item_y_start = menu_y + 60 * S;
+        float item_w = menu_w - 40 * S;
+        float item_x = menu_x + 20 * S;
+        float item_gap = item_h + 6 * S;
+
+        float mx = input.mouse.x, my = input.mouse.y;
+        for (int i = 0; i < 5; i++) {
+            float iy = item_y_start + i * item_gap;
+            if (mx >= item_x && mx <= item_x + item_w &&
+                my >= iy && my <= iy + item_h) {
+                game.pause_selection = i;
+                if (input.mouse.is_pressed(eb::MouseButton::Left)) {
+                    switch (i) {
+                        case 0: game.paused = false; break;
+                        case 1: game.paused = false; game.pause_request_editor = true; break;
+                        case 2: game.pause_request_reset = true; game.paused = false; break;
+                        case 3: break;
+                        case 4: game.pause_request_quit = true; break;
+                    }
+                }
+                break;
+            }
+        }
+
+        // Keyboard confirm
         if (input.is_pressed(eb::InputAction::Confirm)) {
             switch (game.pause_selection) {
-                case 0: game.paused = false; break;                    // Resume
-                case 1: game.paused = false; game.pause_request_editor = true; break; // Editor
-                case 2: game.pause_request_reset = true; game.paused = false; break;  // Reset
-                case 3: break;                                         // Settings (TODO)
-                case 4: game.pause_request_quit = true; break;        // Quit
+                case 0: game.paused = false; break;
+                case 1: game.paused = false; game.pause_request_editor = true; break;
+                case 2: game.pause_request_reset = true; game.paused = false; break;
+                case 3: break;
+                case 4: game.pause_request_quit = true; break;
             }
         }
         if (input.is_pressed(eb::InputAction::Cancel)) {
             game.paused = false;
         }
-        return; // Don't update game while paused
+        return;
     }
 
     // Battle mode
@@ -2795,6 +2829,8 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
 void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text,
                     eb::Mat4 screen_proj, float sw, float sh) {
     batch.set_projection(screen_proj);
+    game.hud.screen_w = sw;
+    game.hud.screen_h = sh;
 
     // Day-night tint overlay (drawn first, under HUD)
     auto& tint = game.day_night.current_tint;

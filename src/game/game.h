@@ -166,6 +166,9 @@ struct HUDConfig {
     // Minimap
     float minimap_size = 120;  // Base size (before scale)
 
+    // Screen dimensions (updated each frame by render_game_ui)
+    float screen_w = 960, screen_h = 720;
+
     // Global scale
     float scale = 1.5f;
 

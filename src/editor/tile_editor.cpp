@@ -1805,8 +1805,9 @@ void TileEditor::render_imgui(GameState& game) {
                     ImGui::EndMenu();
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem("Save", "Ctrl+S", false, selected_script >= 0)) do_save();
-                if (ImGui::MenuItem("Save & Reload", "", false, selected_script >= 0)) do_save_reload();
+                bool can_save = (selected_script >= 0 || map_script_selected);
+                if (ImGui::MenuItem("Save", "Ctrl+S", false, can_save)) do_save();
+                if (ImGui::MenuItem("Save & Reload", "", false, can_save)) do_save_reload();
                 if (ImGui::MenuItem("Reload All Scripts", "")) do_reload_all();
                 ImGui::EndMenu();
             }
@@ -1861,8 +1862,19 @@ void TileEditor::render_imgui(GameState& game) {
                 ImGui::PopStyleColor();
                 ImGui::Separator();
                 for (int i = 0; i < (int)files.size(); i++) {
-                    // Skip if this is the same file as the map script
-                    if (files[i] == map_script_path_) continue;
+                    // Skip if this file is the map script (match by suffix)
+                    if (!map_script_path_.empty()) {
+                        // Check if file path ends with the map script path or vice versa
+                        std::string fp = files[i];
+                        std::string mp = map_script_path_;
+                        // Normalize: strip leading ./
+                        if (fp.size() > 2 && fp[0] == '.' && fp[1] == '/') fp = fp.substr(2);
+                        if (mp.size() > 2 && mp[0] == '.' && mp[1] == '/') mp = mp.substr(2);
+                        if (fp == mp) continue;
+                        // Also check if one ends with the other
+                        if (fp.size() >= mp.size() && fp.substr(fp.size()-mp.size()) == mp) continue;
+                        if (mp.size() >= fp.size() && mp.substr(mp.size()-fp.size()) == fp) continue;
+                    }
 
                     std::string label = files[i];
                     auto slash = label.rfind('/');
@@ -1883,7 +1895,7 @@ void TileEditor::render_imgui(GameState& game) {
 
             // ── Editor pane with syntax highlighting ──
             if (ImGui::BeginChild("ScriptEdit", ImVec2(0, 0))) {
-                if (selected_script >= 0) {
+                if (selected_script >= 0 || map_script_selected) {
                     static bool edit_mode = false;
                     ImGui::Text("%s%s", current_file.c_str(), script_dirty ? " *" : "");
                     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 50);
@@ -2034,6 +2046,39 @@ void TileEditor::render_imgui(GameState& game) {
                     }
                 } else {
                     ImGui::TextDisabled("Select a script file or use File > New/Open");
+                }
+
+                // ── Error/Warning panel at bottom of editor ──
+                auto& log_entries = eb::DebugLog::instance().entries();
+                int error_count = 0;
+                for (int ei = (int)log_entries.size() - 1; ei >= 0 && error_count < 5; ei--) {
+                    if (log_entries[ei].level == eb::LogLevel::Error ||
+                        log_entries[ei].level == eb::LogLevel::Warning)
+                        error_count++;
+                }
+                if (error_count > 0) {
+                    ImGui::Separator();
+                    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.08f, 0.08f, 0.9f));
+                    float err_h = std::min(80.0f, error_count * 18.0f + 4.0f);
+                    if (ImGui::BeginChild("##errors", ImVec2(0, err_h), false)) {
+                        int shown = 0;
+                        for (int ei = (int)log_entries.size() - 1; ei >= 0 && shown < 5; ei--) {
+                            auto& entry = log_entries[ei];
+                            if (entry.level == eb::LogLevel::Error) {
+                                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1));
+                                ImGui::TextWrapped("[ERR] %s", entry.message.c_str());
+                                ImGui::PopStyleColor();
+                                shown++;
+                            } else if (entry.level == eb::LogLevel::Warning) {
+                                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.3f, 1));
+                                ImGui::TextWrapped("[WRN] %s", entry.message.c_str());
+                                ImGui::PopStyleColor();
+                                shown++;
+                            }
+                        }
+                    }
+                    ImGui::EndChild();
+                    ImGui::PopStyleColor();
                 }
             }
             ImGui::EndChild();

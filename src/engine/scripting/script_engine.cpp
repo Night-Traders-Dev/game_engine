@@ -1352,6 +1352,15 @@ bool ScriptEngine::load_file(const std::string& path) {
 }
 
 bool ScriptEngine::reload_all() {
+    // Clear script-driven UI before reload (scripts will recreate what they need)
+    if (game_state_) {
+        game_state_->script_ui.labels.clear();
+        game_state_->script_ui.bars.clear();
+        game_state_->script_ui.panels.clear();
+        game_state_->script_ui.images.clear();
+        game_state_->npc_meet_triggers.clear();
+    }
+
     int ok = 0, fail = 0;
     for (auto& path : loaded_files_) {
         auto data = FileIO::read_file(path);
@@ -1359,6 +1368,12 @@ bool ScriptEngine::reload_all() {
         std::string source(data.begin(), data.end());
         if (execute(source)) ok++; else fail++;
     }
+
+    // Re-run map_init if it exists
+    if (has_function("map_init")) {
+        call_function("map_init");
+    }
+
     std::printf("[ScriptEngine] Hot reload: %d OK, %d failed (of %d files)\n",
                 ok, fail, (int)loaded_files_.size());
     return fail == 0;
