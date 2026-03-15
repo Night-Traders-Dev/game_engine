@@ -87,6 +87,7 @@
 
   "scripts": [
     "assets/scripts/lib/hud.sage",
+    "assets/scripts/lib/audio.sage",
     "assets/scripts/battle/battle_core.sage",
     "assets/scripts/battle/slime_battle.sage",
     "assets/scripts/inventory/inventory_core.sage",

@@ -5,6 +5,7 @@
 #include "game/ui/merchant_ui.h"
 #include "game/ai/pathfinding.h"
 #include "game/systems/day_night.h"
+#include "engine/audio/audio_engine.h"
 
 extern "C" {
 #include <setjmp.h>
@@ -1038,6 +1039,7 @@ ScriptEngine::ScriptEngine() {
         register_npc_interact_api();
         register_spawn_api();
         register_map_api();
+        register_audio_api();
         s_active_engine = this;
     }
 }
@@ -1283,6 +1285,94 @@ void ScriptEngine::register_map_api() {
     env_define(env_, "npc_set_despawn_day", 19, val_native(native_npc_set_despawn_day));
     env_define(env_, "npc_set_loot", 12, val_native(native_npc_set_loot));
     std::printf("[ScriptEngine] Map API registered\n");
+}
+
+// ═══════════════ Audio API ═══════════════
+
+static Value native_play_music(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (!audio) return val_nil();
+    const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    bool loop = (argc > 1 && args[1].type == VAL_BOOL) ? args[1].as.boolean : true;
+    audio->play_music(path, loop);
+    return val_nil();
+}
+
+static Value native_stop_music(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (audio) audio->stop_music();
+    return val_nil();
+}
+
+static Value native_pause_music(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (audio) audio->pause_music();
+    return val_nil();
+}
+
+static Value native_resume_music(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (audio) audio->resume_music();
+    return val_nil();
+}
+
+static Value native_set_music_volume(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (audio && args[0].type == VAL_NUMBER) audio->set_music_volume((float)args[0].as.number);
+    return val_nil();
+}
+
+static Value native_set_master_volume(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (audio && args[0].type == VAL_NUMBER) audio->set_master_volume((float)args[0].as.number);
+    return val_nil();
+}
+
+static Value native_play_sfx(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (!audio) return val_nil();
+    const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float vol = (argc > 1 && args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1.0f;
+    audio->play_sfx(path, vol);
+    return val_nil();
+}
+
+static Value native_crossfade_music(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    if (!audio) return val_nil();
+    const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float dur = (argc > 1 && args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1.0f;
+    bool loop = (argc > 2 && args[2].type == VAL_BOOL) ? args[2].as.boolean : true;
+    audio->crossfade_music(path, dur, loop);
+    return val_nil();
+}
+
+static Value native_is_music_playing(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_bool(0);
+    auto* audio = s_active_engine->game_state_->audio_engine;
+    return val_bool(audio && audio->is_music_playing());
+}
+
+void ScriptEngine::register_audio_api() {
+    if (!env_) return;
+    env_define(env_, "play_music", 10, val_native(native_play_music));
+    env_define(env_, "stop_music", 10, val_native(native_stop_music));
+    env_define(env_, "pause_music", 11, val_native(native_pause_music));
+    env_define(env_, "resume_music", 12, val_native(native_resume_music));
+    env_define(env_, "set_music_volume", 16, val_native(native_set_music_volume));
+    env_define(env_, "set_master_volume", 17, val_native(native_set_master_volume));
+    env_define(env_, "play_sfx", 8, val_native(native_play_sfx));
+    env_define(env_, "crossfade_music", 15, val_native(native_crossfade_music));
+    env_define(env_, "is_music_playing", 16, val_native(native_is_music_playing));
+    std::printf("[ScriptEngine] Audio API registered\n");
 }
 
 void ScriptEngine::sync_item_to_script(const std::string& item_id) {

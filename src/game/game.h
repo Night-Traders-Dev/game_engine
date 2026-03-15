@@ -25,7 +25,7 @@
 #include <algorithm>
 
 // Forward declare
-namespace eb { class ScriptEngine; }
+namespace eb { class ScriptEngine; class AudioEngine; }
 
 // ─── Tile IDs (1-indexed, 0 = empty) ───
 enum Tile : int {
@@ -467,6 +467,7 @@ struct GameState {
     int gold = 200;
     eb::MerchantUI merchant_ui;
     eb::ScriptEngine* script_engine = nullptr;
+    eb::AudioEngine* audio_engine = nullptr;
 
     // World systems
     DayNightCycle day_night;

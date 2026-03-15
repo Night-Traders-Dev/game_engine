@@ -69,6 +69,7 @@ private:
     void register_npc_interact_api();
     void register_spawn_api();
     void register_map_api();
+    void register_audio_api();
 
     Env* env_ = nullptr;
 
