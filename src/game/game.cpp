@@ -830,86 +830,108 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
     try {
         game.white_desc = renderer.default_texture_descriptor();
 
-        // Load tileset
-        auto* tileset_tex = resources.load_texture("assets/textures/new_tileset.png");
-        game.tileset_atlas = std::make_unique<eb::TextureAtlas>(tileset_tex);
-        define_tileset_regions(*game.tileset_atlas);
-        game.tileset_desc = renderer.get_texture_descriptor(*tileset_tex);
+        // Helper: try to load a texture, return nullptr on failure
+        auto try_load_tex = [&](const char* path) -> eb::Texture* {
+            try { return resources.load_texture(path); }
+            catch (...) { std::fprintf(stderr, "[Game] Texture not found: %s (skipping)\n", path); return nullptr; }
+        };
 
-        // Load Dean
-        auto* dean_tex = resources.load_texture("assets/textures/dean_sprites.png");
-        game.dean_atlas = std::make_unique<eb::TextureAtlas>(dean_tex, 158, 210);
-        game.dean_atlas->define_region("idle_down",  0*158, 0*210, 158, 210);
-        game.dean_atlas->define_region("idle_up",    3*158, 2*210, 158, 210);
-        game.dean_atlas->define_region("idle_right", 0*158, 3*210, 158, 210);
-        game.dean_atlas->define_region("walk_down_0", 0*158, 0*210, 158, 210);
-        game.dean_atlas->define_region("walk_down_1", 2*158, 0*210, 158, 210);
-        game.dean_atlas->define_region("walk_up_0", 0*158, 1*210, 158, 210);
-        game.dean_atlas->define_region("walk_up_1", 2*158, 1*210, 158, 210);
-        game.dean_atlas->define_region("walk_right_0", 3*158, 0*210, 158, 210);
-        game.dean_atlas->define_region("walk_right_1", 0*158, 2*210, 158, 210);
-        game.dean_desc = renderer.get_texture_descriptor(*dean_tex);
+        // Load tileset (try game-specific, no crash if missing)
+        eb::Texture* tileset_tex = try_load_tex("assets/textures/new_tileset.png");
+        if (tileset_tex) {
+            game.tileset_atlas = std::make_unique<eb::TextureAtlas>(tileset_tex);
+            define_tileset_regions(*game.tileset_atlas);
+            game.tileset_desc = renderer.get_texture_descriptor(*tileset_tex);
+        } else {
+            game.tileset_desc = game.white_desc;
+        }
 
-        // Load Sam
-        auto* sam_tex = resources.load_texture("assets/textures/sam_sprites.png");
-        game.sam_atlas = std::make_unique<eb::TextureAtlas>(sam_tex);
-        game.sam_atlas->define_region("idle_down",     44,  92, 140, 190);
-        game.sam_atlas->define_region("walk_down_0",   44,  92, 140, 190);
-        game.sam_atlas->define_region("walk_down_1",  504,  92, 140, 190);
-        game.sam_atlas->define_region("idle_up",      734,  92, 140, 190);
-        game.sam_atlas->define_region("walk_up_0",    734,  92, 140, 190);
-        game.sam_atlas->define_region("walk_up_1",    275, 350, 140, 190);
-        game.sam_atlas->define_region("idle_right",   504, 350, 140, 190);
-        game.sam_atlas->define_region("walk_right_0", 504, 350, 140, 190);
-        game.sam_atlas->define_region("walk_right_1", 965, 350, 140, 190);
-        game.sam_desc = renderer.get_texture_descriptor(*sam_tex);
+        // Load player character sprites (optional)
+        auto* dean_tex = try_load_tex("assets/textures/dean_sprites.png");
+        if (dean_tex) {
+            game.dean_atlas = std::make_unique<eb::TextureAtlas>(dean_tex, 158, 210);
+            game.dean_atlas->define_region("idle_down",  0*158, 0*210, 158, 210);
+            game.dean_atlas->define_region("idle_up",    3*158, 2*210, 158, 210);
+            game.dean_atlas->define_region("idle_right", 0*158, 3*210, 158, 210);
+            game.dean_atlas->define_region("walk_down_0", 0*158, 0*210, 158, 210);
+            game.dean_atlas->define_region("walk_down_1", 2*158, 0*210, 158, 210);
+            game.dean_atlas->define_region("walk_up_0", 0*158, 1*210, 158, 210);
+            game.dean_atlas->define_region("walk_up_1", 2*158, 1*210, 158, 210);
+            game.dean_atlas->define_region("walk_right_0", 3*158, 0*210, 158, 210);
+            game.dean_atlas->define_region("walk_right_1", 0*158, 2*210, 158, 210);
+            game.dean_desc = renderer.get_texture_descriptor(*dean_tex);
+        } else {
+            game.dean_desc = game.white_desc;
+        }
 
-        // Sam as party member
-        PartyMember sam;
-        sam.name = "Sam";
-        sam.position = {game.player_pos.x, game.player_pos.y + 32.0f};
-        sam.dir = 0;
-        game.party.push_back(sam);
+        // Load party member sprites (optional)
+        auto* sam_tex = try_load_tex("assets/textures/sam_sprites.png");
+        if (sam_tex) {
+            game.sam_atlas = std::make_unique<eb::TextureAtlas>(sam_tex);
+            game.sam_atlas->define_region("idle_down",     44,  92, 140, 190);
+            game.sam_atlas->define_region("walk_down_0",   44,  92, 140, 190);
+            game.sam_atlas->define_region("walk_down_1",  504,  92, 140, 190);
+            game.sam_atlas->define_region("idle_up",      734,  92, 140, 190);
+            game.sam_atlas->define_region("walk_up_0",    734,  92, 140, 190);
+            game.sam_atlas->define_region("walk_up_1",    275, 350, 140, 190);
+            game.sam_atlas->define_region("idle_right",   504, 350, 140, 190);
+            game.sam_atlas->define_region("walk_right_0", 504, 350, 140, 190);
+            game.sam_atlas->define_region("walk_right_1", 965, 350, 140, 190);
+            game.sam_desc = renderer.get_texture_descriptor(*sam_tex);
+        } else {
+            game.sam_desc = game.white_desc;
+        }
+
+        // Party member (uses character name from atlas or defaults)
+        PartyMember follower;
+        follower.name = "Follower";
+        follower.position = {game.player_pos.x, game.player_pos.y + 32.0f};
+        follower.dir = 0;
+        game.party.push_back(follower);
 
         // Breadcrumb trail
         game.trail.resize(GameState::TRAIL_SIZE);
         for (auto& r : game.trail) { r.pos = game.player_pos; r.dir = 0; }
         game.trail_head = 0; game.trail_count = 0;
 
-        // Create map
+        // Create default map
         const int MAP_W = 30, MAP_H = 20, TILE_SZ = 32;
         game.tile_map.create(MAP_W, MAP_H, TILE_SZ);
-        game.tile_map.set_tileset(game.tileset_atlas.get());
+        if (game.tileset_atlas) game.tile_map.set_tileset(game.tileset_atlas.get());
         game.tile_map.set_tileset_path("assets/textures/new_tileset.png");
         game.tile_map.add_layer("ground", generate_town_map(MAP_W, MAP_H));
         game.tile_map.set_collision(generate_town_collision(MAP_W, MAP_H));
         game.tile_map.set_animated_tiles(TILE_WATER_DEEP, TILE_WATER_SHORE_L);
 
-        // Objects & NPCs
-        setup_objects(game, tileset_tex);
-        define_object_stamps(game);
+        // Objects & NPCs (only if tileset loaded)
+        if (tileset_tex) {
+            setup_objects(game, tileset_tex);
+            define_object_stamps(game);
+        }
         setup_npcs(game);
 
-        // Load NPC sprite sheets
+        // Load NPC sprite sheets (skip missing ones gracefully)
         auto load_npc = [&](const char* path, int cw, int ch) {
-            auto* tex = resources.load_texture(path);
-            auto atlas = std::make_unique<eb::TextureAtlas>(tex);
-            define_npc_atlas_regions(*atlas, cw, ch);
-            game.npc_descs.push_back(renderer.get_texture_descriptor(*tex));
-            game.npc_atlases.push_back(std::move(atlas));
+            auto* tex = try_load_tex(path);
+            if (tex) {
+                auto atlas = std::make_unique<eb::TextureAtlas>(tex);
+                define_npc_atlas_regions(*atlas, cw, ch);
+                game.npc_descs.push_back(renderer.get_texture_descriptor(*tex));
+                game.npc_atlases.push_back(std::move(atlas));
+            }
         };
         load_npc("assets/textures/bobby_sprites.png",      123, 174);
         load_npc("assets/textures/stranger_sprites.png",     70, 140);
         load_npc("assets/textures/vampire_sprites.png",     136, 190);
         load_npc("assets/textures/yelloweyes_sprites.png",  134, 187);
 
-        // Dialogue box: background texture and character portraits
-        auto* dialog_tex = resources.load_texture("assets/textures/dialog_bg.png");
+        // Dialogue box: background texture and character portraits (optional)
+        auto* dialog_tex = try_load_tex("assets/textures/dialog_bg.png");
         if (dialog_tex) {
             game.dialogue.set_background(renderer.get_texture_descriptor(*dialog_tex));
         }
         auto load_portrait = [&](const char* path, const char* speaker) {
-            auto* tex = resources.load_texture(path);
+            auto* tex = try_load_tex(path);
             if (tex) game.dialogue.set_portrait(speaker, renderer.get_texture_descriptor(*tex));
         };
         load_portrait("assets/textures/portrait_dean.png", "Dean");
@@ -1507,7 +1529,7 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
                      b.message.find("Dean") != std::string::npos &&
                      b.attack_anim_timer < 0.6f &&
                      std::fmod(b.attack_anim_timer, 0.12f) < 0.06f);
-    if (!dean_hit && b.player_hp_actual > 0) {
+    if (!dean_hit && b.player_hp_actual > 0 && game.dean_atlas) {
         bool dean_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 0);
         int dean_frame = dean_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
         auto sr = get_character_sprite(*game.dean_atlas, 1, dean_attacking, dean_frame);
@@ -1520,7 +1542,7 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
                     b.message.find("Sam") != std::string::npos &&
                     b.attack_anim_timer < 0.6f &&
                     std::fmod(b.attack_anim_timer, 0.12f) < 0.06f);
-    if (!sam_hit && b.sam_hp_actual > 0) {
+    if (!sam_hit && b.sam_hp_actual > 0 && game.sam_atlas) {
         bool sam_attacking = (b.phase == BattlePhase::PlayerAttack && b.active_fighter == 1);
         int sam_frame = sam_attacking ? ((int)(b.attack_anim_timer * 8) % 2) : 0;
         auto sr = get_character_sprite(*game.sam_atlas, 1, sam_attacking, sam_frame);
@@ -1686,18 +1708,20 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         }
     }
 
-    // Party (Sam)
-    for (int pi = 0; pi < (int)game.party.size(); pi++) {
-        auto& pm = game.party[pi];
-        auto sr = get_character_sprite(*game.sam_atlas, pm.dir, pm.moving, pm.frame);
-        float rw=48, rh=64;
-        float bob = pm.moving ? std::sin(pm.anim_timer*15.0f)*2.0f : 0.0f;
-        eb::Vec2 dp = {pm.position.x-rw*0.5f, pm.position.y-rh+4+bob};
-        batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, pm.position.y, game.sam_desc);
+    // Party followers
+    if (game.sam_atlas) {
+        for (int pi = 0; pi < (int)game.party.size(); pi++) {
+            auto& pm = game.party[pi];
+            auto sr = get_character_sprite(*game.sam_atlas, pm.dir, pm.moving, pm.frame);
+            float rw=48, rh=64;
+            float bob = pm.moving ? std::sin(pm.anim_timer*15.0f)*2.0f : 0.0f;
+            eb::Vec2 dp = {pm.position.x-rw*0.5f, pm.position.y-rh+4+bob};
+            batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, pm.position.y, game.sam_desc);
+        }
     }
 
-    // Player (Dean)
-    {
+    // Player character
+    if (game.dean_atlas) {
         auto sr = get_character_sprite(*game.dean_atlas, game.player_dir, game.player_moving, game.player_frame);
         float rw=48, rh=64;
         float bob = game.player_moving ? std::sin(game.anim_timer*15.0f)*2.0f : 0.0f;

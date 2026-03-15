@@ -25,13 +25,22 @@ BUILD_TYPE="${3:-Release}"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GAME_DIR="${PROJECT_DIR}/games/${GAME}"
 
+# Search for game: check direct path, then subdirectories (submodules)
+if [ ! -f "${GAME_DIR}/game.json" ]; then
+    # Search recursively in games/ for a matching directory name
+    FOUND=$(find "${PROJECT_DIR}/games" -maxdepth 3 -name "game.json" -path "*/${GAME}/game.json" 2>/dev/null | head -1)
+    if [ -n "$FOUND" ]; then
+        GAME_DIR="$(dirname "$FOUND")"
+    fi
+fi
+
 # Validate game exists
 if [ ! -f "${GAME_DIR}/game.json" ]; then
-    echo "Error: Game '${GAME}' not found (missing ${GAME_DIR}/game.json)"
+    echo "Error: Game '${GAME}' not found"
     echo ""
     echo "Available games:"
-    for g in "${PROJECT_DIR}/games"/*/game.json; do
-        [ -f "$g" ] && basename "$(dirname "$g")"
+    find "${PROJECT_DIR}/games" -maxdepth 3 -name "game.json" 2>/dev/null | while read g; do
+        basename "$(dirname "$g")"
     done
     exit 1
 fi
@@ -78,6 +87,8 @@ link_game_assets() {
 build_linux() {
     local BUILD_DIR="${PROJECT_DIR}/build-linux"
     mkdir -p "${BUILD_DIR}"
+    # Remove any existing assets symlink/dir before cmake (prevents symlink conflicts)
+    rm -rf "${BUILD_DIR}/assets" 2>/dev/null
     cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" \
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" 2>&1 | tail -5
     cmake --build "${BUILD_DIR}" -j$(nproc) 2>&1 | tail -10
@@ -88,6 +99,7 @@ build_linux() {
 build_win64() {
     local BUILD_DIR="${PROJECT_DIR}/build-win64"
     mkdir -p "${BUILD_DIR}"
+    rm -rf "${BUILD_DIR}/assets" 2>/dev/null
     cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" \
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
         -DCMAKE_TOOLCHAIN_FILE="${PROJECT_DIR}/cmake/mingw-w64-toolchain.cmake" 2>&1 | tail -5

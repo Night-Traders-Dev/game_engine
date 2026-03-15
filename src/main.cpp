@@ -2,6 +2,7 @@
 #include "engine/core/engine.h"
 #include "engine/scripting/script_engine.h"
 #include "engine/audio/audio_engine.h"
+#include "engine/resource/game_manifest.h"
 
 #ifndef EB_ANDROID
 #include "editor/tile_editor.h"
@@ -17,10 +18,19 @@
 
 int main(int /*argc*/, char* /*argv*/[]) {
     try {
+        // ─── Load game manifest ───
+        eb::GameManifest manifest;
+        if (!eb::load_game_manifest(manifest, "game.json")) {
+            std::fprintf(stderr, "[Main] No game.json found, using defaults\n");
+            manifest.title = "Twilight Engine";
+            manifest.window_width = 960;
+            manifest.window_height = 720;
+        }
+
         eb::EngineConfig config;
-        config.title = "Twilight - Supernatural RPG (Tab = Editor)";
-        config.width = 960;
-        config.height = 720;
+        config.title = manifest.title + " (Tab = Editor)";
+        config.width = manifest.window_width;
+        config.height = manifest.window_height;
         config.vsync = true;
 
         eb::Engine engine(config);
@@ -30,8 +40,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
         GameState game;
 
         // Text renderer
+        std::string font_path = manifest.default_font.empty()
+            ? "assets/fonts/default.ttf" : manifest.default_font;
         eb::TextRenderer text_renderer(engine.renderer().vulkan_context(),
-                                        "assets/fonts/default.ttf", 7.0f);
+                                        font_path, 7.0f);
         text_renderer.set_letter_spacing(6.0f);
         game.font_desc = engine.renderer().get_texture_descriptor(*text_renderer.texture());
         game.white_desc = engine.renderer().default_texture_descriptor();
@@ -40,59 +52,36 @@ int main(int /*argc*/, char* /*argv*/[]) {
         init_game(game, engine.renderer(), engine.resources(),
                   (float)config.width, (float)config.height);
 
-        // SageLang scripting engine
+        // ─── SageLang scripting engine ───
         eb::ScriptEngine script_engine;
         script_engine.set_game_state(&game);
 
-        // Battle scripts (modular)
-        script_engine.load_file("assets/scripts/battle/battle_core.sage");
-        script_engine.load_file("assets/scripts/battle/dean_battle.sage");
-        script_engine.load_file("assets/scripts/battle/sam_battle.sage");
-        script_engine.load_file("assets/scripts/battle/vampire_battle.sage");
-        script_engine.load_file("assets/scripts/battle/demon_battle.sage");
-
-        // Inventory scripts (modular)
-        script_engine.load_file("assets/scripts/inventory/inventory_core.sage");
-        script_engine.load_file("assets/scripts/inventory/dean_inventory.sage");
-        script_engine.load_file("assets/scripts/inventory/sam_inventory.sage");
-        script_engine.load_file("assets/scripts/inventory/brothers_inventory.sage");
-        script_engine.load_file("assets/scripts/inventory/battle_inventory.sage");
-
-        // Skills & NPC dialogue
-        script_engine.load_file("assets/scripts/skills.sage");
-        script_engine.load_file("assets/scripts/bobby.sage");
-        script_engine.load_file("assets/scripts/vampire.sage");
-        script_engine.load_file("assets/scripts/stranger.sage");
-        script_engine.load_file("assets/scripts/azazel.sage");
-        script_engine.load_file("assets/scripts/map_events.sage");
+        // Load scripts from manifest (data-driven)
+        for (const auto& script_path : manifest.scripts) {
+            script_engine.load_file(script_path);
+        }
         game.script_engine = &script_engine;
 
-        // Give starter items via SageLang
-        if (script_engine.has_function("give_starter_items")) {
-            script_engine.call_function("give_starter_items");
-        }
-        if (script_engine.has_function("restock_food")) {
-            script_engine.call_function("restock_food");
+        // Run init functions from manifest
+        for (const auto& init_func : manifest.init_scripts) {
+            if (script_engine.has_function(init_func)) {
+                script_engine.call_function(init_func);
+            }
         }
 
-        // Initialize H.U.N.T.E.R. skills
-        if (script_engine.has_function("init_dean_skills"))
-            script_engine.call_function("init_dean_skills");
-        if (script_engine.has_function("init_sam_skills"))
-            script_engine.call_function("init_sam_skills");
-
-        // Audio engine
+        // ─── Audio engine ───
         eb::AudioEngine audio;
-        if (audio.is_initialized()) {
+        if (audio.is_initialized() && !manifest.audio.overworld.empty()) {
             audio.set_music_volume(0.5f);
-            audio.play_music("assets/audio/overworld.wav", true);
+            audio.play_music(manifest.audio.overworld, true);
         }
 
 #ifndef EB_ANDROID
         // Editor (desktop only)
         eb::TileEditor editor;
         editor.set_map(&game.tile_map);
-        editor.set_tileset(game.tileset_atlas.get(), game.tileset_desc);
+        if (game.tileset_atlas)
+            editor.set_tileset(game.tileset_atlas.get(), game.tileset_desc);
         editor.set_text_renderer(&text_renderer, game.font_desc);
         editor.set_object_stamps(&game.object_stamps);
         editor.set_game_state(&game);
@@ -161,10 +150,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
             // Audio: crossfade between overworld/battle music
             if (audio.is_initialized()) {
                 audio.update(dt);
-                if (game.battle.phase != BattlePhase::None) {
-                    audio.crossfade_music("assets/audio/battle.wav", 0.5f, true);
-                } else {
-                    audio.crossfade_music("assets/audio/overworld.wav", 1.0f, true);
+                if (game.battle.phase != BattlePhase::None && !manifest.audio.battle.empty()) {
+                    audio.crossfade_music(manifest.audio.battle, 0.5f, true);
+                } else if (!manifest.audio.overworld.empty()) {
+                    audio.crossfade_music(manifest.audio.overworld, 1.0f, true);
                 }
             }
 
@@ -211,7 +200,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
             }
         };
 
-        std::printf("[Main] Starting Twilight RPG Demo\n");
+        std::printf("[Main] Starting %s\n", manifest.title.c_str());
         std::printf("  WASD/Arrows - Move\n");
         std::printf("  Shift       - Run\n");
         std::printf("  Z/Enter     - Talk / Confirm\n");

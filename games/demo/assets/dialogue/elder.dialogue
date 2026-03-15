@@ -1,0 +1,13 @@
+@greeting
+Elder: Welcome, traveler.
+Elder: Our village has been troubled by slimes lately.
+Elder: If you could help us, we would be grateful.
+
+@quest
+Elder: The slimes come from the forest to the east.
+Elder: Be careful out there.
+Hero: We'll handle it.
+
+@thanks
+Elder: You've done a great service for our village.
+Elder: Please, take this as a token of our gratitude.
