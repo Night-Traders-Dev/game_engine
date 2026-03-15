@@ -153,6 +153,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
         editor.set_game_state(&game);
         editor.set_renderer(&engine.renderer());
 
+        // Initialize map script (default.sage or from manifest default_map)
+        if (!manifest.default_map.empty()) {
+            editor.load_map_script(manifest.default_map);
+        } else {
+            editor.load_map_script("assets/maps/default.json");
+        }
+
         // ImGui for editor UI
         eb::ImGuiIntegration imgui;
         auto* desktop_platform = dynamic_cast<eb::PlatformDesktop*>(&engine.platform());

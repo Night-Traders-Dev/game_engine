@@ -105,6 +105,9 @@ public:
     bool save_map(const std::string& path) const;
     bool load_map(const std::string& path);
 
+    // Map script (Visual Basic-style editor code generation)
+    void load_map_script(const std::string& map_path);
+
 private:
     void handle_palette_click(float mx, float my, int screen_w, int screen_h);
     void handle_map_click(float mx, float my, const Camera& camera, bool is_drag);
@@ -268,7 +271,6 @@ private:
     bool map_script_dirty_ = false;
     void append_map_script(const std::string& line);
     void save_map_script();
-    void load_map_script(const std::string& map_path);
 
     // Deferred file dialog (must not run during Vulkan rendering)
     enum class PendingDialog { None, Save, Load, ImportAsset };
