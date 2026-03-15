@@ -106,37 +106,10 @@ int main(int /*argc*/, char* /*argv*/[]) {
             }
         }
 
-        // Load and execute map scripts (auto-scan scripts/maps/ directory)
-        {
-            // Try loading the default map script
-            std::string default_map_script = "assets/scripts/maps/default.sage";
-            auto map_data = eb::FileIO::read_file(default_map_script);
-            if (!map_data.empty()) {
-                std::string src(map_data.begin(), map_data.end());
-                script_engine.execute(src);
-                if (script_engine.has_function("map_init")) {
-                    script_engine.call_function("map_init");
-                    std::printf("[Main] Executed map script: %s\n", default_map_script.c_str());
-                }
-            }
-            // Also try map script matching the default_map from manifest
-            if (!manifest.default_map.empty()) {
-                std::string name = manifest.default_map;
-                auto slash = name.rfind('/');
-                if (slash != std::string::npos) name = name.substr(slash + 1);
-                auto dot = name.rfind('.');
-                if (dot != std::string::npos) name = name.substr(0, dot);
-                std::string map_script = "assets/scripts/maps/" + name + ".sage";
-                auto ms_data = eb::FileIO::read_file(map_script);
-                if (!ms_data.empty()) {
-                    std::string src(ms_data.begin(), ms_data.end());
-                    script_engine.execute(src);
-                    if (script_engine.has_function("map_init")) {
-                        script_engine.call_function("map_init");
-                        std::printf("[Main] Executed map script: %s\n", map_script.c_str());
-                    }
-                }
-            }
+        // Execute map_init if it was defined by any loaded script (e.g. maps/default.sage)
+        if (script_engine.has_function("map_init")) {
+            script_engine.call_function("map_init");
+            std::printf("[Main] Executed map_init()\n");
         }
 
         // ─── Audio engine ───

@@ -1444,10 +1444,20 @@ bool ScriptEngine::load_file(const std::string& path) {
         std::fprintf(stderr, "[ScriptEngine] Failed to read: %s\n", path.c_str());
         return false;
     }
-    // Track loaded files for hot reload
+    // Normalize path (strip leading ./)
+    std::string norm_path = path;
+    if (norm_path.size() > 2 && norm_path[0] == '.' && norm_path[1] == '/')
+        norm_path = norm_path.substr(2);
+
+    // Track loaded files for hot reload — skip if already loaded
     bool already_tracked = false;
-    for (auto& f : loaded_files_) if (f == path) { already_tracked = true; break; }
-    if (!already_tracked) loaded_files_.push_back(path);
+    for (auto& f : loaded_files_) {
+        std::string nf = f;
+        if (nf.size() > 2 && nf[0] == '.' && nf[1] == '/') nf = nf.substr(2);
+        if (nf == norm_path) { already_tracked = true; break; }
+    }
+    if (already_tracked) return true;  // Skip re-execution
+    loaded_files_.push_back(path);
 
     std::string source(data.begin(), data.end());
     return execute(source);
