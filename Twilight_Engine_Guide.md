@@ -74,29 +74,33 @@ The engine and game content are fully separated. The engine (`src/`) is a reusab
 ```
 game_engine/
   src/
-    engine/              # Standalone engine (graphics, audio, scripting, editor)
-    game/                # Generic RPG framework (GameState, TileMap, battle, inventory)
-    editor/              # Tile editor (desktop only)
-    third_party/         # miniaudio, stb, imgui, sagelang, tinyfiledialogs
-  shaders/               # GLSL vertex/fragment shaders
+    engine/                    # Standalone engine (graphics, audio, scripting, editor)
+    game/                      # Generic RPG framework (GameState, TileMap, battle, inventory)
+    editor/                    # Tile editor (desktop only)
+    third_party/               # miniaudio, stb, imgui, sagelang, tinyfiledialogs
+  shaders/                     # GLSL vertex/fragment shaders
   assets/
-    engine/fonts/        # Engine default font
-    textures/            # Sample/engine sprite sheets
-      earthbound/        # EarthBound sample sprites (nes_sprites.png)
-      village/           # Village tileset (village_tileset_32.png)
-      sprite/            # RPG object sprites (chests, doors, campfire, icons)
+    engine/fonts/              # Engine default font
+    textures/                  # Sample sprite sheets
+      earthbound/              # EarthBound sample sprites (nes_sprites.png)
+      village/                 # Village tileset (village_tileset_32.png)
+      sprite/                  # RPG object sprites (chests, doors, campfire, icons)
+      rpgmaker/MZ/             # RPG Maker MZ tilesets and characters
   games/
-    supernatural/        # First game — Supernatural RPG
-      game.json          # Game manifest
+    demo/                      # Built-in engine demo (village + RPG Maker MZ + EarthBound assets)
+      game.json
       assets/
-        textures/        # Character sprites, tilesets, portraits, dialog art
-        scripts/
-          battle/        # Modular battle scripts (battle_core, dean, sam, vampire, demon)
-          inventory/     # Modular inventory scripts (core, dean, sam, brothers, battle)
-        dialogue/        # NPC dialogue files (.dialogue)
-        audio/           # Music tracks (overworld.wav, battle.wav)
-        maps/            # Map JSON files
-        fonts/           # Game-specific fonts
+    Twilight_Engine_Games/     # External game submodule
+      supernatural/            # Supernatural TV show fan RPG
+        game.json
+        assets/
+          textures/            # Character sprites, tilesets, portraits
+          scripts/
+            battle/            # Modular battle scripts (battle_core, dean, sam, vampire, demon)
+            inventory/         # Modular inventory scripts (core, dean, sam, brothers, battle)
+          dialogue/            # NPC dialogue files
+          audio/               # Music tracks
+          maps/                # Map JSON files
 ```
 
 ### Game Manifest (`game.json`)
@@ -129,12 +133,19 @@ The engine's `GameManifest` loader (`src/engine/resource/game_manifest.h`) parse
 
 # Examples:
 ./twilight-build.sh supernatural linux Release
+./twilight-build.sh demo linux
 ./twilight-build.sh supernatural win64
 ./twilight-build.sh supernatural android
 ./twilight-build.sh supernatural all
+
+# List available games:
+./twilight-build.sh nonexistent linux
+# Output: demo, supernatural
 ```
 
-The build script:
+The build script automatically searches `games/` recursively, including git submodules (e.g., `games/Twilight_Engine_Games/supernatural/`).
+
+Steps performed:
 1. Compiles the Twilight Engine as a static library
 2. Symlinks the game's `assets/` into the build directory
 3. Copies `game.json` alongside the binary
@@ -142,7 +153,7 @@ The build script:
 
 ### Creating a New Game
 
-1. Create `games/my_game/game.json` with your manifest
+1. Create `games/my_game/game.json` with your manifest (or add as a git submodule)
 2. Create `games/my_game/assets/` with textures, scripts, audio, maps
 3. Run `./twilight-build.sh my_game linux`
 4. The engine loads your game's assets and scripts automatically
@@ -162,17 +173,20 @@ The build script:
 ### Build Commands
 
 ```bash
-# Engine-only build (legacy)
-./build.sh linux [Debug|Release]    # Native Linux build
-./build.sh win64 [Debug|Release]    # Cross-compile for Windows (static linked)
-./build.sh android [Debug|Release]  # Android APK
-
 # Game build (recommended — builds engine + links game assets)
 ./twilight-build.sh supernatural linux Release
+./twilight-build.sh demo linux
 ./twilight-build.sh supernatural win64
 ./twilight-build.sh supernatural android
 ./twilight-build.sh supernatural all
+
+# Engine-only build (legacy, no game assets)
+./build.sh linux [Debug|Release]
+./build.sh win64 [Debug|Release]
+./build.sh android [Debug|Release]
 ```
+
+The build script searches `games/` recursively, finding games inside git submodules automatically.
 
 ### Build Outputs
 

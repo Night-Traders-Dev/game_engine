@@ -18,9 +18,14 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating Eart
 - **SageLang Scripting** — Modular scripting for battle, inventory, dialogue, and events
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
-## First Game: Supernatural RPG
+## Games
 
-A fan project based on the Supernatural TV show with pixel art graphics. Play as Dean Winchester with Sam as a party follower. Features Bobby, Azazel, Vampires, and monster hunting.
+Games are separate from the engine and live in `games/`. The engine ships with a built-in demo and supports external game submodules.
+
+| Game | Description |
+|------|-------------|
+| **demo** | Engine tech demo with village tileset, RPG Maker MZ assets, EarthBound sprites |
+| **supernatural** | Supernatural TV show fan RPG (git submodule: [Twilight_Engine_Games](games/Twilight_Engine_Games)) |
 
 ## Build
 
@@ -29,14 +34,16 @@ A fan project based on the Supernatural TV show with pixel art graphics. Play as
 
 # Build a game against the engine
 ./twilight-build.sh supernatural linux Release
+./twilight-build.sh demo linux
 ./twilight-build.sh supernatural win64
 ./twilight-build.sh supernatural android
 ./twilight-build.sh supernatural all
 
+# List available games
+./twilight-build.sh nonexistent linux
+
 # Engine-only build (legacy)
 ./build.sh linux
-./build.sh win64
-./build.sh android
 ```
 
 ## Controls
@@ -53,19 +60,23 @@ A fan project based on the Supernatural TV show with pixel art graphics. Play as
 
 ```
 src/
-  engine/          # Standalone engine (graphics, audio, scripting, platform, resource)
-  game/            # Generic RPG framework (battle, inventory, skills, dialogue)
-  editor/          # Tile editor (ImGui UI, tools, minimap, asset import)
-  third_party/     # miniaudio, stb_image, stb_truetype, imgui, sagelang
+  engine/                    # Standalone engine (graphics, audio, scripting, platform)
+  game/                      # Generic RPG framework (battle, inventory, skills, dialogue)
+  editor/                    # Tile editor (ImGui UI, tools, minimap, asset import)
+  third_party/               # miniaudio, stb_image, stb_truetype, imgui, sagelang
 games/
-  supernatural/    # First game
-    game.json      # Game manifest (characters, NPCs, scripts, audio)
-    assets/        # All game-specific content (textures, scripts, maps, audio)
+  demo/                      # Built-in engine demo
+    game.json
+    assets/
+  Twilight_Engine_Games/     # External games (git submodule)
+    supernatural/
+      game.json
+      assets/
 assets/
-  textures/        # Sample/engine sprite sheets (earthbound, village, sprite)
-  engine/          # Engine defaults (fonts)
-shaders/           # GLSL vertex/fragment shaders
-android/           # Android build (Gradle, manifest, native glue)
+  textures/                  # Sample sprite sheets (earthbound, village, rpgmaker, sprite)
+  engine/                    # Engine defaults (fonts)
+shaders/                     # GLSL vertex/fragment shaders
+android/                     # Android build (Gradle, manifest, native glue)
 ```
 
 ## Tech Stack
