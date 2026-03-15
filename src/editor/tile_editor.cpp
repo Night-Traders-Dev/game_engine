@@ -8,6 +8,7 @@
 #endif
 #include "engine/graphics/texture_atlas.h"
 #include "engine/graphics/text_renderer.h"
+#include "engine/graphics/renderer.h"
 #include "engine/platform/input.h"
 #include "game/overworld/camera.h"
 
@@ -703,7 +704,12 @@ void TileEditor::flip_clipboard_v() {
 }
 
 bool TileEditor::save_map(const std::string& path) const { return map_ ? map_->save_json(path) : false; }
-bool TileEditor::load_map(const std::string& path) { return map_ ? map_->load_json(path) : false; }
+bool TileEditor::load_map(const std::string& path) {
+    if (game_state_ && renderer_) {
+        return load_map_file(*game_state_, *renderer_, path);
+    }
+    return map_ ? map_->load_json(path) : false;
+}
 
 // ══════════════════════════════ Rendering ══════════════════════════════
 

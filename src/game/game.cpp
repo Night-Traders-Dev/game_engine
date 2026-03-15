@@ -134,33 +134,226 @@ bool save_map_file(const GameState& game, const std::string& path) {
     return true;
 }
 
-bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& path) {
-    // For now, use the existing TileMap loader for tile data,
-    // then parse the extended fields manually.
-    // Full JSON parsing is complex — use the existing minimal parser approach.
+// Minimal JSON helpers for map loading
+static void mskip(const std::string& s, size_t& i) {
+    while (i < s.size() && (s[i]==' '||s[i]=='\t'||s[i]=='\n'||s[i]=='\r')) i++;
+}
+static std::string mstr(const std::string& s, size_t& i) {
+    if (i >= s.size() || s[i] != '"') return "";
+    i++; std::string out;
+    while (i < s.size() && s[i] != '"') {
+        if (s[i]=='\\' && i+1<s.size()) { i++; out+=s[i]; } else out+=s[i]; i++;
+    }
+    if (i < s.size()) i++;
+    return out;
+}
+static double mnum(const std::string& s, size_t& i) {
+    size_t start = i;
+    if (i<s.size() && s[i]=='-') i++;
+    while (i<s.size() && ((s[i]>='0'&&s[i]<='9')||s[i]=='.')) i++;
+    return std::stod(s.substr(start, i-start));
+}
+static bool mbool(const std::string& s, size_t& i) {
+    if (s.substr(i, 4) == "true") { i+=4; return true; }
+    if (s.substr(i, 5) == "false") { i+=5; return false; }
+    return false;
+}
+static void mskipval(const std::string& s, size_t& i);
+static void mskipobj(const std::string& s, size_t& i) {
+    if (s[i]!='{') return; i++;
+    while (i<s.size()&&s[i]!='}') { mskip(s,i); if(s[i]=='}') break; mstr(s,i); mskip(s,i); if(s[i]==':')i++; mskip(s,i); mskipval(s,i); mskip(s,i); if(s[i]==',')i++; }
+    if (i<s.size()) i++;
+}
+static void mskiparr(const std::string& s, size_t& i) {
+    if (s[i]!='[') return; i++;
+    while (i<s.size()&&s[i]!=']') { mskip(s,i); if(s[i]==']') break; mskipval(s,i); mskip(s,i); if(s[i]==',')i++; }
+    if (i<s.size()) i++;
+}
+static void mskipval(const std::string& s, size_t& i) {
+    mskip(s,i); if(i>=s.size()) return;
+    if(s[i]=='"') mstr(s,i);
+    else if(s[i]=='{') mskipobj(s,i);
+    else if(s[i]=='[') mskiparr(s,i);
+    else while(i<s.size()&&s[i]!=','&&s[i]!='}'&&s[i]!=']'&&s[i]!=' '&&s[i]!='\n') i++;
+}
 
+bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& path) {
     std::ifstream f(path);
     if (!f.is_open()) {
         std::fprintf(stderr, "[Map] Failed to load: %s\n", path.c_str());
         return false;
     }
-
     std::string json((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 
-    // Check format version
-    if (json.find("\"twilight_map\"") != std::string::npos) {
-        // New format v2 — load via TileMap first for tiles/collision/portals
-        game.tile_map.load_json(path);
+    // Load tiles/collision/portals via existing TileMap loader
+    game.tile_map.load_json(path);
 
-        // Parse objects and NPCs from the extended fields
-        // TODO: Full v2 parser for objects/NPCs
-        // For now, the tile data is the most important part
-        std::printf("[Map] Loaded v2 map: %s\n", path.c_str());
-        return true;
-    } else {
-        // Legacy format v1
-        return game.tile_map.load_json(path);
+    // Clear existing objects for reload
+    game.world_objects.clear();
+    game.object_defs.clear();
+    game.object_regions.clear();
+
+    // Parse objects array
+    size_t obj_pos = json.find("\"objects\"");
+    if (obj_pos != std::string::npos) {
+        size_t i = json.find('[', obj_pos);
+        if (i != std::string::npos) {
+            i++; // skip [
+            while (i < json.size() && json[i] != ']') {
+                mskip(json, i);
+                if (json[i] == ']') break;
+                if (json[i] == '{') {
+                    i++; // skip {
+                    float ox=0,oy=0; int sx=0,sy=0,sw=0,sh=0; float rw=0,rh=0;
+                    while (i < json.size() && json[i] != '}') {
+                        mskip(json, i);
+                        if (json[i] == '}') break;
+                        std::string key = mstr(json, i);
+                        mskip(json, i); if (json[i]==':') i++; mskip(json, i);
+                        if (key=="x") ox=(float)mnum(json,i);
+                        else if (key=="y") oy=(float)mnum(json,i);
+                        else if (key=="src_x") sx=(int)mnum(json,i);
+                        else if (key=="src_y") sy=(int)mnum(json,i);
+                        else if (key=="src_w") sw=(int)mnum(json,i);
+                        else if (key=="src_h") sh=(int)mnum(json,i);
+                        else if (key=="render_w") rw=(float)mnum(json,i);
+                        else if (key=="render_h") rh=(float)mnum(json,i);
+                        else mskipval(json, i);
+                        mskip(json, i); if (json[i]==',') i++;
+                    }
+                    if (json[i]=='}') i++;
+
+                    if (sw > 0 && sh > 0 && game.tileset_atlas) {
+                        // Find or create object def matching this source region
+                        int obj_id = -1;
+                        for (int oi = 0; oi < (int)game.object_regions.size(); oi++) {
+                            auto& r = game.object_regions[oi];
+                            if (r.pixel_x == sx && r.pixel_y == sy) { obj_id = oi; break; }
+                        }
+                        if (obj_id < 0) {
+                            float tw = (float)game.tileset_atlas->texture()->width();
+                            float th = (float)game.tileset_atlas->texture()->height();
+                            ObjectDef def;
+                            def.src_pos = {(float)sx, (float)sy};
+                            def.src_size = {(float)sw, (float)sh};
+                            def.render_size = {rw, rh};
+                            game.object_defs.push_back(def);
+                            eb::AtlasRegion ar;
+                            ar.pixel_x = sx; ar.pixel_y = sy;
+                            ar.pixel_w = sw; ar.pixel_h = sh;
+                            ar.uv_min = {sx/tw, sy/th};
+                            ar.uv_max = {(sx+sw)/tw, (sy+sh)/th};
+                            game.object_regions.push_back(ar);
+                            obj_id = (int)game.object_defs.size() - 1;
+                        }
+                        game.world_objects.push_back({obj_id, {ox, oy}});
+                    }
+                }
+                mskip(json, i); if (json[i]==',') i++;
+            }
+        }
     }
+
+    // Parse NPCs array
+    size_t npc_pos = json.find("\"npcs\"");
+    if (npc_pos != std::string::npos) {
+        game.npcs.clear();
+        size_t i = json.find('[', npc_pos);
+        if (i != std::string::npos) {
+            i++;
+            while (i < json.size() && json[i] != ']') {
+                mskip(json, i);
+                if (json[i] == ']') break;
+                if (json[i] == '{') {
+                    i++;
+                    NPC npc;
+                    npc.home_pos = npc.position;
+                    npc.wander_target = npc.position;
+                    std::vector<eb::DialogueLine> dlg;
+
+                    while (i < json.size() && json[i] != '}') {
+                        mskip(json, i);
+                        if (json[i] == '}') break;
+                        std::string key = mstr(json, i);
+                        mskip(json, i); if (json[i]==':') i++; mskip(json, i);
+
+                        if (key=="name") npc.name = mstr(json, i);
+                        else if (key=="x") npc.position.x = (float)mnum(json, i);
+                        else if (key=="y") npc.position.y = (float)mnum(json, i);
+                        else if (key=="dir") npc.dir = (int)mnum(json, i);
+                        else if (key=="sprite_atlas_id") npc.sprite_atlas_id = (int)mnum(json, i);
+                        else if (key=="interact_radius") npc.interact_radius = (float)mnum(json, i);
+                        else if (key=="hostile") npc.hostile = mbool(json, i);
+                        else if (key=="aggro_range") npc.aggro_range = (float)mnum(json, i);
+                        else if (key=="attack_range") npc.attack_range = (float)mnum(json, i);
+                        else if (key=="move_speed") npc.move_speed = (float)mnum(json, i);
+                        else if (key=="wander_interval") npc.wander_interval = (float)mnum(json, i);
+                        else if (key=="has_battle") npc.has_battle = mbool(json, i);
+                        else if (key=="battle_enemy") npc.battle_enemy_name = mstr(json, i);
+                        else if (key=="battle_hp") npc.battle_enemy_hp = (int)mnum(json, i);
+                        else if (key=="battle_atk") npc.battle_enemy_atk = (int)mnum(json, i);
+                        else if (key=="dialogue") {
+                            // Parse dialogue array
+                            if (json[i] == '[') {
+                                i++;
+                                while (i < json.size() && json[i] != ']') {
+                                    mskip(json, i);
+                                    if (json[i] == ']') break;
+                                    if (json[i] == '{') {
+                                        i++;
+                                        std::string speaker, text;
+                                        while (i < json.size() && json[i] != '}') {
+                                            mskip(json, i);
+                                            if (json[i]=='}') break;
+                                            std::string dk = mstr(json, i);
+                                            mskip(json, i); if (json[i]==':') i++; mskip(json, i);
+                                            if (dk=="speaker") speaker = mstr(json, i);
+                                            else if (dk=="text") text = mstr(json, i);
+                                            else mskipval(json, i);
+                                            mskip(json, i); if (json[i]==',') i++;
+                                        }
+                                        if (json[i]=='}') i++;
+                                        dlg.push_back({speaker, text});
+                                    }
+                                    mskip(json, i); if (json[i]==',') i++;
+                                }
+                                if (json[i]==']') i++;
+                            }
+                        }
+                        else mskipval(json, i);
+                        mskip(json, i); if (json[i]==',') i++;
+                    }
+                    if (json[i]=='}') i++;
+
+                    npc.home_pos = npc.position;
+                    npc.wander_target = npc.position;
+                    npc.dialogue = dlg;
+                    if (npc.dialogue.empty()) npc.dialogue = {{npc.name, "..."}};
+                    game.npcs.push_back(npc);
+                }
+                mskip(json, i); if (json[i]==',') i++;
+            }
+        }
+    }
+
+    // Parse player start position from metadata
+    size_t meta_pos = json.find("\"player_start_x\"");
+    if (meta_pos != std::string::npos) {
+        size_t i = json.find(':', meta_pos) + 1;
+        mskip(json, i);
+        game.player_pos.x = (float)mnum(json, i);
+    }
+    meta_pos = json.find("\"player_start_y\"");
+    if (meta_pos != std::string::npos) {
+        size_t i = json.find(':', meta_pos) + 1;
+        mskip(json, i);
+        game.player_pos.y = (float)mnum(json, i);
+    }
+
+    std::printf("[Map] Loaded: %s (%dx%d, %d objects, %d npcs)\n",
+                path.c_str(), game.tile_map.width(), game.tile_map.height(),
+                (int)game.world_objects.size(), (int)game.npcs.size());
+    return true;
 }
 
 // ─── Dialogue file I/O ───

@@ -49,6 +49,9 @@ private:
 
     Env* env_ = nullptr;
     GameState* game_state_ = nullptr;
+
+    // Keep source strings alive — SageLang AST references them
+    std::vector<char*> source_buffers_;
 };
 
 } // namespace eb

@@ -131,6 +131,8 @@ ScriptEngine::ScriptEngine() {
 ScriptEngine::~ScriptEngine() {
     if (s_active_engine == this) s_active_engine = nullptr;
     if (env_) { env_cleanup_all(); env_ = nullptr; }
+    for (auto* buf : source_buffers_) free(buf);
+    source_buffers_.clear();
 }
 
 void ScriptEngine::register_engine_api() {
@@ -211,7 +213,14 @@ bool ScriptEngine::load_file(const std::string& path) {
 
 bool ScriptEngine::execute(const std::string& code) {
     if (!env_) return false;
-    init_lexer(code.c_str(), "<script>");
+
+    // SageLang's AST keeps pointers into the source string,
+    // so we must keep it alive for the lifetime of the interpreter.
+    char* source = strdup(code.c_str());
+    if (!source) return false;
+    source_buffers_.push_back(source);
+
+    init_lexer(source, "<script>");
     parser_init();
     bool success = true;
     while (true) {
