@@ -46,13 +46,15 @@ public:
     // Sync inventory item info to script before item use
     void sync_item_to_script(const std::string& item_id);
 
+    // Public for static native function access
+    GameState* game_state_ = nullptr;
+
 private:
     void register_engine_api();
     void register_battle_api();
     void register_inventory_api();
 
     Env* env_ = nullptr;
-    GameState* game_state_ = nullptr;
 
     // Keep source strings alive — SageLang AST references them
     std::vector<char*> source_buffers_;

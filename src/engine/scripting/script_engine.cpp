@@ -185,6 +185,7 @@ ScriptEngine::ScriptEngine() {
         init_stdlib(env_);
         register_engine_api();
         register_battle_api();
+        register_inventory_api();
         s_active_engine = this;
     }
 }
@@ -218,6 +219,27 @@ void ScriptEngine::register_battle_api() {
     // battle_damage: the amount of damage/healing
     // battle_target: "enemy", "dean", "sam"
     std::printf("[ScriptEngine] Battle API registered\n");
+}
+
+void ScriptEngine::register_inventory_api() {
+    if (!env_) return;
+    env_define(env_, "add_item", 8, val_native(native_add_item));
+    env_define(env_, "remove_item", 11, val_native(native_remove_item));
+    env_define(env_, "has_item", 8, val_native(native_has_item));
+    env_define(env_, "item_count", 10, val_native(native_item_count));
+    std::printf("[ScriptEngine] Inventory API registered\n");
+}
+
+void ScriptEngine::sync_item_to_script(const std::string& item_id) {
+    if (!env_ || !game_state_) return;
+    auto* item = game_state_->inventory.find(item_id);
+    if (item) {
+        set_string("item_id", item->id);
+        set_string("item_name", item->name);
+        set_number("item_heal", item->heal_hp);
+        set_number("item_damage", item->damage);
+        set_string("item_element", item->element);
+    }
 }
 
 void ScriptEngine::sync_battle_to_script() {
