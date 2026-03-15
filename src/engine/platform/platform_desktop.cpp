@@ -8,7 +8,7 @@
 
 namespace eb {
 
-PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height)
+PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height, bool fullscreen)
     : width_(width), height_(height) {
     // Disable libdecor on Wayland to avoid fontconfig crash in some distros
     glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
@@ -19,7 +19,21 @@ PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    window_ = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
+    GLFWmonitor* monitor = nullptr;
+    if (fullscreen) {
+        monitor = glfwGetPrimaryMonitor();
+        if (monitor) {
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            width_ = mode->width;
+            height_ = mode->height;
+            glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+            glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+            glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+            glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+        }
+    }
+
+    window_ = glfwCreateWindow(width_, height_, title.c_str(), monitor, nullptr);
     if (!window_) {
         glfwTerminate();
         throw std::runtime_error("Failed to create GLFW window");
@@ -32,7 +46,8 @@ PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height
     glfwSetCursorPosCallback(window_, cursor_pos_callback);
     glfwSetScrollCallback(window_, scroll_callback);
 
-    std::printf("[Platform] Desktop window created (%dx%d)\n", width, height);
+    std::printf("[Platform] Desktop window created (%dx%d%s)\n",
+                width_, height_, fullscreen ? ", fullscreen" : "");
 }
 
 PlatformDesktop::~PlatformDesktop() {

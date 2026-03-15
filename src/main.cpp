@@ -33,6 +33,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         config.width = manifest.window_width;
         config.height = manifest.window_height;
         config.vsync = true;
+        config.fullscreen = true;
 
         eb::Engine engine(config);
         engine.renderer().set_shader_dir("shaders/");

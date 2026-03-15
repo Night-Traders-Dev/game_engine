@@ -4,6 +4,7 @@
 #include "engine/graphics/texture.h"
 #ifndef EB_ANDROID
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <imgui_impl_vulkan.h>
 #endif
 #include "engine/graphics/texture_atlas.h"
@@ -825,7 +826,44 @@ void TileEditor::render(SpriteBatch& batch, const Camera& camera,
     if (selection_.active) render_selection(batch, camera);
     render_cursor(batch, camera, mouse_x_, mouse_y_);
 
-    // No screen-space panel rendering — ImGui handles all UI now
+    // Asset highlighting: glow around NPCs/items matching the clicked string
+    if (!highlighted_asset_.empty() && highlight_timer_ > 0 && game_state_) {
+        batch.set_texture(game_state_->white_desc);
+        float alpha = std::min(1.0f, highlight_timer_) * (0.5f + 0.3f * std::sin(highlight_timer_ * 6.0f));
+        Vec4 glow = {1.0f, 0.9f, 0.2f, alpha};
+        Vec4 glow_border = {1.0f, 0.8f, 0.1f, alpha * 1.5f};
+
+        // Highlight NPCs whose name matches (case-insensitive)
+        for (auto& npc : game_state_->npcs) {
+            std::string npc_lower = npc.name;
+            std::string asset_lower = highlighted_asset_;
+            for (auto& c : npc_lower) c = std::tolower(c);
+            for (auto& c : asset_lower) c = std::tolower(c);
+            if (npc_lower == asset_lower || npc.name == highlighted_asset_) {
+                float w = 48.0f, h = 64.0f;
+                float x = npc.position.x - w * 0.5f - 4.0f;
+                float y = npc.position.y - h + 4.0f - 4.0f;
+                // Glow rectangle
+                batch.draw_quad({x, y}, {w + 8.0f, h + 8.0f}, {0,0}, {1,1}, glow);
+                // Border
+                float bdr = 2.0f;
+                batch.draw_quad({x, y}, {w + 8.0f, bdr}, {0,0}, {1,1}, glow_border);
+                batch.draw_quad({x, y + h + 8.0f - bdr}, {w + 8.0f, bdr}, {0,0}, {1,1}, glow_border);
+                batch.draw_quad({x, y}, {bdr, h + 8.0f}, {0,0}, {1,1}, glow_border);
+                batch.draw_quad({x + w + 8.0f - bdr, y}, {bdr, h + 8.0f}, {0,0}, {1,1}, glow_border);
+            }
+        }
+
+        // Also check inventory items by ID
+        for (auto& item : game_state_->inventory.items) {
+            if (item.id == highlighted_asset_ || item.name == highlighted_asset_) {
+                // Flash the HUD area to indicate the item exists in inventory
+                batch.set_projection(camera.projection_matrix()); // already set
+                // We'll show a screen-space indicator in render_imgui instead
+                break;
+            }
+        }
+    }
 }
 
 void TileEditor::render_grid(SpriteBatch& batch, const Camera& camera) const {
@@ -1601,89 +1639,276 @@ void TileEditor::render_imgui(GameState& game) {
 
     // ═══════════ SCRIPT MANAGER / IDE ═══════════
     if (show_script_ide_) {
-    ImGui::SetNextWindowPos(ImVec2(250, 370), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(450, 330), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Script IDE##editor", &show_script_ide_)) {
+    ImGui::SetNextWindowPos(ImVec2(250, 100), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(700, 550), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Script IDE##editor", &show_script_ide_, ImGuiWindowFlags_MenuBar)) {
         static int selected_script = -1;
-        static char script_buffer[8192] = "";
+        static char script_buffer[16384] = "";
         static bool script_dirty = false;
         static std::string current_file;
+        static char new_script_name[128] = "new_script.sage";
+
+        // Decay asset highlight timer
+        if (highlight_timer_ > 0) highlight_timer_ -= 0.016f;
+        if (highlight_timer_ <= 0) highlighted_asset_.clear();
 
         auto* se = game.script_engine;
+
+        // ── Helper lambdas for menu actions ──
+        auto do_save = [&]() {
+            if (selected_script < 0 || current_file.empty()) return;
+            std::ofstream f(current_file);
+            if (f.is_open()) { f << script_buffer; f.close(); script_dirty = false; set_status("Saved: " + current_file); }
+        };
+        auto do_save_reload = [&]() {
+            do_save();
+            if (se) { se->reload_all(); set_status("Hot reloaded all scripts"); }
+        };
+        auto do_reload_all = [&]() {
+            if (se) { se->reload_all(); set_status("Hot reloaded all scripts"); }
+        };
+        auto do_open_script = [&](int i) {
+            if (!se) return;
+            auto& files = se->loaded_files();
+            if (i < 0 || i >= (int)files.size()) return;
+            selected_script = i;
+            current_file = files[i];
+            auto data = eb::FileIO::read_file(current_file);
+            if (!data.empty()) {
+                int len = std::min((int)data.size(), (int)sizeof(script_buffer) - 1);
+                std::memcpy(script_buffer, data.data(), len);
+                script_buffer[len] = '\0';
+                script_dirty = false;
+            }
+        };
+
+        // ── Menu Bar ──
+        if (ImGui::BeginMenuBar()) {
+            if (ImGui::BeginMenu("File")) {
+                if (ImGui::MenuItem("New Script...", "")) ImGui::OpenPopup("NewScriptPopup##menu");
+                ImGui::Separator();
+                if (se && ImGui::BeginMenu("Open Script")) {
+                    auto& files = se->loaded_files();
+                    for (int i = 0; i < (int)files.size(); i++) {
+                        std::string label = files[i];
+                        auto slash = label.rfind('/');
+                        if (slash != std::string::npos) label = label.substr(slash + 1);
+                        if (ImGui::MenuItem(label.c_str(), "", selected_script == i)) do_open_script(i);
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Save", "Ctrl+S", false, selected_script >= 0)) do_save();
+                if (ImGui::MenuItem("Save & Reload", "", false, selected_script >= 0)) do_save_reload();
+                if (ImGui::MenuItem("Reload All Scripts", "")) do_reload_all();
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Help")) {
+                if (ImGui::MenuItem("SageLang API Manual", "")) show_api_manual_ = true;
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
+
         if (se) {
             auto& files = se->loaded_files();
 
-            // File list
-            if (ImGui::BeginChild("ScriptList", ImVec2(160, -30), true)) {
+            // File list panel
+            if (ImGui::BeginChild("ScriptList", ImVec2(180, 0), true)) {
                 for (int i = 0; i < (int)files.size(); i++) {
-                    // Show just filename
                     std::string label = files[i];
                     auto slash = label.rfind('/');
                     if (slash != std::string::npos) label = label.substr(slash + 1);
-
                     bool sel = (selected_script == i);
-                    if (ImGui::Selectable(label.c_str(), sel)) {
-                        if (i != selected_script) {
-                            selected_script = i;
-                            current_file = files[i];
-                            // Load file content
-                            auto data = eb::FileIO::read_file(current_file);
-                            if (!data.empty()) {
-                                int len = std::min((int)data.size(), (int)sizeof(script_buffer) - 1);
-                                std::memcpy(script_buffer, data.data(), len);
-                                script_buffer[len] = '\0';
-                                script_dirty = false;
-                            }
-                        }
-                    }
+                    if (ImGui::Selectable(label.c_str(), sel)) do_open_script(i);
                 }
             }
             ImGui::EndChild();
 
             ImGui::SameLine();
 
-            // Editor pane
-            if (ImGui::BeginChild("ScriptEdit", ImVec2(0, -30))) {
+            // ── Editor pane with syntax highlighting ──
+            if (ImGui::BeginChild("ScriptEdit", ImVec2(0, 0))) {
                 if (selected_script >= 0) {
+                    static bool edit_mode = false;
                     ImGui::Text("%s%s", current_file.c_str(), script_dirty ? " *" : "");
+                    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 50);
+                    if (ImGui::SmallButton(edit_mode ? "View" : "Edit")) edit_mode = !edit_mode;
                     ImGui::Separator();
-                    if (ImGui::InputTextMultiline("##code", script_buffer, sizeof(script_buffer),
-                            ImVec2(-1, -1), ImGuiInputTextFlags_AllowTabInput)) {
-                        script_dirty = true;
+
+                    // Syntax color helpers
+                    auto is_keyword = [](const std::string& w) -> bool {
+                        static const char* kws[] = {"proc","let","if","else","elif","while","for","return","in","and","or","not","break","continue",nullptr};
+                        for (auto** k = kws; *k; k++) if (w == *k) return true; return false;
+                    };
+                    auto is_bool_nil = [](const std::string& w) -> bool { return w=="true"||w=="false"||w=="nil"; };
+                    auto is_builtin = [](const std::string& w) -> bool {
+                        static const char* fns[] = {"say","log","debug","info","warn","error","print","assert_true","add_item","remove_item","has_item","item_count","add_shop_item","open_shop","set_gold","get_gold","set_skill","get_skill","get_skill_bonus","set_flag","get_flag","random","clamp","str",nullptr};
+                        for (auto** f = fns; *f; f++) if (w == *f) return true; return false;
+                    };
+
+                    ImVec4 c_keyword = {0.78f, 0.47f, 1.0f, 1.0f};
+                    ImVec4 c_comment = {0.39f, 0.55f, 0.39f, 1.0f};
+                    ImVec4 c_string  = {0.90f, 0.71f, 0.31f, 1.0f};
+                    ImVec4 c_number  = {0.47f, 0.78f, 1.0f, 1.0f};
+                    ImVec4 c_builtin = {0.39f, 0.78f, 0.63f, 1.0f};
+                    ImVec4 c_bool    = {1.0f, 0.55f, 0.39f, 1.0f};
+                    ImVec4 c_plain   = {0.78f, 0.78f, 0.73f, 1.0f};
+
+                    if (edit_mode) {
+                        // Plain text editor (no highlighting, but fully editable)
+                        ImVec2 avail = ImGui::GetContentRegionAvail();
+                        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.18f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.78f, 0.78f, 0.73f, 1.0f));
+                        if (ImGui::InputTextMultiline("##code", script_buffer, sizeof(script_buffer),
+                                avail, ImGuiInputTextFlags_AllowTabInput)) {
+                            script_dirty = true;
+                        }
+                        ImGui::PopStyleColor(2);
+                    } else {
+                        // Syntax-highlighted read-only view in a scrollable child
+                        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.12f, 0.12f, 0.18f, 1.0f));
+                        if (ImGui::BeginChild("##codeview", ImVec2(0, 0), false,
+                                ImGuiWindowFlags_HorizontalScrollbar)) {
+                            // Render each line with colored spans
+                            const char* p = script_buffer;
+                            int line_num = 0;
+                            while (*p) {
+                                const char* ls = p;
+                                while (*p && *p != '\n') p++;
+                                int ll = (int)(p - ls);
+                                if (*p == '\n') p++;
+
+                                // Line number
+                                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.4f, 0.45f, 1.0f));
+                                ImGui::Text("%3d ", line_num + 1);
+                                ImGui::PopStyleColor();
+                                ImGui::SameLine(0, 0);
+
+                                // Tokenize and render colored spans inline
+                                int col = 0;
+                                while (col < ll) {
+                                    char ch = ls[col];
+
+                                    // Comment
+                                    if (ch == '#') {
+                                        ImGui::PushStyleColor(ImGuiCol_Text, c_comment);
+                                        ImGui::TextUnformatted(ls + col, ls + ll);
+                                        ImGui::PopStyleColor();
+                                        col = ll;
+                                        break;
+                                    }
+
+                                    // String
+                                    if (ch == '"') {
+                                        int start = col; col++;
+                                        while (col < ll && ls[col] != '"') col++;
+                                        if (col < ll) col++;
+                                        ImGui::PushStyleColor(ImGuiCol_Text, c_string);
+                                        ImGui::TextUnformatted(ls + start, ls + col);
+                                        ImGui::PopStyleColor();
+
+                                        // Asset click detection
+                                        if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0) && col - start > 2) {
+                                            std::string asset(ls + start + 1, col - start - 2);
+                                            if (!asset.empty()) {
+                                                highlighted_asset_ = asset;
+                                                highlight_timer_ = 5.0f;
+                                                set_status("Highlighting: " + asset);
+                                            }
+                                        }
+                                        ImGui::SameLine(0, 0);
+                                        continue;
+                                    }
+
+                                    // Number
+                                    if ((ch >= '0' && ch <= '9') ||
+                                        (ch == '-' && col + 1 < ll && ls[col+1] >= '0' && ls[col+1] <= '9' &&
+                                         (col == 0 || ls[col-1] == ' ' || ls[col-1] == '(' || ls[col-1] == ','))) {
+                                        int start = col; if (ch == '-') col++;
+                                        while (col < ll && ((ls[col] >= '0' && ls[col] <= '9') || ls[col] == '.')) col++;
+                                        ImGui::PushStyleColor(ImGuiCol_Text, c_number);
+                                        ImGui::TextUnformatted(ls + start, ls + col);
+                                        ImGui::PopStyleColor();
+                                        ImGui::SameLine(0, 0);
+                                        continue;
+                                    }
+
+                                    // Identifier / keyword
+                                    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_') {
+                                        int start = col;
+                                        while (col < ll && ((ls[col] >= 'a' && ls[col] <= 'z') ||
+                                               (ls[col] >= 'A' && ls[col] <= 'Z') ||
+                                               (ls[col] >= '0' && ls[col] <= '9') || ls[col] == '_')) col++;
+                                        std::string w(ls + start, col - start);
+                                        ImVec4 tc = c_plain;
+                                        if (is_keyword(w)) tc = c_keyword;
+                                        else if (is_bool_nil(w)) tc = c_bool;
+                                        else if (is_builtin(w)) tc = c_builtin;
+                                        ImGui::PushStyleColor(ImGuiCol_Text, tc);
+                                        ImGui::TextUnformatted(ls + start, ls + col);
+                                        ImGui::PopStyleColor();
+                                        ImGui::SameLine(0, 0);
+                                        continue;
+                                    }
+
+                                    // Punctuation / whitespace — render character by character in runs
+                                    {
+                                        int start = col;
+                                        while (col < ll && !((ls[col] >= 'a' && ls[col] <= 'z') ||
+                                               (ls[col] >= 'A' && ls[col] <= 'Z') || ls[col] == '_' ||
+                                               ls[col] == '#' || ls[col] == '"' ||
+                                               (ls[col] >= '0' && ls[col] <= '9'))) col++;
+                                        if (col > start) {
+                                            ImGui::PushStyleColor(ImGuiCol_Text, c_plain);
+                                            ImGui::TextUnformatted(ls + start, ls + col);
+                                            ImGui::PopStyleColor();
+                                            ImGui::SameLine(0, 0);
+                                        }
+                                    }
+                                }
+
+                                // End of line — need a newline. Use dummy text if line was empty.
+                                if (ll == 0) ImGui::TextUnformatted("");
+                                else ImGui::NewLine();
+
+                                line_num++;
+                            }
+                        }
+                        ImGui::EndChild();
+                        ImGui::PopStyleColor();
                     }
                 } else {
-                    ImGui::TextDisabled("Select a script file to edit");
+                    ImGui::TextDisabled("Select a script file or use File > New/Open");
                 }
             }
             ImGui::EndChild();
 
-            // Bottom buttons
-            if (selected_script >= 0) {
-                if (ImGui::Button("Save")) {
-                    std::ofstream f(current_file);
+            // ── New Script popup (shared by menu and popup) ──
+            if (ImGui::BeginPopup("NewScriptPopup##menu")) {
+                ImGui::Text("Create New Script");
+                ImGui::Separator();
+                ImGui::InputText("Filename", new_script_name, sizeof(new_script_name));
+                if (ImGui::Button("Create", ImVec2(120, 0))) {
+                    std::string path = "assets/scripts/" + std::string(new_script_name);
+                    std::ofstream f(path);
                     if (f.is_open()) {
-                        f << script_buffer;
+                        std::string base = new_script_name;
+                        auto dot = base.rfind('.'); if (dot != std::string::npos) base = base.substr(0, dot);
+                        f << "# " << base << "\n\nproc " << base << "_init():\n    log(\"" << base << " loaded\")\n";
                         f.close();
-                        script_dirty = false;
-                        set_status("Saved: " + current_file);
+                        se->load_file(path);
+                        auto& uf = se->loaded_files();
+                        selected_script = (int)uf.size()-1; current_file = path;
+                        auto data = eb::FileIO::read_file(current_file);
+                        if (!data.empty()) { int len=std::min((int)data.size(),(int)sizeof(script_buffer)-1); std::memcpy(script_buffer,data.data(),len); script_buffer[len]='\0'; script_dirty=false; }
+                        set_status("Created: " + path);
                     }
+                    ImGui::CloseCurrentPopup();
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("Save & Reload")) {
-                    std::ofstream f(current_file);
-                    if (f.is_open()) {
-                        f << script_buffer;
-                        f.close();
-                        script_dirty = false;
-                    }
-                    se->reload_all();
-                    set_status("Hot reloaded all scripts");
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Reload All")) {
-                    se->reload_all();
-                    set_status("Hot reloaded all scripts");
-                }
+                if (ImGui::Button("Cancel", ImVec2(80, 0))) ImGui::CloseCurrentPopup();
+                ImGui::EndPopup();
             }
         } else {
             ImGui::TextDisabled("No script engine available");
@@ -1691,6 +1916,166 @@ void TileEditor::render_imgui(GameState& game) {
     }
     ImGui::End();
     } // show_script_ide_
+
+    // ═══════════ SAGELANG API MANUAL ═══════════
+    if (show_api_manual_) {
+    ImGui::SetNextWindowPos(ImVec2(100, 50), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(620, 700), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("SageLang API Manual##api", &show_api_manual_)) {
+        static int api_section = 0;
+        const char* sections[] = { "Overview", "Dialogue", "Inventory", "Shop", "Battle", "Stats", "Debug", "Utilities" };
+
+        // Section tabs
+        for (int i = 0; i < 8; i++) {
+            if (i > 0) ImGui::SameLine();
+            if (ImGui::SmallButton(sections[i])) api_section = i;
+        }
+        ImGui::Separator();
+
+        if (ImGui::BeginChild("APIContent", ImVec2(0, 0), false)) {
+            ImU32 hdr = IM_COL32(200, 160, 255, 255);
+            ImU32 fn  = IM_COL32(100, 200, 160, 255);
+            ImU32 par = IM_COL32(200, 200, 140, 255);
+            ImU32 cmt = IM_COL32(140, 140, 140, 255);
+
+            auto heading = [&](const char* t) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.78f,0.63f,1,1)); ImGui::TextWrapped("%s", t); ImGui::PopStyleColor(); ImGui::Separator(); };
+            auto func = [&](const char* sig, const char* desc) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f,0.8f,0.63f,1)); ImGui::TextWrapped("  %s", sig); ImGui::PopStyleColor();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f,0.7f,0.65f,1)); ImGui::TextWrapped("    %s", desc); ImGui::PopStyleColor();
+                ImGui::Spacing();
+            };
+            auto example = [&](const char* code) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f,0.7f,0.3f,1));
+                ImGui::TextWrapped("    Example: %s", code);
+                ImGui::PopStyleColor(); ImGui::Spacing();
+            };
+
+            switch (api_section) {
+            case 0: // Overview
+                heading("SageLang Scripting Overview");
+                ImGui::TextWrapped("SageLang is the scripting language for the Twilight Engine. Scripts use .sage files and are loaded from the game manifest (game.json).");
+                ImGui::Spacing();
+                heading("Syntax Basics");
+                ImGui::TextWrapped("- Procedures: proc name():");
+                ImGui::TextWrapped("- Variables: let x = 10");
+                ImGui::TextWrapped("- Conditionals: if / elif / else");
+                ImGui::TextWrapped("- Loops: while / for x in range");
+                ImGui::TextWrapped("- Comments: # single line");
+                ImGui::TextWrapped("- Strings: \"hello\" + str(42)");
+                ImGui::TextWrapped("- Booleans: true, false, nil");
+                ImGui::TextWrapped("- Operators: +, -, *, /, ==, !=, <, >, <=, >=, and, or, not");
+                ImGui::Spacing();
+                heading("Auto-Called Functions");
+                ImGui::TextWrapped("When a player talks to an NPC named 'Merchant', the engine looks for:");
+                ImGui::TextWrapped("  1. merchant_shop_items() - opens shop UI");
+                ImGui::TextWrapped("  2. merchant_greeting() - dialogue fallback");
+                ImGui::TextWrapped("  3. greeting() - generic fallback");
+                ImGui::Spacing();
+                heading("Init Scripts");
+                ImGui::TextWrapped("Functions listed in game.json 'init_scripts' are called at startup.");
+                example("\"init_scripts\": [\"give_starter_items\", \"init_player_stats\"]");
+                break;
+
+            case 1: // Dialogue
+                heading("Dialogue API");
+                func("say(speaker, text)", "Queue a dialogue line. Opens the dialogue box if not already active.");
+                example("say(\"Elder\", \"Welcome, brave adventurer.\")");
+                func("log(message)", "Print a message to the debug console.");
+                example("log(\"Player entered the cave\")");
+                break;
+
+            case 2: // Inventory
+                heading("Inventory API");
+                func("add_item(id, name, qty, type, desc, heal, dmg, element, sage_func)",
+                     "Add an item to the player's inventory. Type: \"consumable\", \"weapon\", \"key\".");
+                example("add_item(\"potion\", \"Potion\", 5, \"consumable\", \"Restores 50 HP\", 50, 0, \"\", \"use_potion\")");
+                func("remove_item(id, qty)", "Remove qty of item from inventory.");
+                example("remove_item(\"potion\", 1)");
+                func("has_item(id) -> bool", "Check if player has at least 1 of this item.");
+                example("if has_item(\"key\"): say(\"Guard\", \"You may pass.\")");
+                func("item_count(id) -> number", "Get the quantity of an item in inventory.");
+                example("let pots = item_count(\"potion\")");
+                break;
+
+            case 3: // Shop
+                heading("Shop API");
+                func("add_shop_item(id, name, price, type, desc, heal, dmg, element, sage_func)",
+                     "Add an item to the pending shop list. Call open_shop() after adding all items.");
+                example("add_shop_item(\"potion\", \"Potion\", 25, \"consumable\", \"Heals 50 HP\", 50, 0, \"\", \"use_potion\")");
+                func("open_shop(merchant_name)", "Open the merchant store UI with all pending shop items.");
+                example("open_shop(\"Merchant\")");
+                func("set_gold(amount)", "Set the player's gold to a specific amount.");
+                func("get_gold() -> number", "Get the player's current gold.");
+                ImGui::Spacing();
+                heading("Shop Script Pattern");
+                ImGui::TextWrapped("Name the function {npc_name}_shop_items() and the engine auto-calls it on interaction:");
+                example("proc merchant_shop_items():\n    add_shop_item(...)\n    open_shop(\"Merchant\")");
+                break;
+
+            case 4: // Battle
+                heading("Battle Variables (read/write in battle scripts)");
+                ImGui::TextWrapped("These globals are synced before/after battle script calls:");
+                ImGui::Spacing();
+                func("enemy_hp, enemy_max_hp, enemy_atk, enemy_name", "Enemy stats. Reduce enemy_hp to deal damage.");
+                func("player_hp, player_max_hp, player_atk, player_def", "Main character stats.");
+                func("ally_hp, ally_max_hp, ally_atk", "Party member stats.");
+                func("active_fighter", "0 = player's turn, 1 = ally's turn.");
+                func("battle_damage", "Set this to the amount of damage/healing dealt.");
+                func("battle_msg", "Set this to the combat message to display.");
+                func("battle_target", "Set to \"enemy\", name of player, or name of ally.");
+                ImGui::Spacing();
+                heading("Skill Variables (read-only in battle)");
+                func("skill_vitality, skill_arcana, skill_agility", "Current fighter's stat values.");
+                func("skill_tactics, skill_spirit, skill_strength", "Current fighter's stat values.");
+                break;
+
+            case 5: // Stats
+                heading("Character Stats API");
+                func("set_skill(character, stat, value)", "Set a character stat. character: \"player\" or \"ally\".");
+                example("set_skill(\"player\", \"strength\", 8)");
+                func("get_skill(character, stat) -> number", "Get a character stat value.");
+                example("let str = get_skill(\"player\", \"strength\")");
+                func("get_skill_bonus(character, bonus) -> number", "Get a derived bonus.");
+                ImGui::Spacing();
+                heading("Stat Names");
+                ImGui::TextWrapped("  vitality  - HP bonus, damage resistance");
+                ImGui::TextWrapped("  arcana    - Magic power, spell damage");
+                ImGui::TextWrapped("  agility   - Speed, crit chance, dodge");
+                ImGui::TextWrapped("  tactics   - Combat strategy, defense");
+                ImGui::TextWrapped("  spirit    - Healing power, magic resistance");
+                ImGui::TextWrapped("  strength  - Physical damage, weapon scaling");
+                ImGui::Spacing();
+                heading("Derived Bonuses");
+                ImGui::TextWrapped("  hp, crit, defense, magic_mult, weapon_dmg, dodge, spell_mult");
+                break;
+
+            case 6: // Debug
+                heading("Debug API");
+                func("debug(msg)", "Log at debug level (grey in console).");
+                func("info(msg)", "Log at info level (green).");
+                func("warn(msg)", "Log at warning level (yellow).");
+                func("error(msg)", "Log at error level (red).");
+                func("print(a, b, ...)", "Print multiple values (cyan, script level).");
+                func("assert_true(condition, msg)", "Assert condition is true. Logs error if false.");
+                example("assert_true(player_hp > 0, \"HP should not be negative\")");
+                break;
+
+            case 7: // Utilities
+                heading("Utility Functions");
+                func("random(min, max) -> number", "Random integer between min and max (inclusive).");
+                example("let dmg = 10 + random(0, 5)");
+                func("clamp(value, min, max) -> number", "Clamp value to [min, max] range.");
+                func("str(value) -> string", "Convert a number or boolean to string.");
+                func("set_flag(name, value)", "Set a persistent game flag (string key, any value).");
+                func("get_flag(name) -> value", "Get a game flag value (nil if not set).");
+                example("set_flag(\"cave_cleared\", true)\nif get_flag(\"cave_cleared\"): say(\"Elder\", \"Thank you!\")");
+                break;
+            }
+        }
+        ImGui::EndChild();
+    }
+    ImGui::End();
+    } // show_api_manual_
 
     // ═══════════ DEBUG CONSOLE ═══════════
     if (show_debug_console_) {

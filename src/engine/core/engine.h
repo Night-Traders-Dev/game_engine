@@ -16,6 +16,7 @@ struct EngineConfig {
     int width = 960;
     int height = 720;
     bool vsync = true;
+    bool fullscreen = false;
 };
 
 class Engine {

@@ -257,6 +257,11 @@ private:
     bool show_script_ide_ = false;
     bool show_debug_console_ = false;
 
+    // Script IDE: asset highlight + API manual
+    std::string highlighted_asset_;
+    float highlight_timer_ = 0.0f;
+    bool show_api_manual_ = false;
+
     // Deferred file dialog (must not run during Vulkan rendering)
     enum class PendingDialog { None, Save, Load, ImportAsset };
     PendingDialog pending_dialog_ = PendingDialog::None;

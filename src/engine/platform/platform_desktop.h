@@ -9,7 +9,7 @@ namespace eb {
 
 class PlatformDesktop : public Platform {
 public:
-    PlatformDesktop(const std::string& title, int width, int height);
+    PlatformDesktop(const std::string& title, int width, int height, bool fullscreen = false);
     ~PlatformDesktop() override;
 
     void poll_events() override;

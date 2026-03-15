@@ -277,7 +277,7 @@ void MerchantUI::render_button(SpriteBatch& batch, TextRenderer& text, GameState
     }
 
     // Text
-    float text_scale = 0.7f;
+    float text_scale = 0.85f;
     auto sz = text.measure_text(label, text_scale);
     float tx = x + (w - sz.x) * 0.5f;
     float ty = y + (h - sz.y) * 0.5f;
@@ -291,24 +291,24 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
 
     // ── Dimmed background overlay ──
     batch.set_texture(game.white_desc);
-    batch.draw_quad({0, 0}, {screen_w, screen_h}, {0,0}, {1,1}, {0, 0, 0, 0.5f});
+    batch.draw_quad({0, 0}, {screen_w, screen_h}, {0,0}, {1,1}, {0, 0, 0, 0.6f});
 
-    // ── Layout constants ──
-    float S = PANEL_SCALE;
-    float margin = 16.0f;
+    // ── Layout — scale to screen size ──
+    float ui_scale = std::min(screen_w / 960.0f, screen_h / 720.0f);
+    if (ui_scale < 1.0f) ui_scale = 1.0f;
 
-    // Main panel dimensions (centered)
-    float panel_w = 500.0f;
-    float panel_h = 420.0f;
+    // Main panel dimensions (centered, scaled)
+    float panel_w = 600.0f * ui_scale;
+    float panel_h = 520.0f * ui_scale;
     float panel_x = (screen_w - panel_w) * 0.5f;
-    float panel_y = (screen_h - panel_h) * 0.5f - 20.0f;
+    float panel_y = (screen_h - panel_h) * 0.5f - 10.0f * ui_scale;
 
     // ── Main panel background ──
     render_panel(batch, game, panel_x, panel_y, panel_w, panel_h);
 
     // ── Title bar ──
-    float title_y = panel_y + 12.0f;
-    float title_scale = 0.9f;
+    float title_y = panel_y + 16.0f * ui_scale;
+    float title_scale = 1.1f * ui_scale;
     std::string title = merchant_name_ + "'s Shop";
     auto title_sz = text.measure_text(title, title_scale);
     float title_x = panel_x + (panel_w - title_sz.x) * 0.5f;
@@ -316,43 +316,44 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
                    {1.0f, 0.9f, 0.6f, 1.0f}, title_scale);
 
     // ── Gold display ──
-    float gold_scale = 0.65f;
+    float gold_scale = 0.8f * ui_scale;
     std::string gold_str = std::to_string(game.gold) + " G";
     auto gold_sz = text.measure_text(gold_str, gold_scale);
-    float gold_x = panel_x + panel_w - gold_sz.x - 20.0f;
+    float gold_x = panel_x + panel_w - gold_sz.x - 24.0f * ui_scale;
     float gold_y = title_y + 2.0f;
 
     // Gold coin icon from UI sprite sheet
+    float icon_scale = 20.0f * ui_scale;
     if (game.ui_atlas) {
         auto* coin = game.ui_atlas->find_region("icon_coin");
         if (coin) {
             batch.set_texture(game.ui_desc);
-            draw_region_sized(batch, *coin, gold_x - 22.0f, gold_y - 2.0f, 16.0f, 16.0f);
+            draw_region_sized(batch, *coin, gold_x - icon_scale - 4.0f, gold_y - 2.0f, icon_scale, icon_scale);
         }
     }
     text.draw_text(batch, game.font_desc, gold_str, {gold_x, gold_y},
                    {1.0f, 0.95f, 0.3f, 1.0f}, gold_scale);
 
     // ── Tab buttons (Buy / Sell) ──
-    float tab_y = title_y + title_sz.y + 14.0f;
-    float tab_w = 80.0f;
-    float tab_h = 28.0f;
-    float tab_x = panel_x + 20.0f;
+    float tab_y = title_y + title_sz.y + 16.0f * ui_scale;
+    float tab_w = 100.0f * ui_scale;
+    float tab_h = 34.0f * ui_scale;
+    float tab_x = panel_x + 24.0f * ui_scale;
 
     render_button(batch, text, game, "BUY", tab_x, tab_y, tab_w, tab_h, tab_ == 0);
-    render_button(batch, text, game, "SELL", tab_x + tab_w + 8.0f, tab_y, tab_w, tab_h, tab_ == 1);
+    render_button(batch, text, game, "SELL", tab_x + tab_w + 10.0f * ui_scale, tab_y, tab_w, tab_h, tab_ == 1);
 
     // ── Separator line ──
-    float sep_y = tab_y + tab_h + 8.0f;
+    float sep_y = tab_y + tab_h + 10.0f * ui_scale;
     batch.set_texture(game.white_desc);
-    batch.draw_quad({panel_x + 16.0f, sep_y}, {panel_w - 32.0f, 2.0f},
+    batch.draw_quad({panel_x + 20.0f * ui_scale, sep_y}, {panel_w - 40.0f * ui_scale, 2.0f * ui_scale},
                     {0,0}, {1,1}, {0.5f, 0.35f, 0.25f, 0.8f});
 
     // ── Item list area ──
-    float list_y = sep_y + 8.0f;
-    float list_x = panel_x + 20.0f;
-    float list_w = panel_w - 40.0f;
-    float item_h = 36.0f;
+    float list_y = sep_y + 10.0f * ui_scale;
+    float list_x = panel_x + 24.0f * ui_scale;
+    float list_w = panel_w - 48.0f * ui_scale;
+    float item_h = 48.0f * ui_scale;
 
     // Inner scroll panel background
     if (game.ui_atlas) {
@@ -415,27 +416,38 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
         bool selected = (idx == selected_item_);
         float iy = list_y + i * item_h;
 
-        // Selection highlight
+        // Selection highlight — solid background + bright border
         if (selected) {
             batch.set_texture(game.white_desc);
-            float pulse = 0.12f + 0.06f * std::sin(anim_timer_ * 5.0f);
-            batch.draw_quad({list_x, iy}, {list_w, item_h - 2.0f},
-                           {0,0}, {1,1}, {1.0f, 0.85f, 0.4f, pulse});
+            // Solid highlight background
+            batch.draw_quad({list_x, iy}, {list_w, item_h - 2.0f * ui_scale},
+                           {0,0}, {1,1}, {1.0f, 0.85f, 0.3f, 0.25f});
+            // Bright border (top + bottom)
+            float bdr = 2.0f * ui_scale;
+            batch.draw_quad({list_x, iy}, {list_w, bdr},
+                           {0,0}, {1,1}, {1.0f, 0.9f, 0.3f, 0.9f});
+            batch.draw_quad({list_x, iy + item_h - 2.0f * ui_scale - bdr}, {list_w, bdr},
+                           {0,0}, {1,1}, {1.0f, 0.9f, 0.3f, 0.9f});
+            // Left edge accent
+            batch.draw_quad({list_x, iy}, {4.0f * ui_scale, item_h - 2.0f * ui_scale},
+                           {0,0}, {1,1}, {1.0f, 0.8f, 0.2f, 1.0f});
 
-            // Selection cursor from sprite sheet
+            // Selection cursor arrow from sprite sheet
             if (game.ui_atlas) {
                 auto* cursor = game.ui_atlas->find_region("cursor_box");
                 if (cursor) {
                     batch.set_texture(game.ui_desc);
-                    draw_region_sized(batch, *cursor, list_x - 20.0f, iy + 4.0f, 16.0f, 18.0f);
+                    float csz = 24.0f * ui_scale;
+                    draw_region_sized(batch, *cursor, list_x - csz - 4.0f * ui_scale,
+                                    iy + (item_h - csz) * 0.5f, csz, csz);
                 }
             }
         }
 
         // Item icon
-        float icon_x = list_x + 6.0f;
-        float icon_y = iy + 6.0f;
-        float icon_sz = 24.0f;
+        float icon_x = list_x + 8.0f * ui_scale;
+        float icon_y = iy + 8.0f * ui_scale;
+        float icon_sz = 30.0f * ui_scale;
         if (game.ui_atlas && !di.icon_name.empty()) {
             auto* icon_r = game.ui_atlas->find_region(di.icon_name);
             if (icon_r) {
@@ -445,54 +457,53 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
         }
 
         // Item name
-        float name_x = icon_x + icon_sz + 8.0f;
-        float name_scale = 0.65f;
-        Vec4 name_col = selected ? Vec4{1.0f, 1.0f, 0.9f, 1.0f} : Vec4{0.9f, 0.85f, 0.75f, 1.0f};
-        text.draw_text(batch, game.font_desc, di.name, {name_x, iy + 4.0f},
+        float name_x = icon_x + icon_sz + 10.0f * ui_scale;
+        float name_scale = 0.8f * ui_scale;
+        Vec4 name_col = selected ? Vec4{1.0f, 1.0f, 0.9f, 1.0f} : Vec4{0.85f, 0.8f, 0.7f, 1.0f};
+        text.draw_text(batch, game.font_desc, di.name, {name_x, iy + 6.0f * ui_scale},
                        name_col, name_scale);
 
         // Quantity (for sell tab)
         if (di.quantity > 0) {
             std::string qty = "x" + std::to_string(di.quantity);
-            text.draw_text(batch, game.font_desc, qty, {name_x, iy + 18.0f},
-                           {0.7f, 0.7f, 0.65f, 0.9f}, 0.5f);
+            text.draw_text(batch, game.font_desc, qty, {name_x, iy + 24.0f * ui_scale},
+                           {0.7f, 0.7f, 0.65f, 0.9f}, 0.55f * ui_scale);
         }
 
         // Price (right-aligned)
         std::string price_str = std::to_string(di.price) + "G";
-        float price_scale = 0.6f;
+        float price_scale = 0.75f * ui_scale;
         auto price_sz = text.measure_text(price_str, price_scale);
-        float price_x = list_x + list_w - price_sz.x - 8.0f;
+        float price_x = list_x + list_w - price_sz.x - 10.0f * ui_scale;
         bool can_afford = (tab_ == 0) ? (game.gold >= di.price) : true;
         Vec4 price_col = can_afford ? Vec4{1.0f, 0.95f, 0.3f, 1.0f}
                                      : Vec4{0.8f, 0.3f, 0.3f, 1.0f};
-        text.draw_text(batch, game.font_desc, price_str, {price_x, iy + 8.0f},
+        text.draw_text(batch, game.font_desc, price_str, {price_x, iy + 12.0f * ui_scale},
                        price_col, price_scale);
     }
 
     // ── Scroll indicators ──
+    float arrow_sz = 14.0f * ui_scale;
     if (scroll_offset_ > 0) {
-        // Up arrow indicator
         if (game.ui_atlas) {
             auto* arr = game.ui_atlas->find_region("arrow_up");
             if (arr) {
                 batch.set_texture(game.ui_desc);
-                float ax = panel_x + panel_w - 30.0f;
-                draw_region_sized(batch, *arr, ax, list_y - 2.0f, 10.0f, 14.0f);
+                draw_region_sized(batch, *arr, panel_x + panel_w - 36.0f * ui_scale,
+                                list_y - 4.0f * ui_scale, arrow_sz, arrow_sz);
             }
         }
     }
     if (scroll_offset_ + VISIBLE_ITEMS < (int)display.size()) {
-        // Down arrow (flip UV)
         batch.set_texture(game.white_desc);
-        float ax = panel_x + panel_w - 28.0f;
-        float ay = list_y + VISIBLE_ITEMS * item_h - 10.0f;
-        batch.draw_quad({ax, ay}, {8.0f, 8.0f}, {0,0}, {1,1}, {0.9f, 0.8f, 0.5f, 0.8f});
+        float ax = panel_x + panel_w - 34.0f * ui_scale;
+        float ay = list_y + VISIBLE_ITEMS * item_h - arrow_sz;
+        batch.draw_quad({ax, ay}, {arrow_sz, arrow_sz}, {0,0}, {1,1}, {0.9f, 0.8f, 0.5f, 0.8f});
     }
 
     // ── Item description area ──
-    float desc_y = list_y + VISIBLE_ITEMS * item_h + 12.0f;
-    float desc_h = 52.0f;
+    float desc_y = list_y + VISIBLE_ITEMS * item_h + 14.0f * ui_scale;
+    float desc_h = 64.0f * ui_scale;
 
     // Description panel background
     if (game.ui_atlas) {
@@ -509,7 +520,6 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
         std::string desc = di.desc;
         if (desc.empty()) desc = di.name;
 
-        // Item stats line
         if (tab_ == 0 && selected_item_ < (int)shop_items_.size()) {
             auto& si = shop_items_[selected_item_];
             if (si.heal_hp > 0) desc += "  [Heal: " + std::to_string(si.heal_hp) + " HP]";
@@ -518,16 +528,17 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
         }
 
         text.draw_text_wrapped(batch, game.font_desc, desc,
-                               {list_x + 8.0f, desc_y + 8.0f}, list_w - 16.0f,
-                               {0.9f, 0.9f, 0.85f, 1.0f}, 0.55f);
+                               {list_x + 10.0f * ui_scale, desc_y + 10.0f * ui_scale},
+                               list_w - 20.0f * ui_scale,
+                               {0.9f, 0.9f, 0.85f, 1.0f}, 0.65f * ui_scale);
     }
 
     // ── Status message (bought/sold feedback) ──
     if (message_timer_ > 0.0f && !message_.empty()) {
-        float msg_scale = 0.6f;
+        float msg_scale = 0.7f * ui_scale;
         auto msg_sz = text.measure_text(message_, msg_scale);
         float msg_x = panel_x + (panel_w - msg_sz.x) * 0.5f;
-        float msg_y = panel_y + panel_h - 24.0f;
+        float msg_y = panel_y + panel_h - 28.0f * ui_scale;
         float alpha = std::min(1.0f, message_timer_);
         text.draw_text(batch, game.font_desc, message_, {msg_x, msg_y},
                        {0.3f, 1.0f, 0.3f, alpha}, msg_scale);
@@ -535,7 +546,7 @@ void MerchantUI::render(SpriteBatch& batch, TextRenderer& text, GameState& game,
 
     // ── Controls hint ──
     float hint_y = panel_y + panel_h + 8.0f;
-    float hint_scale = 0.45f;
+    float hint_scale = 0.55f * ui_scale;
     std::string hint = "[Up/Down] Select   [Z] ";
     hint += (tab_ == 0) ? "Buy" : "Sell";
     hint += "   [Left/Right] Tab   [X] Close";

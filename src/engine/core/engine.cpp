@@ -23,12 +23,12 @@ Engine::~Engine() {
 
 void Engine::init(const EngineConfig& config) {
 #ifndef __ANDROID__
-    platform_ = std::make_unique<PlatformDesktop>(config.title, config.width, config.height);
+    platform_ = std::make_unique<PlatformDesktop>(config.title, config.width, config.height, config.fullscreen);
     renderer_ = std::make_unique<Renderer>(*platform_, config.vsync);
     resources_ = std::make_unique<ResourceManager>(renderer_->vulkan_context());
 #endif
     running_ = true;
-    std::printf("[Engine] Initialized (%dx%d)\n", config.width, config.height);
+    std::printf("[Engine] Initialized (%dx%d)\n", platform_->get_width(), platform_->get_height());
 }
 
 void Engine::shutdown() {
