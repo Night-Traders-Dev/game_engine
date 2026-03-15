@@ -2137,27 +2137,158 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
 
 // ─── Render HUD ───
 
-static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text) {
-    float hx=10, hy=10, hw=200, hh=50;
+static void draw_ui_region(eb::SpriteBatch& batch, GameState& game,
+                            const char* name, float x, float y, float w, float h) {
+    if (game.ui_atlas) {
+        auto* r = game.ui_atlas->find_region(name);
+        if (r) {
+            batch.set_texture(game.ui_desc);
+            batch.draw_quad({x, y}, {w, h}, r->uv_min, r->uv_max);
+            return;
+        }
+    }
+    // Fallback: solid dark panel
     batch.set_texture(game.white_desc);
-    batch.draw_quad({hx,hy},{hw,hh},{0,0},{1,1},{0.03f,0.03f,0.10f,0.85f});
-    batch.draw_quad({hx,hy},{hw,2},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
-    batch.draw_quad({hx,hy+hh-2},{hw,2},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
-    batch.draw_quad({hx,hy},{2,hh},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
-    batch.draw_quad({hx+hw-2,hy},{2,hh},{0,0},{1,1},{0.5f,0.5f,0.7f,0.9f});
-    char ns[64]; std::snprintf(ns,sizeof(ns),"Mage  Lv.%d",game.player_level);
-    text.draw_text(batch,game.font_desc,ns,{hx+10,hy+6},{1,1,1,1},0.8f);
-    float hp_pct=std::max(0.0f,(float)game.player_hp/game.player_hp_max);
-    float bx=hx+10, by=hy+28, bw=130, bh=12;
+    batch.draw_quad({x, y}, {w, h}, {0,0}, {1,1}, {0.05f, 0.05f, 0.12f, 0.88f});
+}
+
+static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game,
+                          const char* name, float x, float y, float sz) {
+    if (!game.ui_atlas) return;
+    auto* r = game.ui_atlas->find_region(name);
+    if (r) {
+        batch.set_texture(game.ui_desc);
+        batch.draw_quad({x, y}, {sz, sz}, r->uv_min, r->uv_max);
+    }
+}
+
+static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text,
+                        float screen_w, float screen_h) {
+    // ── Player Stats Panel (top-left) ──
+    float hx = 8, hy = 8;
+    float hw = 220, hh = 58;
+    draw_ui_region(batch, game, "panel_hud_wide", hx, hy, hw, hh);
+
+    // Name + Level
+    char ns[64]; std::snprintf(ns, sizeof(ns), "Mage  Lv.%d", game.player_level);
+    text.draw_text(batch, game.font_desc, ns, {hx + 12, hy + 8}, {1, 1, 1, 1}, 0.75f);
+
+    // HP bar with heart icon
+    draw_ui_icon(batch, game, "icon_heart_red", hx + 10, hy + 28, 14);
+    float hp_pct = std::max(0.0f, (float)game.player_hp / game.player_hp_max);
+    float bx = hx + 28, by = hy + 30, bw = 120, bh = 10;
     batch.set_texture(game.white_desc);
-    batch.draw_quad({bx,by},{bw,bh},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
-    eb::Vec4 hc=hp_pct>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:hp_pct>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
-    batch.draw_quad({bx,by},{bw*hp_pct,bh},{0,0},{1,1},hc);
-    char hs[32]; std::snprintf(hs,sizeof(hs),"%d/%d",game.player_hp,game.player_hp_max);
-    text.draw_text(batch,game.font_desc,hs,{bx+bw+6,by-1},{1,1,1,1},0.6f);
-    // Gold
-    char gs[32]; std::snprintf(gs,sizeof(gs),"%dG",game.gold);
-    text.draw_text(batch,game.font_desc,gs,{hx+hw-50,hy+6},{1.0f,0.95f,0.3f,1},0.6f);
+    batch.draw_quad({bx, by}, {bw, bh}, {0,0}, {1,1}, {0.15f, 0.15f, 0.2f, 0.9f});
+    eb::Vec4 hc = hp_pct > 0.5f ? eb::Vec4{0.2f, 0.8f, 0.2f, 1}
+                : hp_pct > 0.25f ? eb::Vec4{0.9f, 0.7f, 0.1f, 1}
+                : eb::Vec4{0.9f, 0.2f, 0.2f, 1};
+    batch.draw_quad({bx, by}, {bw * hp_pct, bh}, {0,0}, {1,1}, hc);
+    char hs[32]; std::snprintf(hs, sizeof(hs), "%d/%d", game.player_hp, game.player_hp_max);
+    text.draw_text(batch, game.font_desc, hs, {bx + bw + 6, by - 1}, {1, 1, 1, 1}, 0.55f);
+
+    // Gold with coin icon
+    draw_ui_icon(batch, game, "icon_coin", hx + hw - 58, hy + 8, 14);
+    char gs[32]; std::snprintf(gs, sizeof(gs), "%d", game.gold);
+    text.draw_text(batch, game.font_desc, gs, {hx + hw - 42, hy + 9}, {1.0f, 0.95f, 0.3f, 1}, 0.6f);
+
+    // ── Time of Day Panel (top-right) ──
+    float tx = screen_w - 118, ty = 8, tw = 110, th = 52;
+    draw_ui_region(batch, game, "panel_hud_sq", tx, ty, tw, th);
+
+    // Clock display
+    int hour = (int)game.day_night.game_hours;
+    int minute = (int)((game.day_night.game_hours - hour) * 60.0f);
+    bool pm = hour >= 12;
+    int display_hour = hour % 12;
+    if (display_hour == 0) display_hour = 12;
+    char time_str[16];
+    std::snprintf(time_str, sizeof(time_str), "%d:%02d %s", display_hour, minute, pm ? "PM" : "AM");
+    text.draw_text(batch, game.font_desc, time_str, {tx + 10, ty + 8}, {1, 1, 0.9f, 1}, 0.75f);
+
+    // Day/night indicator
+    const char* period;
+    eb::Vec4 period_col;
+    if (hour >= 6 && hour < 10) { period = "Morning"; period_col = {1.0f, 0.85f, 0.4f, 1}; }
+    else if (hour >= 10 && hour < 16) { period = "Day"; period_col = {1.0f, 1.0f, 0.8f, 1}; }
+    else if (hour >= 16 && hour < 19) { period = "Evening"; period_col = {1.0f, 0.6f, 0.3f, 1}; }
+    else if (hour >= 19 && hour < 21) { period = "Dusk"; period_col = {0.7f, 0.5f, 0.8f, 1}; }
+    else { period = "Night"; period_col = {0.4f, 0.5f, 0.9f, 1}; }
+    text.draw_text(batch, game.font_desc, period, {tx + 10, ty + 28}, period_col, 0.55f);
+
+    // Sun/moon icon
+    draw_ui_icon(batch, game, (hour >= 6 && hour < 18) ? "icon_star" : "icon_gem_blue",
+                 tx + tw - 24, ty + 10, 16);
+
+    // ── Inventory Quick Bar (bottom-left) ──
+    if (!game.inventory.items.empty()) {
+        float ix = 8, iy_base = screen_h - 44;
+        float slot_w = 36, slot_h = 36, pad = 3;
+        int max_slots = std::min(6, (int)game.inventory.items.size());
+
+        // Background strip
+        float strip_w = max_slots * (slot_w + pad) + pad;
+        draw_ui_region(batch, game, "panel_dark", ix - 2, iy_base - 2, strip_w + 4, slot_h + 6);
+
+        for (int i = 0; i < max_slots; i++) {
+            auto& item = game.inventory.items[i];
+            float sx = ix + i * (slot_w + pad) + pad;
+
+            // Slot background
+            batch.set_texture(game.white_desc);
+            batch.draw_quad({sx, iy_base}, {slot_w, slot_h}, {0,0}, {1,1}, {0.1f, 0.1f, 0.18f, 0.8f});
+            batch.draw_quad({sx, iy_base}, {slot_w, 1}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.6f});
+            batch.draw_quad({sx, iy_base + slot_h - 1}, {slot_w, 1}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.6f});
+
+            // Item icon (pick based on type/element)
+            const char* icon_name = "icon_gem_blue";
+            if (item.damage > 0) icon_name = "icon_sword";
+            else if (item.heal_hp > 0) icon_name = "icon_potion";
+            else if (item.element == "fire") icon_name = "icon_heart_red";
+            else if (item.element == "holy") icon_name = "icon_star";
+            else if (item.element == "ice") icon_name = "icon_gem_green";
+            else if (item.element == "lightning") icon_name = "icon_ring";
+            draw_ui_icon(batch, game, icon_name, sx + 6, iy_base + 4, 20);
+
+            // Quantity badge
+            if (item.quantity > 1) {
+                char qty[8]; std::snprintf(qty, sizeof(qty), "%d", item.quantity);
+                text.draw_text(batch, game.font_desc, qty,
+                               {sx + slot_w - 12, iy_base + slot_h - 14},
+                               {1, 1, 1, 0.9f}, 0.45f);
+            }
+        }
+
+        // "..." if more items
+        if ((int)game.inventory.items.size() > max_slots) {
+            float dx = ix + max_slots * (slot_w + pad) + pad + 4;
+            text.draw_text(batch, game.font_desc, "...", {dx, iy_base + 12},
+                           {0.6f, 0.6f, 0.6f, 0.8f}, 0.5f);
+        }
+    }
+
+    // ── Survival Bars (below player panel, only if enabled) ──
+    if (game.survival.enabled) {
+        float sy = hy + hh + 4;
+        float bar_w = 60, bar_h = 6, bar_pad = 2;
+
+        // Hunger (orange)
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({hx, sy}, {bar_w, bar_h}, {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.7f});
+        float h_pct = game.survival.hunger / 100.0f;
+        batch.draw_quad({hx, sy}, {bar_w * h_pct, bar_h}, {0,0}, {1,1}, {0.85f, 0.55f, 0.15f, 0.9f});
+
+        // Thirst (blue)
+        float ty2 = sy + bar_h + bar_pad;
+        batch.draw_quad({hx, ty2}, {bar_w, bar_h}, {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.7f});
+        float t_pct = game.survival.thirst / 100.0f;
+        batch.draw_quad({hx, ty2}, {bar_w * t_pct, bar_h}, {0,0}, {1,1}, {0.2f, 0.5f, 0.9f, 0.9f});
+
+        // Energy (yellow)
+        float ey = ty2 + bar_h + bar_pad;
+        batch.draw_quad({hx, ey}, {bar_w, bar_h}, {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.7f});
+        float e_pct = game.survival.energy / 100.0f;
+        batch.draw_quad({hx, ey}, {bar_w * e_pct, bar_h}, {0,0}, {1,1}, {0.9f, 0.8f, 0.2f, 0.9f});
+    }
 }
 
 // ─── Render world ───
@@ -2277,7 +2408,7 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     }
 
     // HUD
-    render_hud(game, batch, text);
+    render_hud(game, batch, text, sw, sh);
 
     // Dialogue
     if (game.dialogue.is_active()) {

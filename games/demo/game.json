@@ -92,7 +92,8 @@
     "assets/scripts/skills.sage",
     "assets/scripts/elder.sage",
     "assets/scripts/merchant.sage",
-    "assets/scripts/debug_api.sage"
+    "assets/scripts/debug_api.sage",
+    "assets/scripts/day.sage"
   ],
 
   "init_scripts": [

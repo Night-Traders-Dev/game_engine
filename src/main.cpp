@@ -4,6 +4,7 @@
 #include "engine/audio/audio_engine.h"
 #include "engine/resource/game_manifest.h"
 #include "engine/core/debug_log.h"
+#include "engine/resource/file_io.h"
 
 #ifndef EB_ANDROID
 #include "editor/tile_editor.h"
@@ -15,6 +16,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
+#include <set>
 #include <sys/stat.h>
 
 int main(int /*argc*/, char* /*argv*/[]) {
@@ -63,9 +66,32 @@ int main(int /*argc*/, char* /*argv*/[]) {
         eb::ScriptEngine script_engine;
         script_engine.set_game_state(&game);
 
-        // Load scripts from manifest (data-driven)
-        for (const auto& script_path : manifest.scripts) {
-            script_engine.load_file(script_path);
+        // Auto-discover all .sage scripts in assets/scripts/ (recursive)
+        {
+            std::set<std::string> loaded_scripts;
+            namespace fs = std::filesystem;
+            try {
+                for (auto& entry : fs::recursive_directory_iterator("assets/scripts/")) {
+                    if (entry.is_regular_file() && entry.path().extension() == ".sage") {
+                        std::string p = entry.path().string();
+                        script_engine.load_file(p);
+                        loaded_scripts.insert(p);
+                    }
+                }
+                std::printf("[Scripts] Auto-loaded %d .sage files from assets/scripts/\n",
+                            (int)loaded_scripts.size());
+            } catch (...) {
+                // Fallback: filesystem scan failed, load from manifest list
+                for (const auto& sp : manifest.scripts) {
+                    if (loaded_scripts.find(sp) == loaded_scripts.end())
+                        script_engine.load_file(sp);
+                }
+            }
+            // Also load any manifest scripts not already found by scan
+            for (const auto& sp : manifest.scripts) {
+                if (loaded_scripts.find(sp) == loaded_scripts.end())
+                    script_engine.load_file(sp);
+            }
         }
         game.script_engine = &script_engine;
 
@@ -73,6 +99,39 @@ int main(int /*argc*/, char* /*argv*/[]) {
         for (const auto& init_func : manifest.init_scripts) {
             if (script_engine.has_function(init_func)) {
                 script_engine.call_function(init_func);
+            }
+        }
+
+        // Load and execute map scripts (auto-scan scripts/maps/ directory)
+        {
+            // Try loading the default map script
+            std::string default_map_script = "assets/scripts/maps/default.sage";
+            auto map_data = eb::FileIO::read_file(default_map_script);
+            if (!map_data.empty()) {
+                std::string src(map_data.begin(), map_data.end());
+                script_engine.execute(src);
+                if (script_engine.has_function("map_init")) {
+                    script_engine.call_function("map_init");
+                    std::printf("[Main] Executed map script: %s\n", default_map_script.c_str());
+                }
+            }
+            // Also try map script matching the default_map from manifest
+            if (!manifest.default_map.empty()) {
+                std::string name = manifest.default_map;
+                auto slash = name.rfind('/');
+                if (slash != std::string::npos) name = name.substr(slash + 1);
+                auto dot = name.rfind('.');
+                if (dot != std::string::npos) name = name.substr(0, dot);
+                std::string map_script = "assets/scripts/maps/" + name + ".sage";
+                auto ms_data = eb::FileIO::read_file(map_script);
+                if (!ms_data.empty()) {
+                    std::string src(ms_data.begin(), ms_data.end());
+                    script_engine.execute(src);
+                    if (script_engine.has_function("map_init")) {
+                        script_engine.call_function("map_init");
+                        std::printf("[Main] Executed map script: %s\n", map_script.c_str());
+                    }
+                }
             }
         }
 
