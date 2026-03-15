@@ -5,7 +5,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 ## Features
 
 - **Vulkan Renderer** — Sprite batching, Y-sorted rendering, texture atlases, animated tiles, fullscreen
-- **Cross-Platform** — Linux, Windows (cross-compile), Android (landscape, touch controls, editor overlay)
+- **Cross-Platform** — Linux, Windows (cross-compile), Android (landscape, touch controls with native-to-virtual coordinate mapping, editor overlay)
 - **Engine / Game Separation** — Games live in `games/<name>/` with a `game.json` manifest; engine is standalone
 - **Tile Map System** — Multi-layer maps, collision, portals, animated water/grass overlays
 - **Battle System** — Turn-based combat with rolling HP, party members, attack animations
@@ -20,9 +20,10 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Script-Driven UI** — Labels, progress bars, panels, images, and timed notifications created from SageLang scripts; any component property modifiable via `ui_set()`; `reload_all()` clears all script UI before re-executing
 - **Script-Driven Pause Menu** — Pause menu layout defined inline in `default.sage`; C++ handles dim overlay, show/hide on ESC, selection highlight, cursor movement, and mouse click support
 - **Script-Driven HUD** — Built-in C++ HUD panels OFF by default; all HUD layout defined inline in `default.sage`. C++ auto-syncs values each frame by well-known component IDs (HP bar auto-colors green/yellow/red, sun/moon icon auto-swaps by time)
-- **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends
+- **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; 9 scripting API functions (`play_music`, `stop_music`, `crossfade_music`, `play_sfx`, etc.) plus an event library (`lib/audio.sage`) for context-based music management
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
-- **SageLang Scripting** — 60+ API functions across 16 modules driving all game systems with hot reload; all engine-loaded scripts share a global environment (functions callable across files without imports)
+- **SageLang Scripting** — 70+ API functions across 17 modules driving all game systems with hot reload; all engine-loaded scripts share a global environment (functions callable across files without imports)
+- **Test Suite** — `--test` CLI flag runs 50+ assertions across 13 modules (Engine Core, Flags, Inventory, Gold, Stats, Day-Night, Survival, UI, HUD, NPC, Spawn, Audio, Map); also callable from the F4 debug console via `run_all_tests()`
 - **Map Scripting** — Visual Basic-style editor: every editor action (spawn NPC, place object, set portal) auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
@@ -169,6 +170,9 @@ set_hunger(get_hunger() + 40)
 # Build all platforms
 ./build.sh all
 
+# Run test suite (exit 0 = pass, exit 1 = fail)
+./build-linux/twilight_game_binary --test
+
 # Clean
 ./build.sh clean
 ```
@@ -193,13 +197,14 @@ set_hunger(get_hunger() + 40)
 
 ### Android
 
-| Input            | Action                          |
-|------------------|---------------------------------|
-| Left stick       | Move                            |
-| A button         | Talk / Confirm / Buy            |
-| B button         | Open Inventory / Cancel / Close |
-| Menu button      | Toggle Editor                   |
-| Back button      | Quit                            |
+| Input            | Action                                |
+|------------------|---------------------------------------|
+| Left stick       | Move                                  |
+| A button         | Talk / Confirm / Buy                  |
+| B button         | Open Inventory / Cancel / Close       |
+| Tap              | Left click (menus, shop, inventory)   |
+| Menu button      | Toggle Editor                         |
+| Back button      | Quit                                  |
 
 ## Project Structure
 
@@ -234,7 +239,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 60+ API functions)
+- SageLang (scripting — 70+ API functions)
 - tinyfiledialogs (native file dialogs, desktop only)
 
 ## License

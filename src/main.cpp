@@ -70,6 +70,8 @@ int main(int argc, char* argv[]) {
         // Set screen dimensions before scripts run (so hud_get("screen_w") works in map_init)
         game.hud.screen_w = (float)engine.platform().get_width();
         game.hud.screen_h = (float)engine.platform().get_height();
+        game.hud.native_w = game.hud.screen_w;
+        game.hud.native_h = game.hud.screen_h;
 
         // ─── SageLang scripting engine ───
         eb::ScriptEngine script_engine;

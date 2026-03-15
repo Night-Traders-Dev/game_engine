@@ -32,7 +32,8 @@
 28. [Map Scripting (Visual Basic Style)](#map-scripting-visual-basic-style)
 29. [Pause Menu](#pause-menu)
 30. [SageLang API Reference](#sagelang-api-reference)
-31. [Adding New Content](#adding-new-content)
+31. [Testing](#testing)
+32. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -1280,6 +1281,10 @@ Scaled dynamically based on screen DPI (scale = shorter_side / 720):
 
 Touch events arrive via `ALooper` before `poll_events()`. The `apply_to()` call copies touch state to input BEFORE `begin_frame()` clears pressed flags, ensuring button presses are not lost.
 
+### Touch-to-Mouse Mapping
+
+Touch events are mapped to mouse button events so that all game menus (pause, shop, inventory) respond to touch on Android. Native screen coordinates are converted to virtual coordinates for accurate menu hit detection.
+
 ---
 
 ## Adding New Content
@@ -1968,7 +1973,7 @@ Pressing **ESC** during gameplay opens a pause menu overlay. The pause menu layo
 
 ## SageLang API Reference
 
-Complete reference of all 60+ functions available in `.sage` scripts.
+Complete reference of all 70+ functions available in `.sage` scripts.
 
 ### Engine Core
 
@@ -2099,6 +2104,22 @@ Complete reference of all 60+ functions available in `.sage` scripts.
 | `set_collision` | `set_collision(tx, ty, type)` | Set collision (0=None, 1=Solid, 2=Portal) |
 | `set_tile` | `set_tile(layer, tx, ty, tile_id)` | Override a tile from script |
 
+### Audio
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `play_music` | `play_music(path, loop)` | Play background music |
+| `stop_music` | `stop_music()` | Stop music |
+| `pause_music` | `pause_music()` | Pause music |
+| `resume_music` | `resume_music()` | Resume music |
+| `set_music_volume` | `set_music_volume(vol)` | Set music volume (0.0-1.0) |
+| `set_master_volume` | `set_master_volume(vol)` | Set master volume (0.0-1.0) |
+| `play_sfx` | `play_sfx(path, vol)` | Play sound effect |
+| `crossfade_music` | `crossfade_music(path, duration, loop)` | Smooth music transition |
+| `is_music_playing` | `is_music_playing() → bool` | Check if music is playing |
+
+An audio event library is available at `assets/scripts/lib/audio.sage` providing context-based music management (e.g. `set_context("battle")`, `update_ambient()`, SFX helpers).
+
 ### Debug
 
 | Function | Signature | Description |
@@ -2140,4 +2161,47 @@ These globals are automatically synced before/after battle script calls:
 
 ---
 
-*Twilight Engine v0.9.1 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+## Testing
+
+### Running Tests
+
+```bash
+# From the command line (exit 0 = pass, exit 1 = fail)
+./build-linux/twilight_game_binary --test
+
+# From the F4 debug console at runtime
+run_all_tests()
+```
+
+The `--test` flag launches the engine, executes the test suite, and exits immediately with the appropriate exit code.
+
+### What's Tested
+
+The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests()` proc that runs 50+ assertions across 13 modules:
+
+| Module | Coverage |
+| ------ | -------- |
+| Engine Core | `log`, `str`, `random`, `clamp` |
+| Flags | `set_flag`, `get_flag` |
+| Inventory | `add_item`, `has_item`, `item_count`, `remove_item` |
+| Gold | `set_gold`, `get_gold` |
+| Stats | `set_skill`, `get_skill`, `get_skill_bonus` |
+| Day-Night | `set_time`, `get_hour`, `get_minute`, `is_day`, `is_night` |
+| Survival | `enable_survival`, `set_hunger/thirst/energy`, getters |
+| UI Components | `ui_label`, `ui_bar`, `ui_panel`, `ui_set`, `ui_remove` |
+| HUD Config | `hud_set`, `hud_get` |
+| NPC API | `spawn_npc` |
+| Spawn API | `set_spawn_area`, `set_spawn_callback` |
+| Audio API | `set_master_volume`, `set_music_volume`, `is_music_playing` |
+| Map API | `set_tile`, `set_collision`, `set_portal`, `remove_portal` |
+
+### Adding New Tests
+
+1. Open `assets/scripts/tests/test_all.sage`
+2. Add assertions using `assert_true(condition, "description")`
+3. Group related tests under a logged header: `info("=== Module Name ===")`
+4. The test runner counts passes/failures and reports a summary
+
+---
+
+*Twilight Engine v0.9.2 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

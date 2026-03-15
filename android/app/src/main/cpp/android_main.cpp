@@ -96,6 +96,8 @@ static bool init_all(AppState& state) {
         // Set screen dimensions before scripts run
         state.game.hud.screen_w = state.virtual_w;
         state.game.hud.screen_h = state.virtual_h;
+        state.game.hud.native_w = static_cast<float>(state.platform->get_width());
+        state.game.hud.native_h = static_cast<float>(state.platform->get_height());
 
         // SageLang scripting
         state.script_engine = std::make_unique<eb::ScriptEngine>();

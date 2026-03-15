@@ -1609,7 +1609,9 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
             game.pause_selection++;
 
         // Mouse hover and click — use script UI label positions
-        float mx = input.mouse.x, my = input.mouse.y;
+        // Convert native touch/mouse coords to UI virtual coords
+        float mx = input.mouse.x * (game.hud.screen_w / game.hud.native_w);
+        float my = input.mouse.y * (game.hud.screen_h / game.hud.native_h);
         for (int i = 0; i < 5; i++) {
             std::string item_id = "pause_item_" + std::to_string(i);
             for (auto& l : game.script_ui.labels) {

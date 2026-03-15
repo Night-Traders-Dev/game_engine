@@ -168,6 +168,8 @@ struct HUDConfig {
 
     // Screen dimensions (updated each frame by render_game_ui)
     float screen_w = 960, screen_h = 720;
+    // Native screen pixels (for touch coordinate conversion)
+    float native_w = 960, native_h = 720;
 
     // Global scale
     float scale = 1.5f;

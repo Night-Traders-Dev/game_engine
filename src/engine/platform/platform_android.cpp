@@ -159,10 +159,18 @@ void PlatformAndroid::process_touch(AInputEvent* event) {
     // Apply touch controls to input state
     touch_controls_.apply_to(input_);
 
-    // Also update mouse state from primary touch for compatibility
+    // Map primary touch to mouse state for UI compatibility
     if (AMotionEvent_getPointerCount(event) > 0) {
         input_.mouse.x = AMotionEvent_getX(event, 0);
         input_.mouse.y = AMotionEvent_getY(event, 0);
+    }
+    // Map touch down/up to left mouse button for menu clicks
+    if (action_masked == AMOTION_EVENT_ACTION_DOWN) {
+        input_.mouse.buttons[0] = true;
+        input_.mouse.buttons_pressed[0] = true;
+    } else if (action_masked == AMOTION_EVENT_ACTION_UP) {
+        input_.mouse.buttons[0] = false;
+        input_.mouse.buttons_released[0] = true;
     }
 }
 
