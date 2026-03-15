@@ -302,7 +302,7 @@ Features:
 ### Dialogue Files (`.dialogue`)
 
 Legacy format with labeled sections:
-```
+```sage
 @greeting
 Bobby: You idjits better be prepared.
 Bobby: Watch your back.

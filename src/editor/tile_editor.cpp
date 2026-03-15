@@ -155,7 +155,8 @@ void TileEditor::record_collision_change(int x, int y, CollisionType old_c, Coll
 
 void TileEditor::commit_action() {
     if (!action_in_progress_) return;
-    if (!current_action_.tile_changes.empty() || !current_action_.collision_changes.empty()) {
+    if (!current_action_.tile_changes.empty() || !current_action_.collision_changes.empty() ||
+        !current_action_.object_changes.empty()) {
         undo_stack_.push_back(std::move(current_action_));
         if ((int)undo_stack_.size() > MAX_UNDO) undo_stack_.erase(undo_stack_.begin());
         redo_stack_.clear();
@@ -170,6 +171,26 @@ void TileEditor::undo() {
         map_->set_tile(it->layer, it->x, it->y, it->old_tile);
     for (auto it = a.collision_changes.rbegin(); it != a.collision_changes.rend(); ++it)
         map_->set_collision_at(it->x, it->y, it->old_type);
+    // Undo object changes
+    if (game_state_) {
+        for (auto it = a.object_changes.rbegin(); it != a.object_changes.rend(); ++it) {
+            if (it->added) {
+                // Was added — remove it
+                auto& objs = game_state_->world_objects;
+                for (int i = (int)objs.size()-1; i >= 0; i--) {
+                    if (objs[i].sprite_id == it->obj_id &&
+                        std::abs(objs[i].position.x - it->x) < 1.0f &&
+                        std::abs(objs[i].position.y - it->y) < 1.0f) {
+                        objs.erase(objs.begin() + i);
+                        break;
+                    }
+                }
+            } else {
+                // Was removed — add it back
+                game_state_->world_objects.push_back({it->obj_id, {it->x, it->y}});
+            }
+        }
+    }
     redo_stack_.push_back(std::move(a)); undo_stack_.pop_back();
     set_status("Undo");
 }
@@ -179,11 +200,65 @@ void TileEditor::redo() {
     auto& a = redo_stack_.back();
     for (auto& tc : a.tile_changes) map_->set_tile(tc.layer, tc.x, tc.y, tc.new_tile);
     for (auto& cc : a.collision_changes) map_->set_collision_at(cc.x, cc.y, cc.new_type);
+    // Redo object changes
+    if (game_state_) {
+        for (auto& oc : a.object_changes) {
+            if (oc.added) {
+                game_state_->world_objects.push_back({oc.obj_id, {oc.x, oc.y}});
+            } else {
+                auto& objs = game_state_->world_objects;
+                for (int i = (int)objs.size()-1; i >= 0; i--) {
+                    if (objs[i].sprite_id == oc.obj_id &&
+                        std::abs(objs[i].position.x - oc.x) < 1.0f &&
+                        std::abs(objs[i].position.y - oc.y) < 1.0f) {
+                        objs.erase(objs.begin() + i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
     undo_stack_.push_back(std::move(a)); redo_stack_.pop_back();
     set_status("Redo");
 }
 
 // ── Update ──
+
+// Run zenity/kdialog directly via popen() to avoid forking our Vulkan process.
+// This is safer than fork() which inherits GPU state that can corrupt on exit.
+#ifdef __linux__
+static std::string run_zenity_dialog(bool save, const char* default_path) {
+    // Build zenity command
+    std::string cmd;
+    if (save) {
+        cmd = "zenity --file-selection --save --filename=\"";
+        cmd += default_path;
+        cmd += "\" --file-filter=\"Map Files | *.json\" 2>/dev/null";
+    } else {
+        cmd = "zenity --file-selection --filename=\"";
+        cmd += default_path;
+        cmd += "\" --file-filter=\"Map Files | *.json\" 2>/dev/null";
+    }
+
+    // Run via popen — zenity runs as a completely separate process
+    FILE* fp = popen(cmd.c_str(), "r");
+    if (!fp) return "";
+
+    char buf[4096] = {};
+    if (fgets(buf, sizeof(buf), fp)) {
+        // Strip trailing newline
+        size_t len = strlen(buf);
+        while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r')) buf[--len] = '\0';
+    }
+    int status = pclose(fp);
+
+    // zenity returns 0 on OK, 1 on cancel
+    if (status == 0 && buf[0] != '\0') {
+        return std::string(buf);
+    }
+    return "";
+}
+#endif
 
 void TileEditor::process_pending_dialog() {
 #ifndef EB_ANDROID
@@ -192,30 +267,41 @@ void TileEditor::process_pending_dialog() {
     PendingDialog action = pending_dialog_;
     pending_dialog_ = PendingDialog::None;
 
-    // Wait for GPU to finish all work before blocking the thread with a dialog.
-    // This prevents Vulkan semaphore/fence corruption.
+    // Drain GPU work before blocking
     if (renderer_) {
         renderer_->vulkan_context().wait_idle();
     }
 
+    std::string path;
+#ifdef __linux__
+    // Use zenity directly via popen() — completely separate process, no fork of Vulkan state
+    if (action == PendingDialog::Save) {
+        path = run_zenity_dialog(true, "assets/maps/current.json");
+    } else {
+        path = run_zenity_dialog(false, "assets/maps/");
+    }
+#else
+    // Windows/Mac — tinyfiledialogs works fine without fork
     const char* filters[] = {"*.json"};
     const char* result = nullptr;
-
     if (action == PendingDialog::Save) {
-        result = tinyfd_saveFileDialog(
-            "Save Map", "assets/maps/current.json", 1, filters, "Map Files");
-        if (result) {
-            std::string path(result);
+        result = tinyfd_saveFileDialog("Save Map", "assets/maps/current.json", 1, filters, "Map Files");
+    } else {
+        result = tinyfd_openFileDialog("Load Map", "assets/maps/", 1, filters, "Map Files", 0);
+    }
+    if (result) path = result;
+#endif
+
+    if (!path.empty()) {
+        if (action == PendingDialog::Save) {
             save_map_file(*game_state_, path.c_str()) ? set_status("Saved") : set_status("Failed!");
-        }
-    } else if (action == PendingDialog::Load) {
-        result = tinyfd_openFileDialog(
-            "Load Map", "assets/maps/", 1, filters, "Map Files", 0);
-        if (result) {
-            std::string path(result);
+        } else {
             load_map(path.c_str()) ? set_status("Loaded") : set_status("Failed!");
         }
     }
+
+    // Process accumulated window events
+    glfwPollEvents();
 #endif
 }
 
@@ -442,7 +528,11 @@ void TileEditor::handle_map_click(float mx, float my, const Camera& camera, bool
                     obj_id = (int)game_state_->object_defs.size() - 1;
                 }
                 if (obj_id >= 0) {
+                    begin_action("place " + stamp.name);
+                    current_action_.object_changes.push_back(
+                        {obj_id, world_pos.x, world_pos.y, true});
                     game_state_->world_objects.push_back({obj_id, world_pos});
+                    commit_action();
                     set_status("Placed: " + stamp.name);
                 }
             } else {
@@ -469,6 +559,43 @@ void TileEditor::handle_map_right_click(float mx, float my, const Camera& camera
     Vec2i tile = world_to_tile(world);
     if (tile.x == last_paint_tile_.x && tile.y == last_paint_tile_.y) return;
     last_paint_tile_ = tile;
+
+    // Try to delete a world object near the click first
+    if (game_state_) {
+        float ts = (float)map_->tile_size();
+        float click_x = world.x;
+        float click_y = world.y;
+        int best = -1;
+        float best_dist = 48.0f; // Max click distance to delete an object
+
+        for (int i = 0; i < (int)game_state_->world_objects.size(); i++) {
+            auto& obj = game_state_->world_objects[i];
+            auto& def = game_state_->object_defs[obj.sprite_id];
+            // Object center
+            float cx = obj.position.x;
+            float cy = obj.position.y - def.render_size.y * 0.5f;
+            float dx = click_x - cx;
+            float dy = click_y - cy;
+            float d = std::sqrt(dx*dx + dy*dy);
+            if (d < best_dist) {
+                best_dist = d;
+                best = i;
+            }
+        }
+
+        if (best >= 0) {
+            auto& obj = game_state_->world_objects[best];
+            begin_action("delete object");
+            current_action_.object_changes.push_back(
+                {obj.sprite_id, obj.position.x, obj.position.y, false});
+            game_state_->world_objects.erase(game_state_->world_objects.begin() + best);
+            commit_action();
+            set_status("Deleted object");
+            return;
+        }
+    }
+
+    // Otherwise erase tile
     erase_tile(tile.x, tile.y);
 }
 

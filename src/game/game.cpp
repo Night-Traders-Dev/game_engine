@@ -307,100 +307,113 @@ void define_tileset_regions(eb::TextureAtlas& atlas) {
     atlas.add_region(340, 680, 40, 30);   // 53: TILE_ROCK_WATER2
     atlas.add_region(400, 680, 50, 40);   // 54: TILE_ROCK_WATER3
 
-    // ── Object stamps (not tiles, but registered for palette display) ──
+    // ── Object stamps (precise bounding boxes from sprite detection) ──
     // Buildings
-    atlas.add_region(1007, 86, 157, 103); // 55: Gas Mart
-    atlas.add_region(1171, 86, 135, 103); // 56: Salvage Repair
+    atlas.add_region(1007, 92, 157, 97);  // 55: Gas Mart
+    atlas.add_region(1171, 97, 135, 92);  // 56: Salvage Repair
     atlas.add_region(1312, 86, 105, 103); // 57: Tall Building
-    atlas.add_region(1003, 200, 92, 100); // 58: Motel/House
-    atlas.add_region(1003, 310, 92, 40);  // 59: Dead End Sign
+    atlas.add_region(1107, 200, 142, 90); // 58: Motel
+    atlas.add_region(1251, 201, 162, 89); // 59: House
     // Vehicles
-    atlas.add_region(1110, 250, 90, 50);  // 60: Impala (parked)
-    atlas.add_region(1210, 250, 80, 50);  // 61: Red Car
-    atlas.add_region(1300, 250, 80, 50);  // 62: Blue Car
-    atlas.add_region(1090, 810, 200, 70); // 63: Impala (full side)
-    // Trees
-    atlas.add_region(580, 495, 72, 90);   // 64: Large Tree 1
-    atlas.add_region(660, 495, 65, 90);   // 65: Large Tree 2
-    atlas.add_region(735, 500, 50, 85);   // 66: Medium Tree
-    atlas.add_region(800, 495, 55, 95);   // 67: Dead Tree 1
-    atlas.add_region(860, 495, 60, 95);   // 68: Dead Tree 2
-    atlas.add_region(930, 498, 45, 92);   // 69: Dead Tree 3
-    atlas.add_region(580, 600, 60, 45);   // 70: Bush Large
-    atlas.add_region(650, 610, 35, 35);   // 71: Bush Small
-    atlas.add_region(700, 610, 35, 35);   // 72: Bush Dark
-    atlas.add_region(580, 660, 70, 70);   // 73: Night Tree
-    atlas.add_region(660, 670, 55, 50);   // 74: Night Bush
-    atlas.add_region(580, 740, 80, 50);   // 75: Dark Hedge
-    atlas.add_region(730, 660, 40, 35);   // 76: Rock Moss
-    atlas.add_region(780, 670, 30, 25);   // 77: Stump
-    // Misc Objects
-    atlas.add_region(1080, 498, 30, 45);  // 78: Tombstone 1
-    atlas.add_region(1115, 498, 30, 45);  // 79: Tombstone 2
-    atlas.add_region(1080, 548, 30, 40);  // 80: Tombstone 3
-    atlas.add_region(1170, 498, 35, 55);  // 81: Statue
-    atlas.add_region(1210, 498, 30, 40);  // 82: Urn
-    atlas.add_region(1250, 498, 40, 55);  // 83: Dark Statue
-    atlas.add_region(1320, 498, 25, 80);  // 84: Lamp Post
-    atlas.add_region(1365, 498, 25, 40);  // 85: Fire Hydrant
-    atlas.add_region(1085, 645, 95, 35);  // 86: Brick Wall 1
-    atlas.add_region(1085, 685, 95, 30);  // 87: Brick Wall 2
-    atlas.add_region(1205, 645, 85, 35);  // 88: Brick Wall 3
-    atlas.add_region(1320, 645, 80, 35);  // 89: Stone Wall
-    atlas.add_region(1085, 730, 75, 60);  // 90: Pentagram Circle
-    atlas.add_region(1195, 730, 55, 55);  // 91: Campfire
-    atlas.add_region(1320, 810, 30, 35);  // 92: Barrel 1
-    atlas.add_region(1360, 810, 30, 35);  // 93: Barrel 2
+    atlas.add_region(1109, 250, 140, 40); // 60: Dark Car / Impala
+    atlas.add_region(1253, 250, 160, 40); // 61: Blue Car
+    atlas.add_region(1086, 806, 202, 96); // 62: Impala (full side)
+    // Trees (precise bboxes)
+    atlas.add_region(590, 491, 85, 105);  // 63: Large Tree 1
+    atlas.add_region(695, 497, 98, 107);  // 64: Large Tree 2
+    atlas.add_region(819, 497, 86, 108);  // 65: Dead Tree 1
+    atlas.add_region(916, 511, 63, 97);   // 66: Dead Tree 2
+    atlas.add_region(990, 531, 56, 91);   // 67: Dead Tree 3
+    atlas.add_region(582, 623, 69, 83);   // 68: Gnarly Tree 1
+    atlas.add_region(673, 623, 68, 82);   // 69: Gnarly Tree 2
+    atlas.add_region(750, 621, 75, 76);   // 70: Spooky Tree
+    atlas.add_region(831, 630, 48, 45);   // 71: Bush 1
+    atlas.add_region(892, 640, 43, 38);   // 72: Bush 2
+    atlas.add_region(955, 642, 44, 40);   // 73: Bush 3
+    atlas.add_region(1005, 652, 45, 55);  // 74: Dark Bush
+    atlas.add_region(749, 718, 66, 66);   // 75: Night Tree
+    atlas.add_region(575, 724, 158, 61);  // 76: Dark Hedge Row
+    atlas.add_region(907, 734, 49, 45);   // 77: Rock/Moss 1
+    atlas.add_region(842, 698, 33, 33);   // 78: Stump 1
+    atlas.add_region(865, 743, 26, 25);   // 79: Stump 2
+    // Misc Objects (precise bboxes)
+    atlas.add_region(1083, 508, 26, 41);  // 80: Tombstone 1
+    atlas.add_region(1122, 508, 26, 41);  // 81: Tombstone 2
+    atlas.add_region(1251, 515, 40, 41);  // 82: Statue
+    atlas.add_region(1167, 522, 25, 34);  // 83: Urn
+    atlas.add_region(1208, 525, 27, 31);  // 84: Dark Urn
+    atlas.add_region(1317, 509, 26, 48);  // 85: Lamp Post Small
+    atlas.add_region(1362, 495, 28, 136); // 86: Lamp Post Tall
+    atlas.add_region(1077, 569, 74, 46);  // 87: Chest/Crate
+    atlas.add_region(1311, 577, 32, 54);  // 88: Pipe/Hydrant
+    atlas.add_region(1248, 581, 40, 35);  // 89: Stone Block
+    atlas.add_region(1169, 584, 60, 31);  // 90: Bench
+    atlas.add_region(1080, 640, 104, 66); // 91: Brick Wall 1
+    atlas.add_region(1202, 655, 89, 44);  // 92: Brick Wall 2
+    atlas.add_region(1316, 653, 87, 57);  // 93: Stone Wall
+    atlas.add_region(1081, 724, 82, 61);  // 94: Pentagram Circle
+    atlas.add_region(1193, 726, 122, 62); // 95: Campfire
+    atlas.add_region(1339, 724, 73, 66);  // 96: Well/Barrel Set
+    atlas.add_region(1272, 809, 53, 26);  // 97: Barrel 1
+    atlas.add_region(1347, 816, 59, 33);  // 98: Barrel 2
+    atlas.add_region(1314, 867, 41, 43);  // 99: Can 1
+    atlas.add_region(1369, 868, 48, 42);  // 100: Can 2
 }
 
 void define_object_stamps(GameState& game) {
-    // Object stamps reference atlas regions by index (0-based, but region 55+ are objects)
     auto add = [&](const char* name, int region, float pw, float ph, const char* cat) {
         game.object_stamps.push_back({name, region, 0, 0, pw, ph, cat});
     };
-    // Buildings (regions 55-59)
-    add("Gas Mart",       54, 140, 96, "building");
-    add("Salvage Repair", 55, 128, 96, "building");
-    add("Tall Building",  56, 96,  96, "building");
-    add("Motel/House",    57, 80,  90, "building");
-    add("Dead End Sign",  58, 80,  36, "building");
-    // Vehicles (regions 60-63)
-    add("Impala",         59, 80,  44, "vehicle");
-    add("Red Car",        60, 72,  44, "vehicle");
-    add("Blue Car",       61, 72,  44, "vehicle");
-    add("Impala (side)",  62, 180, 64, "vehicle");
-    // Trees (regions 64-77)
-    add("Large Tree 1",   63, 64,  80, "tree");
-    add("Large Tree 2",   64, 58,  80, "tree");
-    add("Medium Tree",    65, 44,  76, "tree");
-    add("Dead Tree 1",    66, 48,  86, "tree");
-    add("Dead Tree 2",    67, 52,  86, "tree");
-    add("Dead Tree 3",    68, 40,  82, "tree");
-    add("Bush Large",     69, 52,  40, "tree");
-    add("Bush Small",     70, 30,  30, "tree");
-    add("Bush Dark",      71, 30,  30, "tree");
-    add("Night Tree",     72, 60,  64, "tree");
-    add("Night Bush",     73, 48,  44, "tree");
-    add("Dark Hedge",     74, 72,  44, "tree");
-    add("Rock Moss",      75, 36,  30, "tree");
-    add("Stump",          76, 26,  22, "tree");
-    // Misc (regions 78-93)
-    add("Tombstone 1",    77, 26,  40, "misc");
-    add("Tombstone 2",    78, 26,  40, "misc");
-    add("Tombstone 3",    79, 26,  36, "misc");
-    add("Statue",         80, 30,  48, "misc");
-    add("Urn",            81, 26,  36, "misc");
-    add("Dark Statue",    82, 36,  48, "misc");
-    add("Lamp Post",      83, 22,  72, "misc");
-    add("Fire Hydrant",   84, 22,  36, "misc");
-    add("Brick Wall 1",   85, 86,  32, "misc");
-    add("Brick Wall 2",   86, 86,  26, "misc");
-    add("Brick Wall 3",   87, 76,  32, "misc");
-    add("Stone Wall",     88, 72,  32, "misc");
-    add("Pentagram",      89, 68,  54, "misc");
-    add("Campfire",       90, 48,  48, "misc");
-    add("Barrel 1",       91, 26,  30, "misc");
-    add("Barrel 2",       92, 26,  30, "misc");
+    // Buildings (regions 54-58)
+    add("Gas Mart",       54, 140, 86, "building");
+    add("Salvage Repair", 55, 120, 82, "building");
+    add("Tall Building",  56, 94,  92, "building");
+    add("Motel",          57, 128, 80, "building");
+    add("House",          58, 144, 80, "building");
+    // Vehicles (regions 59-61)
+    add("Impala",         59, 126, 36, "vehicle");
+    add("Blue Car",       60, 144, 36, "vehicle");
+    add("Impala (side)",  61, 180, 86, "vehicle");
+    // Trees (regions 62-78)
+    add("Large Tree 1",   62, 76,  94, "tree");
+    add("Large Tree 2",   63, 88,  96, "tree");
+    add("Dead Tree 1",    64, 76,  96, "tree");
+    add("Dead Tree 2",    65, 56,  86, "tree");
+    add("Dead Tree 3",    66, 50,  82, "tree");
+    add("Gnarly Tree 1",  67, 62,  74, "tree");
+    add("Gnarly Tree 2",  68, 60,  74, "tree");
+    add("Spooky Tree",    69, 68,  68, "tree");
+    add("Bush 1",         70, 43,  40, "tree");
+    add("Bush 2",         71, 38,  34, "tree");
+    add("Bush 3",         72, 40,  36, "tree");
+    add("Dark Bush",      73, 40,  50, "tree");
+    add("Night Tree",     74, 60,  60, "tree");
+    add("Dark Hedge Row", 75, 142, 55, "tree");
+    add("Rock/Moss",      76, 44,  40, "tree");
+    add("Stump 1",        77, 30,  30, "tree");
+    add("Stump 2",        78, 23,  22, "tree");
+    // Misc (regions 79-99)
+    add("Tombstone 1",    79, 23,  37, "misc");
+    add("Tombstone 2",    80, 23,  37, "misc");
+    add("Statue",         81, 36,  37, "misc");
+    add("Urn",            82, 22,  30, "misc");
+    add("Dark Urn",       83, 24,  28, "misc");
+    add("Lamp Post Small",84, 23,  43, "misc");
+    add("Lamp Post Tall", 85, 25,  122,"misc");
+    add("Chest/Crate",    86, 66,  41, "misc");
+    add("Pipe/Hydrant",   87, 28,  48, "misc");
+    add("Stone Block",    88, 36,  31, "misc");
+    add("Bench",          89, 54,  28, "misc");
+    add("Brick Wall 1",   90, 94,  60, "misc");
+    add("Brick Wall 2",   91, 80,  40, "misc");
+    add("Stone Wall",     92, 78,  51, "misc");
+    add("Pentagram",      93, 74,  55, "misc");
+    add("Campfire",       94, 110, 56, "misc");
+    add("Well/Barrels",   95, 66,  60, "misc");
+    add("Barrel 1",       96, 48,  23, "misc");
+    add("Barrel 2",       97, 53,  30, "misc");
+    add("Can 1",          98, 37,  39, "misc");
+    add("Can 2",          99, 43,  38, "misc");
 }
 
 void define_npc_atlas_regions(eb::TextureAtlas& atlas, int cw, int ch) {

@@ -59,8 +59,14 @@ struct EditorAction {
         int x, y;
         CollisionType old_type, new_type;
     };
+    struct ObjectChange {
+        int obj_id;       // sprite_id
+        float x, y;       // position
+        bool added;        // true = added, false = removed
+    };
     std::vector<TileChange> tile_changes;
     std::vector<CollisionChange> collision_changes;
+    std::vector<ObjectChange> object_changes;
     std::string description;
 };
 

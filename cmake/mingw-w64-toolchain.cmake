@@ -10,3 +10,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+# Statically link MinGW runtime libraries so the .exe runs without DLLs
+set(CMAKE_C_FLAGS_INIT "-static-libgcc")
+set(CMAKE_CXX_FLAGS_INIT "-static-libgcc -static-libstdc++")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-static-libgcc -static-libstdc++ -static -lpthread")
