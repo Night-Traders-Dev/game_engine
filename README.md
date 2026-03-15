@@ -17,12 +17,12 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **NPC Interactions** — Proximity-triggered callbacks between NPCs, face-each-other, meet events
 - **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, and callbacks via `set_spawn_callback()` for auto-configuring spawned NPCs
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
-- **Script-Driven UI** — Labels, progress bars, panels, images, and timed notifications created from SageLang scripts; any component property modifiable via `ui_set()`
-- **Pause Menu** — ESC opens an in-game pause menu (Resume, Editor Mode, Reset, Settings, Quit) using UI sprite sheet panels and buttons
-- **HUD System** — Pixel art panels from UI sprite sheet: player stats with HP bar, time-of-day clock (12-hour AM/PM with day period), inventory quick-bar with item use, survival bars. All dimensions script-controllable via `hud_set()`/`hud_get()`
+- **Script-Driven UI** — Labels, progress bars, panels, images, and timed notifications created from SageLang scripts; any component property modifiable via `ui_set()`; `reload_all()` clears all script UI before re-executing
+- **Script-Driven Pause Menu** — Pause menu layout defined in `default.sage` via the HUD library; C++ handles dim overlay, show/hide on ESC, selection highlight, cursor movement, and mouse click support
+- **Script-Driven HUD** — Built-in C++ HUD panels OFF by default; all HUD layout defined in `default.sage` using the `hud` library. C++ auto-syncs values each frame by well-known component IDs (HP bar auto-colors green/yellow/red, sun/moon icon auto-swaps by time)
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
-- **SageLang Scripting** — 60+ API functions across 16 modules driving all game systems with hot reload
+- **SageLang Scripting** — 60+ API functions across 16 modules driving all game systems with hot reload; native `import` system with three styles (`import mod`, `from mod import fn`, `import mod as alias`)
 - **Map Scripting** — Visual Basic-style editor: every editor action (spawn NPC, place object, set portal) auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
@@ -94,6 +94,18 @@ if is_night():
 hud_set("scale", 2.0)
 hud_set("show_survival", true)
 hud_set("inv_max_slots", 10)
+```
+
+### Import System
+
+```sage
+# Three import styles
+import hud                              # then hud.setup_player_panel(...)
+from hud import setup_player_panel      # use setup_player_panel(...) directly
+import hud as ui                        # then ui.setup_player_panel(...)
+
+# Search paths: scripts/, scripts/lib/, scripts/battle/,
+#               scripts/inventory/, scripts/maps/
 ```
 
 ### UI Components
@@ -201,6 +213,7 @@ games/
     game.json                # Game manifest (player, party, NPCs, scripts, audio)
     assets/
       scripts/               # SageLang game logic (.sage)
+        lib/                 # Reusable script libraries (imported via `import`)
         maps/                # Auto-generated map scripts (companion to .json maps)
         battle/              # Battle scripts
         inventory/           # Item usage scripts

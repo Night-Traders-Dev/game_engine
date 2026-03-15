@@ -1608,32 +1608,25 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         if (input.is_pressed(eb::InputAction::MoveDown) && game.pause_selection < 4)
             game.pause_selection++;
 
-        // Mouse hover and click on menu items
-        float S = game.hud.scale;
-        float menu_w = 220 * S, menu_h = 300 * S;
-        float sw = game.hud.screen_w;
-        float sh = game.hud.screen_h;
-        float menu_x = (sw - menu_w) * 0.5f;
-        float menu_y = (sh - menu_h) * 0.5f;
-        float item_h = 38 * S;
-        float item_y_start = menu_y + 60 * S;
-        float item_w = menu_w - 40 * S;
-        float item_x = menu_x + 20 * S;
-        float item_gap = item_h + 6 * S;
-
+        // Mouse hover and click — use script UI label positions
         float mx = input.mouse.x, my = input.mouse.y;
         for (int i = 0; i < 5; i++) {
-            float iy = item_y_start + i * item_gap;
-            if (mx >= item_x && mx <= item_x + item_w &&
-                my >= iy && my <= iy + item_h) {
-                game.pause_selection = i;
-                if (input.mouse.is_pressed(eb::MouseButton::Left)) {
-                    switch (i) {
-                        case 0: game.paused = false; break;
-                        case 1: game.paused = false; game.pause_request_editor = true; break;
-                        case 2: game.pause_request_reset = true; game.paused = false; break;
-                        case 3: break;
-                        case 4: game.pause_request_quit = true; break;
+            std::string item_id = "pause_item_" + std::to_string(i);
+            for (auto& l : game.script_ui.labels) {
+                if (l.id != item_id) continue;
+                // Hit test: generous area around the label
+                float hit_w = 180, hit_h = 30;
+                float lx = l.position.x - 20, ly = l.position.y - 4;
+                if (mx >= lx && mx <= lx + hit_w && my >= ly && my <= ly + hit_h) {
+                    game.pause_selection = i;
+                    if (input.mouse.is_pressed(eb::MouseButton::Left)) {
+                        switch (i) {
+                            case 0: game.paused = false; break;
+                            case 1: game.paused = false; game.pause_request_editor = true; break;
+                            case 2: game.pause_request_reset = true; game.paused = false; break;
+                            case 3: break;
+                            case 4: game.pause_request_quit = true; break;
+                        }
                     }
                 }
                 break;
@@ -2824,6 +2817,119 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     batch.flush();
 }
 
+// ─── Sync game state → script UI components each frame ───
+static void sync_hud_values(GameState& game) {
+    auto find_label = [&](const std::string& id) -> ScriptUILabel* {
+        for (auto& l : game.script_ui.labels) if (l.id == id) return &l;
+        return nullptr;
+    };
+    auto find_bar = [&](const std::string& id) -> ScriptUIBar* {
+        for (auto& b : game.script_ui.bars) if (b.id == id) return &b;
+        return nullptr;
+    };
+    auto find_image = [&](const std::string& id) -> ScriptUIImage* {
+        for (auto& img : game.script_ui.images) if (img.id == id) return &img;
+        return nullptr;
+    };
+
+    // Player HP
+    if (auto* b = find_bar("hud_hp")) { b->value = (float)game.player_hp; b->max_value = (float)game.player_hp_max; }
+    if (auto* l = find_label("hud_hp_text")) {
+        char s[32]; std::snprintf(s, sizeof(s), "%d/%d", game.player_hp, game.player_hp_max);
+        l->text = s;
+    }
+
+    // Player name/level
+    if (auto* l = find_label("hud_name")) {
+        char s[64]; std::snprintf(s, sizeof(s), "Mage  Lv.%d", game.player_level);
+        l->text = s;
+    }
+
+    // Gold
+    if (auto* l = find_label("hud_gold")) { l->text = std::to_string(game.gold); }
+
+    // Time
+    if (auto* l = find_label("hud_time")) {
+        int hour = (int)game.day_night.game_hours;
+        int minute = (int)((game.day_night.game_hours - hour) * 60.0f);
+        bool pm = hour >= 12;
+        int dh = hour % 12; if (dh == 0) dh = 12;
+        char s[16]; std::snprintf(s, sizeof(s), "%d:%02d %s", dh, minute, pm ? "PM" : "AM");
+        l->text = s;
+    }
+    if (auto* l = find_label("hud_period")) {
+        int hour = (int)game.day_night.game_hours;
+        if (hour >= 6 && hour < 10)       { l->text = "Morning"; l->color = {1.0f, 0.85f, 0.4f, 1}; }
+        else if (hour >= 10 && hour < 16)  { l->text = "Day";     l->color = {1.0f, 1.0f, 0.8f, 1}; }
+        else if (hour >= 16 && hour < 19)  { l->text = "Evening"; l->color = {1.0f, 0.6f, 0.3f, 1}; }
+        else if (hour >= 19 && hour < 21)  { l->text = "Dusk";    l->color = {0.7f, 0.5f, 0.8f, 1}; }
+        else                               { l->text = "Night";   l->color = {0.4f, 0.5f, 0.9f, 1}; }
+    }
+
+    // Survival
+    if (game.survival.enabled) {
+        if (auto* b = find_bar("hud_hunger")) { b->value = game.survival.hunger; }
+        if (auto* b = find_bar("hud_thirst")) { b->value = game.survival.thirst; }
+        if (auto* b = find_bar("hud_energy")) { b->value = game.survival.energy; }
+    }
+
+    // Sun/moon icon swap
+    if (auto* img = find_image("hud_sun")) {
+        int hour = (int)game.day_night.game_hours;
+        img->icon_name = (hour >= 6 && hour < 18) ? "icon_star" : "icon_gem_blue";
+    }
+
+    // HP bar color (green → yellow → red)
+    if (auto* b = find_bar("hud_hp")) {
+        float pct = b->max_value > 0 ? b->value / b->max_value : 0;
+        if (pct > 0.5f) b->color = {0.2f, 0.8f, 0.2f, 1};
+        else if (pct > 0.25f) b->color = {0.9f, 0.7f, 0.1f, 1};
+        else b->color = {0.9f, 0.2f, 0.2f, 1};
+    }
+
+    // ── Pause menu sync ──
+    auto set_vis = [&](const std::string& id, bool vis) {
+        for (auto& l : game.script_ui.labels) if (l.id == id) { l.visible = vis; return; }
+        for (auto& p : game.script_ui.panels) if (p.id == id) { p.visible = vis; return; }
+        for (auto& img : game.script_ui.images) if (img.id == id) { img.visible = vis; return; }
+    };
+
+    bool paused = game.paused;
+    set_vis("pause_bg", paused);
+    set_vis("pause_title", paused);
+    set_vis("pause_cursor", paused);
+    for (int i = 0; i < 5; i++) {
+        std::string item_id = "pause_item_" + std::to_string(i);
+        set_vis(item_id, paused);
+
+        // Highlight selected item
+        if (auto* l = find_label(item_id)) {
+            if (i == game.pause_selection && paused) {
+                l->color = {1.0f, 1.0f, 0.9f, 1.0f};
+            } else {
+                l->color = {0.85f, 0.82f, 0.75f, 1.0f};
+            }
+        }
+    }
+
+    // Move pause cursor to selected item
+    if (paused) {
+        for (auto& img : game.script_ui.images) {
+            if (img.id == "pause_cursor") {
+                // Match the Y position of the selected item label
+                std::string sel_id = "pause_item_" + std::to_string(game.pause_selection);
+                for (auto& l : game.script_ui.labels) {
+                    if (l.id == sel_id) {
+                        img.position.y = l.position.y;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
 // ─── Render UI overlay ───
 
 void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text,
@@ -2831,6 +2937,9 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     batch.set_projection(screen_proj);
     game.hud.screen_w = sw;
     game.hud.screen_h = sh;
+
+    // Sync game values into script UI components
+    sync_hud_values(game);
 
     // Day-night tint overlay (drawn first, under HUD)
     auto& tint = game.day_night.current_tint;
@@ -2942,68 +3051,9 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
                        {nx, ny}, {1, 1, 1, alpha}, ns);
     }
 
-    // ── Pause Menu ──
+    // ── Pause Menu (dim overlay only — layout is script-driven) ──
     if (game.paused) {
-        // Dim overlay
         batch.set_texture(game.white_desc);
         batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0, 0, 0, 0.65f});
-
-        // Menu panel
-        float S = game.hud.scale;
-        float menu_w = 220 * S, menu_h = 300 * S;
-        float menu_x = (sw - menu_w) * 0.5f;
-        float menu_y = (sh - menu_h) * 0.5f;
-        draw_ui_region(batch, game, "panel_large", menu_x, menu_y, menu_w, menu_h);
-
-        // Title
-        float title_scale = 1.2f * S;
-        const char* title = "PAUSED";
-        auto tsz = text.measure_text(title, title_scale);
-        text.draw_text(batch, game.font_desc, title,
-                       {menu_x + (menu_w - tsz.x) * 0.5f, menu_y + 16 * S},
-                       {1.0f, 0.9f, 0.5f, 1}, title_scale);
-
-        // Menu items
-        const char* items[] = {"Resume Game", "Editor Mode", "Reset", "Settings", "Quit"};
-        float item_h = 38 * S;
-        float item_y = menu_y + 60 * S;
-        float item_w = menu_w - 40 * S;
-        float item_x = menu_x + 20 * S;
-
-        for (int i = 0; i < 5; i++) {
-            float iy = item_y + i * (item_h + 6 * S);
-            bool selected = (i == game.pause_selection);
-
-            // Button background
-            draw_ui_region(batch, game, "btn_xlarge", item_x, iy, item_w, item_h);
-
-            // Selection highlight
-            if (selected) {
-                batch.set_texture(game.white_desc);
-                batch.draw_quad({item_x, iy}, {item_w, item_h}, {0,0}, {1,1},
-                               {1.0f, 0.9f, 0.3f, 0.2f});
-                // Left accent
-                batch.draw_quad({item_x, iy}, {4 * S, item_h}, {0,0}, {1,1},
-                               {1.0f, 0.85f, 0.2f, 0.9f});
-                // Cursor
-                draw_ui_icon(batch, game, "cursor_box", item_x - 20 * S, iy + (item_h - 16*S)*0.5f, 16 * S);
-            }
-
-            // Text
-            float ts2 = 0.85f * S;
-            auto isz = text.measure_text(items[i], ts2);
-            eb::Vec4 tc = selected ? eb::Vec4{1, 1, 0.9f, 1} : eb::Vec4{0.8f, 0.78f, 0.72f, 1};
-            text.draw_text(batch, game.font_desc, items[i],
-                           {item_x + (item_w - isz.x) * 0.5f, iy + (item_h - isz.y) * 0.5f},
-                           tc, ts2);
-        }
-
-        // Hint
-        float hint_scale = 0.5f * S;
-        const char* hint = "[Up/Down] Select   [Z] Confirm   [ESC] Resume";
-        auto hsz = text.measure_text(hint, hint_scale);
-        text.draw_text(batch, game.font_desc, hint,
-                       {menu_x + (menu_w - hsz.x) * 0.5f, menu_y + menu_h - 20 * S},
-                       {0.5f, 0.5f, 0.5f, 0.7f}, hint_scale);
     }
 }

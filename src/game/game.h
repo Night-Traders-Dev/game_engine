@@ -172,12 +172,12 @@ struct HUDConfig {
     // Global scale
     float scale = 1.5f;
 
-    // Visibility
-    bool show_player = true;
-    bool show_time = true;
-    bool show_inventory = true;
-    bool show_survival = true;
-    bool show_minimap = true;
+    // Visibility (default off — HUD defined in default.sage via script UI)
+    bool show_player = false;
+    bool show_time = false;
+    bool show_inventory = true;  // Inventory bar still C++ (interactive)
+    bool show_survival = false;
+    bool show_minimap = true;    // Minimap still C++ (complex rendering)
 
     // Inventory selection (overworld item use)
     bool inv_open = false;      // Item bar is in selection mode

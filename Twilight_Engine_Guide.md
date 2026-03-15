@@ -17,21 +17,22 @@
 13. [Dialogue System](#dialogue-system)
 14. [NPC & AI System](#npc--ai-system)
 15. [Scripting with SageLang](#scripting-with-sagelang)
-16. [Tile Editor](#tile-editor)
-17. [Map File Format](#map-file-format)
-18. [Asset Pipeline](#asset-pipeline)
-19. [Android Platform](#android-platform)
-20. [Day-Night Cycle](#day-night-cycle)
-21. [NPC Pathfinding & Routes](#npc-pathfinding--routes)
-22. [NPC Schedules & Interactions](#npc-schedules--interactions)
-23. [Spawn System](#spawn-system)
-24. [Survival System](#survival-system)
-25. [Script-Driven UI](#script-driven-ui)
-26. [Shop System](#shop-system)
-27. [Map Scripting (Visual Basic Style)](#map-scripting-visual-basic-style)
-28. [Pause Menu](#pause-menu)
-29. [SageLang API Reference](#sagelang-api-reference)
-30. [Adding New Content](#adding-new-content)
+16. [Module & Import System](#module--import-system)
+17. [Tile Editor](#tile-editor)
+18. [Map File Format](#map-file-format)
+19. [Asset Pipeline](#asset-pipeline)
+20. [Android Platform](#android-platform)
+21. [Day-Night Cycle](#day-night-cycle)
+22. [NPC Pathfinding & Routes](#npc-pathfinding--routes)
+23. [NPC Schedules & Interactions](#npc-schedules--interactions)
+24. [Spawn System](#spawn-system)
+25. [Survival System](#survival-system)
+26. [Script-Driven UI](#script-driven-ui)
+27. [Shop System](#shop-system)
+28. [Map Scripting (Visual Basic Style)](#map-scripting-visual-basic-style)
+29. [Pause Menu](#pause-menu)
+30. [SageLang API Reference](#sagelang-api-reference)
+31. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -949,6 +950,76 @@ script_engine.sync_battle_from_script(); // Pull SageLang globals → C++ state
 
 ---
 
+## Module & Import System
+
+SageLang's native `import` system is wired into the engine, enabling modular script organization and reusable libraries.
+
+### Search Paths
+
+When a script uses `import`, the engine searches these directories (relative to the game's asset root):
+
+1. `assets/scripts/`
+2. `assets/scripts/lib/`
+3. `assets/scripts/battle/`
+4. `assets/scripts/inventory/`
+5. `assets/scripts/maps/`
+
+### Import Styles
+
+SageLang supports three import styles:
+
+```sage
+# Style 1: Module import — access functions via module prefix
+import hud
+hud.setup_player_panel(8, 8, 280, 72)
+
+# Style 2: Selective import — use functions directly
+from hud import setup_player_panel
+setup_player_panel(8, 8, 280, 72)
+
+# Style 3: Aliased import — rename the module prefix
+import hud as ui
+ui.setup_player_panel(8, 8, 280, 72)
+```
+
+### Creating a Library
+
+Place `.sage` files in `assets/scripts/lib/` to make them importable by any script.
+
+#### HUD Library (`assets/scripts/lib/hud.sage`)
+
+A reusable library with UI builder functions for common HUD elements:
+
+| Function | Description |
+|----------|-------------|
+| `setup_player_panel(x, y, w, h)` | Player stats panel: name, HP bar, gold display |
+| `setup_time_panel(x, y, w, h)` | Clock panel: time, day period, sun/moon icon |
+| `setup_survival_bars(x, y, w, h, gap)` | Hunger, thirst, and energy progress bars |
+| `setup_pause_menu(cx, cy, w, spacing)` | Centered pause menu with 5 items |
+| `setup_quest_tracker(x, y, text)` | Quest panel with book icon and text |
+
+#### Example: Building a HUD with Imports
+
+```sage
+# default.sage — game startup script
+import hud
+
+proc on_init():
+    # Player stats (top-left)
+    hud.setup_player_panel(8, 8, 280, 72)
+
+    # Clock (top-right)
+    hud.setup_time_panel(780, 8, 140, 64)
+
+    # Survival bars (below player panel)
+    hud.setup_survival_bars(8, 88, 80, 8, 4)
+
+    # Pause menu (centered, hidden until ESC)
+    hud.setup_pause_menu(480, 360, 200, 40)
+```
+
+---
+
 ## Tile Editor
 
 ### Activation
@@ -1543,7 +1614,7 @@ proc use_bread():
 
 ## Script-Driven UI
 
-Scripts can create overlay UI elements: labels, progress bars, and timed notifications.
+Scripts can create overlay UI elements: labels, progress bars, panels, images, and timed notifications. `reload_all()` clears all script UI components (labels, bars, panels, images) before re-executing, so Save & Reload properly removes deleted components and re-runs `map_init()` after reload.
 
 ### Labels
 
@@ -1636,11 +1707,30 @@ ui_set("quest_text", "text", "Find the Crystal")
 ui_set("quest_bg", "visible", false)  # Hide quest tracker
 ```
 
-### HUD Configuration
+### Script-Driven HUD
 
-The built-in HUD (player stats, time, inventory bar, survival bars) uses pixel art panels from the UI sprite sheet. All dimensions are controllable via SageLang.
+The built-in C++ HUD panels (player stats, time) are **OFF by default**. All HUD layout is now defined in `default.sage` using the `hud` library (see [Module & Import System](#module--import-system)).
 
-#### HUD Properties
+C++ auto-syncs values each frame by **well-known component IDs**:
+
+| Component ID | Auto-Synced Value |
+|--------------|-------------------|
+| `hud_hp` | HP bar value (auto-colors green / yellow / red) |
+| `hud_hp_text` | HP text (e.g., "85 / 100") |
+| `hud_name` | Player name |
+| `hud_gold` | Gold amount |
+| `hud_time` | Clock text (12-hour AM/PM) |
+| `hud_period` | Day period text (Dawn, Day, Sunset, etc.) |
+| `hud_sun` | Sun/moon icon (auto-swaps by time of day) |
+| `hud_hunger` | Hunger bar value |
+| `hud_thirst` | Thirst bar value |
+| `hud_energy` | Energy bar value |
+
+Edit positions and sizes in `default.sage`, then Save & Reload to see changes instantly.
+
+#### Legacy HUD Properties
+
+The legacy `hud_set()`/`hud_get()` API is still available for the built-in C++ HUD panels when enabled:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -1656,8 +1746,8 @@ The built-in HUD (player stats, time, inventory bar, survival bars) uses pixel a
 | `inv_max_slots` | number | 8 | Max visible inventory slots |
 | `inv_y_offset` | number | 54 | Distance from bottom edge |
 | `surv_bar_w`, `surv_bar_h` | number | 80, 8 | Survival bar base size |
-| `show_player` | bool | true | Show/hide player panel |
-| `show_time` | bool | true | Show/hide time panel |
+| `show_player` | bool | false | Show/hide built-in player panel |
+| `show_time` | bool | false | Show/hide built-in time panel |
 | `show_inventory` | bool | true | Show/hide inventory bar |
 | `show_survival` | bool | true | Show/hide survival bars |
 
@@ -1835,17 +1925,24 @@ When you save a map (File > Save), the companion `.sage` script is saved alongsi
 
 ## Pause Menu
 
-Pressing **ESC** during gameplay opens a pause menu overlay instead of quitting. The menu is rendered using UI sprite sheet panels and buttons.
+Pressing **ESC** during gameplay opens a pause menu overlay. The pause menu layout is now **script-driven** -- defined in `default.sage` via the `hud` library's `setup_pause_menu()` function.
+
+### How It Works
+
+- **Layout** is defined in `default.sage` using `hud.setup_pause_menu(cx, cy, w, spacing)`
+- **C++ handles**: dim overlay, show/hide on ESC, selection highlight, cursor movement, mouse click support
+- Components use well-known IDs: `pause_bg`, `pause_title`, `pause_item_0..4`, `pause_cursor`
+- Mouse click support reads positions from script UI components
 
 ### Menu Items
 
-| Item | Action |
-|------|--------|
-| Resume Game | Close the pause menu and return to gameplay |
-| Editor Mode | Open the tile editor (same as Tab) |
-| Reset | Reset the current game state |
-| Settings | Open settings |
-| Quit | Exit the game |
+| Item | ID | Action |
+|------|----|--------|
+| Resume Game | `pause_item_0` | Close the pause menu and return to gameplay |
+| Editor Mode | `pause_item_1` | Open the tile editor (same as Tab) |
+| Reset | `pause_item_2` | Reset the current game state |
+| Settings | `pause_item_3` | Open settings |
+| Quit | `pause_item_4` | Exit the game |
 
 ### ESC Behavior
 
@@ -2029,4 +2126,4 @@ These globals are automatically synced before/after battle script calls:
 
 ---
 
-*Twilight Engine v0.8.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v0.9.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

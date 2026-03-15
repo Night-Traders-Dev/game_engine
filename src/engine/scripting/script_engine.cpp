@@ -1008,8 +1008,18 @@ static Value native_set_tile(int argc, Value* args) {
 ScriptEngine::ScriptEngine() {
     gc_init();
     init_module_system();
+    // Add script search paths for imports
+    if (global_module_cache) {
+        add_search_path(global_module_cache, "assets/scripts");
+        add_search_path(global_module_cache, "assets/scripts/lib");
+        add_search_path(global_module_cache, "assets/scripts/battle");
+        add_search_path(global_module_cache, "assets/scripts/inventory");
+        add_search_path(global_module_cache, "assets/scripts/maps");
+        add_search_path(global_module_cache, ".");
+    }
     env_ = env_create(nullptr);
     if (env_) {
+        g_global_env = env_;  // Set global env for module imports
         init_stdlib(env_);
         register_engine_api();
         register_battle_api();
