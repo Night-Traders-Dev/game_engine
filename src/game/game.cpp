@@ -983,6 +983,54 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
                     game.tileset_atlas->add_region(c * tile_sz, r * tile_sz, tile_sz, tile_sz);
             game.tileset_desc = renderer.get_texture_descriptor(*tileset_tex);
             std::printf("[Game] Tileset: %s (%dx%d, %d tiles)\n", manifest.tileset_path.c_str(), tw, th, cols*rows);
+
+            // Load object stamps from stamps file (if exists alongside tileset)
+            std::string stamps_path = manifest.tileset_path;
+            auto dot = stamps_path.rfind('.');
+            if (dot != std::string::npos) stamps_path = stamps_path.substr(0, dot);
+            stamps_path = stamps_path.substr(0, stamps_path.rfind('/') + 1);
+            // Try cf_stamps.txt in same directory as tileset
+            std::string stamps_dir = manifest.tileset_path.substr(0, manifest.tileset_path.rfind('/') + 1);
+            auto stamps_data = eb::FileIO::read_file(stamps_dir + "cf_stamps.txt");
+            if (stamps_data.empty()) stamps_data = eb::FileIO::read_file("assets/textures/cf_stamps.txt");
+            if (!stamps_data.empty()) {
+                std::string stamps_str(stamps_data.begin(), stamps_data.end());
+                size_t pos = 0;
+                while (pos < stamps_str.size()) {
+                    size_t eol = stamps_str.find('\n', pos);
+                    if (eol == std::string::npos) eol = stamps_str.size();
+                    std::string line = stamps_str.substr(pos, eol - pos);
+                    pos = eol + 1;
+                    if (line.empty()) continue;
+                    // Parse: name|px|py|w|h|category
+                    std::vector<std::string> parts;
+                    size_t p = 0;
+                    while (p < line.size()) {
+                        size_t d = line.find('|', p);
+                        if (d == std::string::npos) d = line.size();
+                        parts.push_back(line.substr(p, d - p));
+                        p = d + 1;
+                    }
+                    if (parts.size() >= 6) {
+                        int sx = std::stoi(parts[1]), sy = std::stoi(parts[2]);
+                        int sw_s = std::stoi(parts[3]), sh_s = std::stoi(parts[4]);
+                        // Add as atlas region
+                        int region_idx = game.tileset_atlas->region_count();
+                        game.tileset_atlas->add_region(sx, sy, sw_s, sh_s);
+                        // Add as object stamp
+                        ObjectDef def;
+                        def.src_pos = {(float)sx, (float)sy};
+                        def.src_size = {(float)sw_s, (float)sh_s};
+                        def.render_size = {(float)sw_s, (float)sh_s};
+                        game.object_defs.push_back(def);
+                        eb::AtlasRegion ar = game.tileset_atlas->region(region_idx);
+                        game.object_regions.push_back(ar);
+                        game.object_stamps.push_back({parts[0], region_idx,
+                            (float)sw_s, (float)sh_s, (float)sw_s, (float)sh_s, parts[5]});
+                    }
+                }
+                std::printf("[Game] Loaded %d object stamps\n", (int)game.object_stamps.size());
+            }
         } else {
             game.tileset_desc = game.white_desc;
         }
@@ -1602,12 +1650,37 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
     if (input.is_pressed(eb::InputAction::Confirm)) {
         for (int i = 0; i < (int)game.npcs.size(); i++) {
             auto& npc = game.npcs[i];
-            if (npc.hostile && !npc.has_triggered) continue; // Hostile auto-triggers
+            if (npc.hostile && !npc.has_triggered) continue;
             float dx = game.player_pos.x - npc.position.x;
             float dy = game.player_pos.y - npc.position.y;
             float dist = std::sqrt(dx*dx + dy*dy);
             if (dist < npc.interact_radius) {
-                game.dialogue.start(npc.dialogue);
+                // All dialogue driven through SageLang scripts
+                // Try npc-name-specific function first, then generic "greeting"
+                bool handled = false;
+                if (game.script_engine) {
+                    // Build lowercase NPC name for function lookup
+                    std::string npc_lower = npc.name;
+                    for (auto& c : npc_lower) c = std::tolower(c);
+                    // Replace spaces/special chars with underscore
+                    for (auto& c : npc_lower) if (c == ' ' || c == '?' || c == '!') c = '_';
+
+                    // Try: npc_name_greeting (e.g. "merchant_greeting")
+                    std::string specific = npc_lower + "_greeting";
+                    if (game.script_engine->has_function(specific)) {
+                        game.script_engine->call_function(specific);
+                        handled = true;
+                    }
+                    // Try: just "greeting" (last-loaded script wins)
+                    else if (game.script_engine->has_function("greeting")) {
+                        game.script_engine->call_function("greeting");
+                        handled = true;
+                    }
+                }
+                // Fallback: use static dialogue lines (from .dialogue file or default)
+                if (!handled && !npc.dialogue.empty()) {
+                    game.dialogue.start(npc.dialogue);
+                }
                 game.pending_battle_npc = npc.has_battle ? i : -1;
                 break;
             }

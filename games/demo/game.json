@@ -1,17 +1,17 @@
 {
   "game": {
-    "title": "Twilight Engine Demo",
+    "title": "Twilight Engine Demo - Crystal Quest",
     "version": "0.5.0",
     "window_width": 960,
     "window_height": 720
   },
 
   "player": {
-    "name": "Hero",
-    "sprite": "assets/textures/hero_sprites.png",
-    "sprite_grid": [32, 48],
-    "hp": 100, "hp_max": 100,
-    "atk": 15, "def": 5,
+    "name": "Warrior",
+    "sprite": "assets/textures/cf_player.png",
+    "sprite_grid": [32, 32],
+    "hp": 120, "hp_max": 120,
+    "atk": 18, "def": 8,
     "level": 1, "xp": 0,
     "start_x": 480, "start_y": 320,
     "skills": {
@@ -22,10 +22,10 @@
 
   "party": [
     {
-      "name": "Mage",
+      "name": "Black Mage",
       "sprite": "assets/textures/mage_sprites.png",
       "sprite_grid": [32, 48],
-      "hp": 80, "hp_max": 80, "atk": 12,
+      "hp": 75, "hp_max": 75, "atk": 8,
       "skills": {
         "hardiness": 4, "unholiness": 4, "nerve": 4,
         "tactics": 6, "exorcism": 6, "riflery": 3
@@ -33,7 +33,7 @@
     }
   ],
 
-  "tileset": "assets/textures/village_tileset.png",
+  "tileset": "assets/textures/cf_tileset.png",
   "default_font": "assets/fonts/default.ttf",
 
   "npcs": [
@@ -60,15 +60,27 @@
       "dialogue_file": "assets/dialogue/merchant.dialogue"
     },
     {
-      "name": "Slime",
+      "name": "Skeleton",
       "x": 640, "y": 384, "dir": 0,
-      "sprite": "assets/textures/slime_sprites.png",
-      "sprite_grid": [32, 48],
+      "sprite": "assets/textures/cf_skeleton.png",
+      "sprite_grid": [32, 32],
       "interact_radius": 40, "hostile": true,
-      "aggro_range": 120, "attack_range": 32,
-      "move_speed": 40, "wander_interval": 3,
+      "aggro_range": 140, "attack_range": 32,
+      "move_speed": 45, "wander_interval": 3,
       "has_battle": true,
-      "battle_enemy": "Slime", "battle_hp": 40, "battle_atk": 8,
+      "battle_enemy": "Skeleton", "battle_hp": 50, "battle_atk": 12,
+      "dialogue_file": "assets/dialogue/elder.dialogue"
+    },
+    {
+      "name": "Slime",
+      "x": 400, "y": 450, "dir": 0,
+      "sprite": "assets/textures/cf_slime.png",
+      "sprite_grid": [32, 32],
+      "interact_radius": 40, "hostile": true,
+      "aggro_range": 100, "attack_range": 32,
+      "move_speed": 30, "wander_interval": 4,
+      "has_battle": true,
+      "battle_enemy": "Slime", "battle_hp": 30, "battle_atk": 6,
       "dialogue_file": "assets/dialogue/elder.dialogue"
     }
   ],
@@ -79,7 +91,8 @@
     "assets/scripts/inventory/inventory_core.sage",
     "assets/scripts/skills.sage",
     "assets/scripts/elder.sage",
-    "assets/scripts/merchant.sage"
+    "assets/scripts/merchant.sage",
+    "assets/scripts/debug_api.sage"
   ],
 
   "init_scripts": [

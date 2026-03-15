@@ -22,6 +22,18 @@ void DialogueBox::start(const std::vector<DialogueLine>& lines) {
     active_ = true;
 }
 
+void DialogueBox::queue_line(const DialogueLine& line) {
+    lines_.push_back(line);
+    if (!active_) {
+        current_line_ = 0;
+        visible_chars_ = 0;
+        char_timer_ = 0.0f;
+        line_complete_ = false;
+        is_choice_ = false;
+        active_ = true;
+    }
+}
+
 void DialogueBox::start_choice(const std::string& prompt,
                                 const std::vector<DialogueChoice>& choices) {
     choice_prompt_ = prompt;

@@ -1,5 +1,6 @@
 #include "engine/scripting/script_engine.h"
 #include "engine/resource/file_io.h"
+#include "engine/core/debug_log.h"
 #include "game/game.h"
 
 extern "C" {
@@ -64,15 +65,26 @@ static Value native_say(int argc, Value* args) {
     if (argc < 2) return val_nil();
     const char* speaker = (args[0].type == VAL_STRING) ? args[0].as.string : "???";
     const char* text = (args[1].type == VAL_STRING) ? args[1].as.string : "";
-    std::printf("[Script] %s: %s\n", speaker, text);
+    DLOG_SCRIPT("%s: %s", speaker, text);
+    // Queue dialogue line into the game's dialogue box if available
+    if (s_active_engine && s_active_engine->game_state_) {
+        auto& dlg = s_active_engine->game_state_->dialogue;
+        if (!dlg.is_active()) {
+            // Start new dialogue with this line
+            dlg.start({{speaker, text}});
+        } else {
+            // Queue additional line
+            dlg.queue_line({speaker, text});
+        }
+    }
     return val_nil();
 }
 
 static Value native_log(int argc, Value* args) {
     if (argc < 1) return val_nil();
-    if (args[0].type == VAL_STRING) std::printf("[Script] %s\n", args[0].as.string);
-    else if (args[0].type == VAL_NUMBER) std::printf("[Script] %.2f\n", args[0].as.number);
-    else if (args[0].type == VAL_BOOL) std::printf("[Script] %s\n", args[0].as.boolean ? "true" : "false");
+    if (args[0].type == VAL_STRING) DLOG_SCRIPT("%s", args[0].as.string);
+    else if (args[0].type == VAL_NUMBER) DLOG_SCRIPT("%.2f", args[0].as.number);
+    else if (args[0].type == VAL_BOOL) DLOG_SCRIPT("%s", args[0].as.boolean ? "true" : "false");
     return val_nil();
 }
 
@@ -237,6 +249,65 @@ static Value native_get_skill_bonus(int argc, Value* args) {
     return val_number(0);
 }
 
+// ═══════════════ Debug API ═══════════════
+
+static Value native_debug_log(int argc, Value* args) {
+    if (argc < 1) return val_nil();
+    if (args[0].type == VAL_STRING) DLOG_DEBUG("%s", args[0].as.string);
+    else if (args[0].type == VAL_NUMBER) DLOG_DEBUG("%.2f", args[0].as.number);
+    else if (args[0].type == VAL_BOOL) DLOG_DEBUG("%s", args[0].as.boolean ? "true" : "false");
+    return val_nil();
+}
+
+static Value native_debug_warn(int argc, Value* args) {
+    if (argc < 1) return val_nil();
+    const char* msg = (args[0].type == VAL_STRING) ? args[0].as.string : "?";
+    DLOG_WARN("%s", msg);
+    return val_nil();
+}
+
+static Value native_debug_error(int argc, Value* args) {
+    if (argc < 1) return val_nil();
+    const char* msg = (args[0].type == VAL_STRING) ? args[0].as.string : "?";
+    DLOG_ERROR("%s", msg);
+    return val_nil();
+}
+
+static Value native_debug_info(int argc, Value* args) {
+    if (argc < 1) return val_nil();
+    const char* msg = (args[0].type == VAL_STRING) ? args[0].as.string : "?";
+    DLOG_INFO("%s", msg);
+    return val_nil();
+}
+
+static Value native_debug_print(int argc, Value* args) {
+    // Print multiple args as a single line
+    std::string out;
+    for (int i = 0; i < argc; i++) {
+        if (i > 0) out += " ";
+        if (args[i].type == VAL_STRING) out += args[i].as.string;
+        else if (args[i].type == VAL_NUMBER) {
+            char buf[32]; std::snprintf(buf, sizeof(buf), "%.4g", args[i].as.number);
+            out += buf;
+        }
+        else if (args[i].type == VAL_BOOL) out += args[i].as.boolean ? "true" : "false";
+        else out += "<nil>";
+    }
+    DLOG_SCRIPT("%s", out.c_str());
+    return val_nil();
+}
+
+static Value native_debug_assert(int argc, Value* args) {
+    if (argc < 1) return val_nil();
+    bool cond = (args[0].type == VAL_BOOL) ? args[0].as.boolean :
+                (args[0].type == VAL_NUMBER) ? (args[0].as.number != 0) : false;
+    if (!cond) {
+        const char* msg = (argc > 1 && args[1].type == VAL_STRING) ? args[1].as.string : "Assertion failed";
+        DLOG_ERROR("ASSERT: %s", msg);
+    }
+    return val_nil();
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -249,6 +320,7 @@ ScriptEngine::ScriptEngine() {
         register_battle_api();
         register_inventory_api();
         register_skills_api();
+        register_debug_api();
         s_active_engine = this;
     }
 }
@@ -290,6 +362,17 @@ void ScriptEngine::register_skills_api() {
     env_define(env_, "set_skill", 9, val_native(native_set_skill));
     env_define(env_, "get_skill_bonus", 15, val_native(native_get_skill_bonus));
     std::printf("[ScriptEngine] Skills API registered\n");
+}
+
+void ScriptEngine::register_debug_api() {
+    if (!env_) return;
+    env_define(env_, "debug", 5, val_native(native_debug_log));
+    env_define(env_, "warn", 4, val_native(native_debug_warn));
+    env_define(env_, "error", 5, val_native(native_debug_error));
+    env_define(env_, "info", 4, val_native(native_debug_info));
+    env_define(env_, "print", 5, val_native(native_debug_print));
+    env_define(env_, "assert_true", 11, val_native(native_debug_assert));
+    std::printf("[ScriptEngine] Debug API registered\n");
 }
 
 void ScriptEngine::register_inventory_api() {
@@ -370,8 +453,26 @@ bool ScriptEngine::load_file(const std::string& path) {
         std::fprintf(stderr, "[ScriptEngine] Failed to read: %s\n", path.c_str());
         return false;
     }
+    // Track loaded files for hot reload
+    bool already_tracked = false;
+    for (auto& f : loaded_files_) if (f == path) { already_tracked = true; break; }
+    if (!already_tracked) loaded_files_.push_back(path);
+
     std::string source(data.begin(), data.end());
     return execute(source);
+}
+
+bool ScriptEngine::reload_all() {
+    int ok = 0, fail = 0;
+    for (auto& path : loaded_files_) {
+        auto data = FileIO::read_file(path);
+        if (data.empty()) { fail++; continue; }
+        std::string source(data.begin(), data.end());
+        if (execute(source)) ok++; else fail++;
+    }
+    std::printf("[ScriptEngine] Hot reload: %d OK, %d failed (of %d files)\n",
+                ok, fail, (int)loaded_files_.size());
+    return fail == 0;
 }
 
 bool ScriptEngine::execute(const std::string& code) {

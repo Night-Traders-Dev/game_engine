@@ -10,6 +10,9 @@
 #include "engine/graphics/text_renderer.h"
 #include "engine/graphics/renderer.h"
 #include "engine/platform/input.h"
+#include "engine/core/debug_log.h"
+#include "engine/resource/file_io.h"
+#include "engine/scripting/script_engine.h"
 #include "game/overworld/camera.h"
 
 #include <GLFW/glfw3.h>
@@ -380,15 +383,11 @@ void TileEditor::update(const InputState& input, Camera& camera, float dt,
         if (point_in_panel(*panel, mouse_x_, mouse_y_)) { over_any_panel = true; break; }
     }
     bool over_status = mouse_y_ >= screen_h - STATUS_BAR_HEIGHT;
-    bool over_ui = over_any_panel || over_status || any_dragging;
+    // ImGui takes priority — if ImGui wants the mouse, don't send clicks to the map
+    bool imgui_wants = ImGui::GetIO().WantCaptureMouse;
+    bool over_ui = over_any_panel || over_status || any_dragging || imgui_wants;
 
-    bool over_tile = point_in_panel(tile_panel_, mouse_x_, mouse_y_);
-
-    // Scroll tile palette
-    if (over_tile && input.mouse.scroll_y != 0.0f) {
-        palette_scroll_ -= (int)(input.mouse.scroll_y * 2);
-        if (palette_scroll_ < 0) palette_scroll_ = 0;
-    }
+    // Old panel-based tile palette disabled — ImGui handles all UI now
 
     // Zoom map
     if (!over_ui && input.mouse.scroll_y != 0.0f) {
@@ -415,50 +414,7 @@ void TileEditor::update(const InputState& input, Camera& camera, float dt,
     }
     if (input.mouse.is_released(MouseButton::Middle)) panning_ = false;
 
-    // Tile palette click
-    if (over_tile && !tile_panel_.dragging && input.mouse.is_pressed(MouseButton::Left)) {
-        float rel_x = mouse_x_ - tile_panel_.x - PANEL_PAD;
-        float rel_y = mouse_y_ - tile_panel_.y - PANEL_TITLE_H - PANEL_PAD + palette_scroll_ * PALETTE_TILE_SIZE;
-        if (rel_x >= 0 && rel_y >= 0) {
-            int col = (int)(rel_x / PALETTE_TILE_SIZE);
-            int row = (int)(rel_y / PALETTE_TILE_SIZE);
-            if (col < palette_cols_) {
-                int idx = row * palette_cols_ + col;
-                int max_t = tileset_ ? tileset_->region_count() : 0;
-                if (idx >= 0 && idx < max_t) {
-                    selected_tile_ = idx + 1;
-                    tool_ = EditorTool::Paint;
-                    set_status("Tile " + std::to_string(selected_tile_));
-                }
-            }
-        }
-    }
-
-    // Tool panel clicks
-    bool over_tool = point_in_panel(tool_panel_, mouse_x_, mouse_y_);
-    if (over_tool && !tool_panel_.dragging && input.mouse.is_pressed(MouseButton::Left)) {
-        float rel_x = mouse_x_ - tool_panel_.x - PANEL_PAD;
-        float rel_y = mouse_y_ - tool_panel_.y - PANEL_TITLE_H - PANEL_PAD;
-        if (rel_x >= 0 && rel_y >= 0) {
-            // Tool buttons: 2 columns, each 90x36
-            int col = (int)(rel_x / 92);
-            int row = (int)(rel_y / 38);
-            int tool_idx = row * 2 + col;
-            if (tool_idx >= 0 && tool_idx < 8 && col < 2) {
-                EditorTool tools[] = {
-                    EditorTool::Paint, EditorTool::Erase,
-                    EditorTool::Fill, EditorTool::Eyedrop,
-                    EditorTool::Select, EditorTool::Collision,
-                    EditorTool::Line, EditorTool::Rect,
-                };
-                tool_ = tools[tool_idx];
-                const char* names[] = {"Paint","Erase","Fill","Eyedrop","Select","Collision","Line","Rect"};
-                set_status(names[tool_idx]);
-            }
-        }
-    }
-
-    // Map click (only if not over UI)
+    // Map click (only if not over UI — ImGui handles all panel interactions)
     if (!over_ui) {
         if (input.mouse.is_pressed(MouseButton::Left)) {
             last_paint_tile_ = {-1, -1}; begin_action("paint");
@@ -500,6 +456,11 @@ void TileEditor::handle_shortcuts(const InputState& input) {
     if (input.key_pressed(GLFW_KEY_C) && !input.mods.ctrl) { tool_ = EditorTool::Collision; set_status("Collision"); }
     if (input.key_pressed(GLFW_KEY_L) && !input.mods.ctrl) { tool_ = EditorTool::Line; set_status("Line"); }
     if (input.key_pressed(GLFW_KEY_B)) { tool_ = EditorTool::Rect; set_status("Rectangle"); }
+    if (input.key_pressed(GLFW_KEY_T) && !input.mods.ctrl) { tool_ = EditorTool::Portal; set_status("Portal"); }
+    // Window toggles
+    if (input.key_pressed(GLFW_KEY_F2)) show_npc_spawner_ = !show_npc_spawner_;
+    if (input.key_pressed(GLFW_KEY_F3)) show_script_ide_ = !show_script_ide_;
+    if (input.key_pressed(GLFW_KEY_F4)) show_debug_console_ = !show_debug_console_;
     if (input.key_pressed(GLFW_KEY_G)) { show_grid_ = !show_grid_; set_status(show_grid_ ? "Grid ON" : "Grid OFF"); }
     if (input.key_pressed(GLFW_KEY_V) && !input.mods.ctrl) show_collision_ = !show_collision_;
     for (int k = GLFW_KEY_1; k <= GLFW_KEY_9; k++) {
@@ -605,6 +566,31 @@ void TileEditor::handle_map_click(float mx, float my, const Camera& camera, bool
         case EditorTool::Line: case EditorTool::Rect:
             if (!is_drag) { selection_.x1 = tile.x; selection_.y1 = tile.y; }
             selection_.x2 = tile.x; selection_.y2 = tile.y;
+            break;
+        case EditorTool::Portal:
+            if (!is_drag) {
+                begin_action("portal");
+                auto cur = map_->collision_at(tile.x, tile.y);
+                if (cur == CollisionType::Portal) {
+                    // Remove portal
+                    record_collision_change(tile.x, tile.y, cur, CollisionType::None);
+                    map_->set_collision_at(tile.x, tile.y, CollisionType::None);
+                    for (int pi = (int)map_->portals().size()-1; pi >= 0; pi--)
+                        if (map_->portals()[pi].tile_x == tile.x && map_->portals()[pi].tile_y == tile.y)
+                            map_->remove_portal(pi);
+                    set_status("Portal removed");
+                } else {
+                    // Place portal
+                    record_collision_change(tile.x, tile.y, cur, CollisionType::Portal);
+                    Portal p; p.tile_x = tile.x; p.tile_y = tile.y;
+                    p.label = "portal"; p.target_map = "";
+                    p.target_x = 0; p.target_y = 0;
+                    map_->portals().push_back(p);
+                    map_->set_collision_at(tile.x, tile.y, CollisionType::Portal);
+                    set_status("Portal placed at " + std::to_string(tile.x) + "," + std::to_string(tile.y));
+                }
+                commit_action();
+            }
             break;
     }
 }
@@ -834,7 +820,8 @@ void TileEditor::render(SpriteBatch& batch, const Camera& camera,
     // World-space overlays only (grid, collision, selection, cursor)
     batch.set_projection(camera.projection_matrix());
     if (show_grid_) render_grid(batch, camera);
-    if (show_collision_) render_collision_overlay(batch, camera);
+    if (show_collision_ || tool_ == EditorTool::Portal || tool_ == EditorTool::Collision)
+        render_collision_overlay(batch, camera);
     if (selection_.active) render_selection(batch, camera);
     render_cursor(batch, camera, mouse_x_, mouse_y_);
 
@@ -861,8 +848,20 @@ void TileEditor::render_collision_overlay(SpriteBatch& batch, const Camera& came
     for (int y=sy;y<ey;y++) for (int x=sx;x<ex;x++) {
         auto ct=map_->collision_at(x,y);
         if (ct==CollisionType::None) continue;
-        Vec4 c=(ct==CollisionType::Solid)?Vec4{1,0.2f,0.2f,0.35f}:Vec4{0.2f,0.5f,1,0.45f};
-        batch.draw_quad({x*ts+2,y*ts+2},{ts-4,ts-4},c);
+        if (ct==CollisionType::Solid) {
+            batch.draw_quad({x*ts+2,y*ts+2},{ts-4,ts-4},{1,0.2f,0.2f,0.35f});
+        } else {
+            // Portal: cyan diamond marker
+            float cx=x*ts+ts*0.5f, cy=y*ts+ts*0.5f, r=ts*0.35f;
+            batch.draw_quad({cx-r,cy-2},{r*2,4},{0.2f,1,0.8f,0.6f});
+            batch.draw_quad({cx-2,cy-r},{4,r*2},{0.2f,1,0.8f,0.6f});
+            batch.draw_quad({x*ts+1,y*ts+1},{ts-2,ts-2},{0.1f,0.6f,1,0.25f});
+            // Border
+            batch.draw_quad({x*ts,y*ts},{ts,2},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({x*ts,y*ts+ts-2},{ts,2},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({x*ts,y*ts},{2,ts},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({x*ts+ts-2,y*ts},{2,ts},{0.2f,1,0.8f,0.8f});
+        }
     }
 }
 
@@ -888,6 +887,7 @@ void TileEditor::render_cursor(SpriteBatch& batch, const Camera& camera, float m
         case EditorTool::Fill:cc={0.3f,1,0.3f,0.3f};break; case EditorTool::Eyedrop:cc={1,1,0.3f,0.3f};break;
         case EditorTool::Select:cc={0.3f,0.8f,1,0.3f};break; case EditorTool::Collision:cc={1,0.5f,0,0.3f};break;
         case EditorTool::Line:cc={0.8f,0.3f,1,0.3f};break; case EditorTool::Rect:cc={1,0.6f,0.2f,0.3f};break;
+        case EditorTool::Portal:cc={0.2f,1,0.8f,0.5f};break;
     }
     batch.draw_quad(pos, {ts,ts}, cc);
     Vec4 bc={cc.x,cc.y,cc.z,0.8f};
@@ -1138,10 +1138,59 @@ void TileEditor::render_imgui(GameState& game) {
                      ImVec2(r.uv_max.x, r.uv_max.y));
     };
 
+    // ═══════════ MAIN MENU BAR ═══════════
+    if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Save Map...", "Ctrl+S"))
+                pending_dialog_ = PendingDialog::Save;
+            if (ImGui::MenuItem("Load Map..."))
+                pending_dialog_ = PendingDialog::Load;
+            if (ImGui::MenuItem("Import Asset..."))
+                pending_dialog_ = PendingDialog::ImportAsset;
+            ImGui::Separator();
+            if (ImGui::MenuItem("Quick Save"))
+                if (game_state_)
+                    save_map_file(*game_state_, "assets/maps/current.json") ? set_status("Quick saved") : set_status("Failed!");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Edit")) {
+            if (ImGui::MenuItem("Undo", "Ctrl+Z")) undo();
+            if (ImGui::MenuItem("Redo", "Ctrl+Y")) redo();
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("View")) {
+            ImGui::MenuItem("Tools", "1", &show_tools_window_);
+            ImGui::MenuItem("Assets", "2", &show_assets_window_);
+            ImGui::MenuItem("Minimap", "3", &show_minimap_window_);
+            ImGui::Separator();
+            ImGui::MenuItem("NPC Spawner", "F2", &show_npc_spawner_);
+            ImGui::MenuItem("Script IDE", "F3", &show_script_ide_);
+            ImGui::MenuItem("Debug Console", "F4", &show_debug_console_);
+            ImGui::Separator();
+            ImGui::MenuItem("Grid", "G", &show_grid_);
+            ImGui::MenuItem("Collision", "V", &show_collision_);
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Tools")) {
+            if (ImGui::MenuItem("Paint", "P")) tool_ = EditorTool::Paint;
+            if (ImGui::MenuItem("Erase", "E")) tool_ = EditorTool::Erase;
+            if (ImGui::MenuItem("Fill", "F")) tool_ = EditorTool::Fill;
+            if (ImGui::MenuItem("Eyedrop", "I")) tool_ = EditorTool::Eyedrop;
+            if (ImGui::MenuItem("Select", "R")) tool_ = EditorTool::Select;
+            if (ImGui::MenuItem("Collision", "C")) tool_ = EditorTool::Collision;
+            if (ImGui::MenuItem("Line", "L")) tool_ = EditorTool::Line;
+            if (ImGui::MenuItem("Rectangle", "B")) tool_ = EditorTool::Rect;
+            if (ImGui::MenuItem("Portal", "T")) tool_ = EditorTool::Portal;
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+
     // ═══════════ TOOLS WINDOW ═══════════
-    ImGui::SetNextWindowPos(ImVec2(8, 8), ImGuiCond_FirstUseEver);
+    if (show_tools_window_) {
+    ImGui::SetNextWindowPos(ImVec2(8, 28), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(240, 480), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Tools##editor")) {
+    if (ImGui::Begin("Tools##editor", &show_tools_window_)) {
         // Tool buttons in 2 columns
         struct TD { EditorTool t; const char* n; };
         TD tools[] = {
@@ -1149,8 +1198,9 @@ void TileEditor::render_imgui(GameState& game) {
             {EditorTool::Fill,"Fill"}, {EditorTool::Eyedrop,"Eyedrop"},
             {EditorTool::Select,"Select"}, {EditorTool::Collision,"Collision"},
             {EditorTool::Line,"Line"}, {EditorTool::Rect,"Rectangle"},
+            {EditorTool::Portal,"Portal"},
         };
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 9; i++) {
             if (i % 2 != 0) ImGui::SameLine();
             bool sel = (tool_ == tools[i].t);
             if (sel) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f,0.45f,0.75f,1));
@@ -1272,11 +1322,13 @@ void TileEditor::render_imgui(GameState& game) {
         }
     }
     ImGui::End();
+    } // show_tools_window_
 
     // ═══════════ ASSETS WINDOW (tabbed) ═══════════
-    ImGui::SetNextWindowPos(ImVec2(700, 8), ImGuiCond_FirstUseEver);
+    if (show_assets_window_) {
+    ImGui::SetNextWindowPos(ImVec2(700, 28), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(250, 700), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Assets##editor")) {
+    if (ImGui::Begin("Assets##editor", &show_assets_window_)) {
         if (ImGui::BeginTabBar("AssetTabs")) {
 
             // ── Ground Tiles ──
@@ -1370,11 +1422,13 @@ void TileEditor::render_imgui(GameState& game) {
         }
     }
     ImGui::End();
+    } // show_assets_window_
 
     // ═══════════ MINIMAP WINDOW ═══════════
-    ImGui::SetNextWindowPos(ImVec2(8, 500), ImGuiCond_FirstUseEver);
+    if (show_minimap_window_) {
+    ImGui::SetNextWindowPos(ImVec2(8, 520), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(200, 160), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Minimap##editor")) {
+    if (ImGui::Begin("Minimap##editor", &show_minimap_window_)) {
         ImVec2 avail = ImGui::GetContentRegionAvail();
         float mw = (float)map_->width(), mh = (float)map_->height();
         float scale = std::min(avail.x / mw, avail.y / mh);
@@ -1431,6 +1485,268 @@ void TileEditor::render_imgui(GameState& game) {
         }
     }
     ImGui::End();
+    } // show_minimap_window_
+
+    // ═══════════ NPC SPAWNER WINDOW ═══════════
+    if (show_npc_spawner_) {
+    ImGui::SetNextWindowPos(ImVec2(250, 28), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(280, 350), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("NPC Spawner##editor", &show_npc_spawner_)) {
+        static char npc_name[64] = "Villager";
+        static int npc_dir = 0;
+        static bool npc_hostile = false;
+        static bool npc_has_battle = false;
+        static int npc_battle_hp = 30;
+        static int npc_battle_atk = 8;
+        static float npc_speed = 25.0f;
+        static float npc_aggro = 120.0f;
+        static int npc_sprite_id = -1;
+
+        ImGui::InputText("Name", npc_name, sizeof(npc_name));
+        ImGui::Combo("Direction", &npc_dir, "Down\0Up\0Left\0Right\0");
+        ImGui::Checkbox("Hostile", &npc_hostile);
+        if (npc_hostile) {
+            ImGui::Checkbox("Has Battle", &npc_has_battle);
+            if (npc_has_battle) {
+                ImGui::SliderInt("HP", &npc_battle_hp, 10, 500);
+                ImGui::SliderInt("ATK", &npc_battle_atk, 1, 50);
+            }
+            ImGui::SliderFloat("Aggro Range", &npc_aggro, 50, 300);
+        }
+        ImGui::SliderFloat("Speed", &npc_speed, 10, 100);
+
+        // NPC sprite selection
+        ImGui::Text("Sprite Atlas ID: %d", npc_sprite_id);
+        if ((int)game.npc_atlases.size() > 0) {
+            ImGui::Text("Available: 0-%d", (int)game.npc_atlases.size()-1);
+            ImGui::SliderInt("Sprite", &npc_sprite_id, -1, (int)game.npc_atlases.size()-1);
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Presets:");
+        // Presets include sprite_atlas_id matching the order NPCs were loaded
+        // -1 = no sprite (invisible), 0+ = index into npc_atlases
+        struct NPCPreset { const char* name; bool hostile; bool battle; int hp; int atk; float spd; int sprite; };
+        int max_sprite = (int)game.npc_atlases.size() - 1;
+        NPCPreset presets[] = {
+            {"Chicken",  false, false,  0,  0, 15, std::min(3, max_sprite)},
+            {"Cow",      false, false,  0,  0, 10, std::min(4, max_sprite)},
+            {"Pig",      false, false,  0,  0, 12, std::min(5, max_sprite)},
+            {"Sheep",    false, false,  0,  0, 12, std::min(6, max_sprite)},
+            {"Villager", false, false,  0,  0, 20, std::min(0, max_sprite)},
+            {"Slime",    true,  true,  30,  6, 30, std::min(2, max_sprite)},
+            {"Skeleton", true,  true,  50, 12, 45, std::min(1, max_sprite)},
+            {"Guard",    false, false,  0,  0, 25, std::min(0, max_sprite)},
+        };
+        for (int i = 0; i < 8; i++) {
+            if (i % 4 != 0) ImGui::SameLine();
+            if (ImGui::SmallButton(presets[i].name)) {
+                std::strncpy(npc_name, presets[i].name, sizeof(npc_name));
+                npc_hostile = presets[i].hostile;
+                npc_has_battle = presets[i].battle;
+                npc_battle_hp = presets[i].hp;
+                npc_battle_atk = presets[i].atk;
+                npc_speed = presets[i].spd;
+                npc_sprite_id = presets[i].sprite;
+            }
+        }
+
+        // Helper lambda to spawn NPC at a position
+        static bool click_spawn_mode = false;
+        auto spawn_npc_at = [&](float wx, float wy) {
+            NPC npc;
+            npc.name = npc_name;
+            npc.position = {wx, wy};
+            npc.home_pos = npc.position;
+            npc.wander_target = npc.position;
+            npc.dir = npc_dir;
+            npc.hostile = npc_hostile;
+            npc.has_battle = npc_has_battle;
+            npc.battle_enemy_name = npc_name;
+            npc.battle_enemy_hp = npc_battle_hp;
+            npc.battle_enemy_atk = npc_battle_atk;
+            npc.move_speed = npc_speed;
+            npc.aggro_range = npc_aggro;
+            npc.sprite_atlas_id = npc_sprite_id;
+            npc.dialogue = {{std::string(npc_name), "..."}};
+            game.npcs.push_back(npc);
+            set_status("Spawned NPC: " + std::string(npc_name));
+        };
+
+        ImGui::Separator();
+        if (ImGui::Button("Spawn at Player", ImVec2(-1, 0))) {
+            spawn_npc_at(game.player_pos.x, game.player_pos.y);
+        }
+        if (click_spawn_mode) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1));
+        }
+        if (ImGui::Button(click_spawn_mode ? "Click Map to Spawn (active)" : "Click Map to Spawn", ImVec2(-1, 0))) {
+            click_spawn_mode = !click_spawn_mode;
+        }
+        if (click_spawn_mode) {
+            ImGui::PopStyleColor();
+            // Intercept next map click for NPC placement
+            if (!ImGui::GetIO().WantCaptureMouse && ImGui::IsMouseClicked(0)) {
+                ImVec2 mpos = ImGui::GetMousePos();
+                Vec2 world = screen_to_world(mpos.x, mpos.y, game.camera);
+                spawn_npc_at(world.x, world.y);
+                click_spawn_mode = false;
+            }
+        }
+        ImGui::Text("NPCs on map: %d", (int)game.npcs.size());
+    }
+    ImGui::End();
+    } // show_npc_spawner_
+
+    // ═══════════ SCRIPT MANAGER / IDE ═══════════
+    if (show_script_ide_) {
+    ImGui::SetNextWindowPos(ImVec2(250, 370), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(450, 330), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Script IDE##editor", &show_script_ide_)) {
+        static int selected_script = -1;
+        static char script_buffer[8192] = "";
+        static bool script_dirty = false;
+        static std::string current_file;
+
+        auto* se = game.script_engine;
+        if (se) {
+            auto& files = se->loaded_files();
+
+            // File list
+            if (ImGui::BeginChild("ScriptList", ImVec2(160, -30), true)) {
+                for (int i = 0; i < (int)files.size(); i++) {
+                    // Show just filename
+                    std::string label = files[i];
+                    auto slash = label.rfind('/');
+                    if (slash != std::string::npos) label = label.substr(slash + 1);
+
+                    bool sel = (selected_script == i);
+                    if (ImGui::Selectable(label.c_str(), sel)) {
+                        if (i != selected_script) {
+                            selected_script = i;
+                            current_file = files[i];
+                            // Load file content
+                            auto data = eb::FileIO::read_file(current_file);
+                            if (!data.empty()) {
+                                int len = std::min((int)data.size(), (int)sizeof(script_buffer) - 1);
+                                std::memcpy(script_buffer, data.data(), len);
+                                script_buffer[len] = '\0';
+                                script_dirty = false;
+                            }
+                        }
+                    }
+                }
+            }
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+
+            // Editor pane
+            if (ImGui::BeginChild("ScriptEdit", ImVec2(0, -30))) {
+                if (selected_script >= 0) {
+                    ImGui::Text("%s%s", current_file.c_str(), script_dirty ? " *" : "");
+                    ImGui::Separator();
+                    if (ImGui::InputTextMultiline("##code", script_buffer, sizeof(script_buffer),
+                            ImVec2(-1, -1), ImGuiInputTextFlags_AllowTabInput)) {
+                        script_dirty = true;
+                    }
+                } else {
+                    ImGui::TextDisabled("Select a script file to edit");
+                }
+            }
+            ImGui::EndChild();
+
+            // Bottom buttons
+            if (selected_script >= 0) {
+                if (ImGui::Button("Save")) {
+                    std::ofstream f(current_file);
+                    if (f.is_open()) {
+                        f << script_buffer;
+                        f.close();
+                        script_dirty = false;
+                        set_status("Saved: " + current_file);
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Save & Reload")) {
+                    std::ofstream f(current_file);
+                    if (f.is_open()) {
+                        f << script_buffer;
+                        f.close();
+                        script_dirty = false;
+                    }
+                    se->reload_all();
+                    set_status("Hot reloaded all scripts");
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Reload All")) {
+                    se->reload_all();
+                    set_status("Hot reloaded all scripts");
+                }
+            }
+        } else {
+            ImGui::TextDisabled("No script engine available");
+        }
+    }
+    ImGui::End();
+    } // show_script_ide_
+
+    // ═══════════ DEBUG CONSOLE ═══════════
+    if (show_debug_console_) {
+    ImGui::SetNextWindowPos(ImVec2(8, 680), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(940, 200), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Debug Console##editor", &show_debug_console_)) {
+        auto& dlog = eb::DebugLog::instance();
+
+        // Filter buttons
+        ImGui::Checkbox("Debug", &dlog.show_debug); ImGui::SameLine();
+        ImGui::Checkbox("Info", &dlog.show_info); ImGui::SameLine();
+        ImGui::Checkbox("Warn", &dlog.show_warning); ImGui::SameLine();
+        ImGui::Checkbox("Error", &dlog.show_error); ImGui::SameLine();
+        ImGui::Checkbox("Script", &dlog.show_script); ImGui::SameLine();
+        if (ImGui::SmallButton("Clear")) dlog.clear();
+        ImGui::SameLine();
+        ImGui::Text("(%d entries)", (int)dlog.entries().size());
+
+        ImGui::Separator();
+
+        // Scrollable log
+        if (ImGui::BeginChild("LogScroll", ImVec2(0, -30), true)) {
+            for (auto& entry : dlog.entries()) {
+                bool show = false;
+                ImVec4 color;
+                const char* prefix;
+                switch (entry.level) {
+                    case eb::LogLevel::Debug:   show = dlog.show_debug;   color = ImVec4(0.5f,0.5f,0.5f,1); prefix = "[DBG]"; break;
+                    case eb::LogLevel::Info:    show = dlog.show_info;    color = ImVec4(0.7f,0.9f,0.7f,1); prefix = "[INF]"; break;
+                    case eb::LogLevel::Warning: show = dlog.show_warning; color = ImVec4(1,0.9f,0.3f,1);    prefix = "[WRN]"; break;
+                    case eb::LogLevel::Error:   show = dlog.show_error;   color = ImVec4(1,0.3f,0.3f,1);    prefix = "[ERR]"; break;
+                    case eb::LogLevel::Script:  show = dlog.show_script;  color = ImVec4(0.4f,0.8f,1,1);    prefix = "[SCR]"; break;
+                }
+                if (show) {
+                    ImGui::TextColored(color, "%s %.1fs %s", prefix, entry.timestamp, entry.message.c_str());
+                }
+            }
+            // Auto-scroll to bottom
+            if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 20)
+                ImGui::SetScrollHereY(1.0f);
+        }
+        ImGui::EndChild();
+
+        // Command input
+        static char cmd_buf[256] = "";
+        if (ImGui::InputText("##cmd", cmd_buf, sizeof(cmd_buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (game.script_engine && cmd_buf[0] != '\0') {
+                DLOG_SCRIPT("> %s", cmd_buf);
+                game.script_engine->execute(cmd_buf);
+                cmd_buf[0] = '\0';
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Enter SageLang expression");
+    }
+    ImGui::End();
+    } // show_debug_console_
 
     // ═══════════ GHOST CURSOR (floating overlay) ═══════════
     // Show what will be placed at the mouse position

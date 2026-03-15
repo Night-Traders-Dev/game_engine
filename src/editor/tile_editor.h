@@ -28,6 +28,7 @@ enum class EditorTool {
     Collision,
     Line,       // Draw straight lines
     Rect,       // Draw filled/outlined rectangles
+    Portal,     // Place entrance/exit teleport tiles
 };
 
 struct TileSelection {
@@ -247,6 +248,14 @@ private:
 
     // Brush size (1=1x1, 2=2x2, 3=3x3)
     int brush_size_ = 1;
+
+    // Window visibility toggles
+    bool show_tools_window_ = true;
+    bool show_assets_window_ = true;
+    bool show_minimap_window_ = false;
+    bool show_npc_spawner_ = false;
+    bool show_script_ide_ = false;
+    bool show_debug_console_ = false;
 
     // Deferred file dialog (must not run during Vulkan rendering)
     enum class PendingDialog { None, Save, Load, ImportAsset };

@@ -32,6 +32,7 @@ public:
     void set_portrait(const std::string& speaker, VkDescriptorSet portrait_desc);
 
     void start(const std::vector<DialogueLine>& lines);
+    void queue_line(const DialogueLine& line);
     void start_choice(const std::string& prompt, const std::vector<DialogueChoice>& choices);
 
     // Returns: -1 if active, 0+ if ended

@@ -3,6 +3,7 @@
 #include "engine/scripting/script_engine.h"
 #include "engine/audio/audio_engine.h"
 #include "engine/resource/game_manifest.h"
+#include "engine/core/debug_log.h"
 
 #ifndef EB_ANDROID
 #include "editor/tile_editor.h"
@@ -109,6 +110,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // ─── Update ───
         engine.on_update = [&](float dt) {
             auto& input = engine.platform().input();
+            eb::DebugLog::instance().set_time(game.game_time);
 
 #ifndef EB_ANDROID
             // Tab toggles editor

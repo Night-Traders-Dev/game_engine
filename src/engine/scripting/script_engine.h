@@ -36,6 +36,10 @@ public:
     bool has_function(const std::string& name) const;
     bool is_initialized() const { return env_ != nullptr; }
 
+    // Hot reload: track loaded files and reload them
+    const std::vector<std::string>& loaded_files() const { return loaded_files_; }
+    bool reload_all();
+
     // Set game state pointer for battle API access
     void set_game_state(GameState* game) { game_state_ = game; }
 
@@ -54,11 +58,13 @@ private:
     void register_battle_api();
     void register_inventory_api();
     void register_skills_api();
+    void register_debug_api();
 
     Env* env_ = nullptr;
 
     // Keep source strings alive — SageLang AST references them
     std::vector<char*> source_buffers_;
+    std::vector<std::string> loaded_files_;
 };
 
 } // namespace eb

@@ -1,11 +1,15 @@
-# Merchant NPC
+# Item Shop — Classic FF Merchant
+# Functions named: merchant_greeting, merchant_buy, etc.
 
-proc greeting():
-    say("Merchant", "Welcome to my shop!")
-    say("Merchant", "I have potions and scrolls for sale.")
+proc merchant_greeting():
+    say("Merchant", "Welcome! What can I get for you?")
+    say("Merchant", "I've got Potions, Phoenix Downs, and magic scrolls.")
+    say("Merchant", "Stock up before heading into the cave!")
 
-proc buy():
-    say("Merchant", "Here, take these supplies.")
-    add_item("potion", "Potion", 3, "consumable", "Heals 30 HP", 30, 0, "", "use_potion")
-    add_item("fire_scroll", "Fire Scroll", 2, "weapon", "Deals fire damage", 0, 25, "fire", "use_fire_scroll")
-    say("Merchant", "Good luck out there!")
+proc merchant_buy():
+    say("Merchant", "Here you go! Stay safe out there.")
+    add_item("potion", "Potion", 5, "consumable", "Restores 50 HP", 50, 0, "", "use_potion")
+    add_item("phoenix_down", "Phoenix Down", 2, "consumable", "Life to fallen ally", 0, 0, "", "use_phoenix_down")
+    add_item("fire", "Fire", 3, "weapon", "Fire magic - 30 dmg", 0, 30, "fire", "use_fire")
+    add_item("cure", "Cure", 3, "consumable", "White magic - heal 40 HP", 40, 0, "holy", "use_cure")
+    say("Merchant", "Come back anytime!")
