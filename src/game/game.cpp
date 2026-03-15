@@ -224,11 +224,12 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
                     if (json[i]=='}') i++;
 
                     if (sw > 0 && sh > 0 && game.tileset_atlas) {
-                        // Find or create object def matching this source region
+                        // Find or create object def matching this source region (match by full bounds)
                         int obj_id = -1;
                         for (int oi = 0; oi < (int)game.object_regions.size(); oi++) {
                             auto& r = game.object_regions[oi];
-                            if (r.pixel_x == sx && r.pixel_y == sy) { obj_id = oi; break; }
+                            if (r.pixel_x == sx && r.pixel_y == sy &&
+                                r.pixel_w == sw && r.pixel_h == sh) { obj_id = oi; break; }
                         }
                         if (obj_id < 0) {
                             float tw = (float)game.tileset_atlas->texture()->width();
@@ -329,6 +330,12 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
                     npc.wander_target = npc.position;
                     npc.dialogue = dlg;
                     if (npc.dialogue.empty()) npc.dialogue = {{npc.name, "..."}};
+                    // Validate sprite atlas ID
+                    if (npc.sprite_atlas_id >= (int)game.npc_atlases.size()) {
+                        std::fprintf(stderr, "[Map] Warning: NPC '%s' has invalid sprite_atlas_id %d (max %d)\n",
+                                     npc.name.c_str(), npc.sprite_atlas_id, (int)game.npc_atlases.size()-1);
+                        npc.sprite_atlas_id = -1;
+                    }
                     game.npcs.push_back(npc);
                 }
                 mskip(json, i); if (json[i]==',') i++;
@@ -336,7 +343,11 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
         }
     }
 
-    // Parse player start position from metadata
+    // Parse player start position from metadata (fallback to map center)
+    float default_x = game.tile_map.width() * game.tile_map.tile_size() * 0.5f;
+    float default_y = game.tile_map.height() * game.tile_map.tile_size() * 0.5f;
+    game.player_pos = {default_x, default_y};
+
     size_t meta_pos = json.find("\"player_start_x\"");
     if (meta_pos != std::string::npos) {
         size_t i = json.find(':', meta_pos) + 1;
@@ -889,13 +900,15 @@ void start_battle(GameState& game, const std::string& enemy, int hp, int atk, bo
     b.enemy_sprite_id = sprite_id;
     b.sam_hp_actual = game.sam_hp; b.sam_hp_max = game.sam_hp_max;
     b.sam_hp_display = static_cast<float>(game.sam_hp);
-    b.sam_atk = game.sam_atk;
+    b.sam_atk = game.sam_atk + game.sam_skills.weapon_damage_bonus();
     b.active_fighter = 0; // Dean goes first
     b.attack_anim_timer = 0.0f;
     b.player_hp_actual = game.player_hp;
     b.player_hp_max = game.player_hp_max;
     b.player_hp_display = static_cast<float>(game.player_hp);
-    b.player_atk = game.player_atk; b.player_def = game.player_def;
+    // Apply H.U.N.T.E.R. skill bonuses
+    b.player_atk = game.player_atk + game.dean_skills.weapon_damage_bonus();
+    b.player_def = game.player_def + game.dean_skills.defense_bonus();
     b.menu_selection = 0; b.phase_timer = 0.0f;
     b.item_menu_open = false; b.item_menu_selection = 0;
     b.message = "A " + enemy + " appeared!";

@@ -184,6 +184,31 @@ struct Inventory {
     }
 };
 
+// ─── H.U.N.T.E.R. Skills (Fallout S.P.E.C.I.A.L. style) ───
+struct HunterSkills {
+    int hardiness  = 5;  // HP bonus, damage resistance
+    int unholiness = 3;  // Dark knowledge, demon deal power
+    int nerve      = 5;  // Courage, crit chance, dodge
+    int tactics    = 5;  // Combat strategy, defense bonus
+    int exorcism   = 4;  // Holy power, bonus vs supernatural
+    int riflery    = 5;  // Weapon damage, ranged accuracy
+
+    static constexpr int MIN_STAT = 1;
+    static constexpr int MAX_STAT = 10;
+    static constexpr int STARTING_POINTS = 27; // Total starting allocation
+
+    int total() const { return hardiness + unholiness + nerve + tactics + exorcism + riflery; }
+
+    // Derived stat bonuses
+    int hp_bonus() const { return hardiness * 10; }           // +10 HP per point
+    float crit_chance() const { return nerve * 0.03f; }       // +3% crit per point
+    int defense_bonus() const { return tactics * 2; }         // +2 def per point
+    float holy_damage_mult() const { return 1.0f + exorcism * 0.1f; } // +10% holy dmg per point
+    int weapon_damage_bonus() const { return riflery * 2; }   // +2 weapon dmg per point
+    float dark_power_mult() const { return 1.0f + unholiness * 0.08f; } // +8% dark ability per point
+    float dodge_chance() const { return nerve * 0.02f; }      // +2% dodge per point
+};
+
 // ─── Party follower ───
 struct PartyMember {
     std::string name;
@@ -217,6 +242,10 @@ struct GameState {
     int player_atk = 18, player_def = 5;
     int player_level = 1, player_xp = 0;
     int sam_hp = 90, sam_hp_max = 90, sam_atk = 15;
+
+    // H.U.N.T.E.R. skills
+    HunterSkills dean_skills;  // Dean: higher riflery & nerve
+    HunterSkills sam_skills;   // Sam: higher exorcism & tactics
 
     std::vector<PartyMember> party;
     static constexpr int TRAIL_SIZE = 256, FOLLOW_DISTANCE = 8;

@@ -1,6 +1,7 @@
 #include "game/game.h"
 #include "engine/core/engine.h"
 #include "engine/scripting/script_engine.h"
+#include "engine/audio/audio_engine.h"
 
 #ifndef EB_ANDROID
 #include "editor/tile_editor.h"
@@ -42,18 +43,49 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // SageLang scripting engine
         eb::ScriptEngine script_engine;
         script_engine.set_game_state(&game);
-        script_engine.load_file("assets/scripts/battle_system.sage");
+
+        // Battle scripts (modular)
+        script_engine.load_file("assets/scripts/battle/battle_core.sage");
+        script_engine.load_file("assets/scripts/battle/dean_battle.sage");
+        script_engine.load_file("assets/scripts/battle/sam_battle.sage");
+        script_engine.load_file("assets/scripts/battle/vampire_battle.sage");
+        script_engine.load_file("assets/scripts/battle/demon_battle.sage");
+
+        // Inventory scripts (modular)
+        script_engine.load_file("assets/scripts/inventory/inventory_core.sage");
+        script_engine.load_file("assets/scripts/inventory/dean_inventory.sage");
+        script_engine.load_file("assets/scripts/inventory/sam_inventory.sage");
+        script_engine.load_file("assets/scripts/inventory/brothers_inventory.sage");
+        script_engine.load_file("assets/scripts/inventory/battle_inventory.sage");
+
+        // Skills & NPC dialogue
+        script_engine.load_file("assets/scripts/skills.sage");
         script_engine.load_file("assets/scripts/bobby.sage");
         script_engine.load_file("assets/scripts/vampire.sage");
         script_engine.load_file("assets/scripts/stranger.sage");
         script_engine.load_file("assets/scripts/azazel.sage");
-        script_engine.load_file("assets/scripts/inventory.sage");
         script_engine.load_file("assets/scripts/map_events.sage");
         game.script_engine = &script_engine;
 
         // Give starter items via SageLang
         if (script_engine.has_function("give_starter_items")) {
             script_engine.call_function("give_starter_items");
+        }
+        if (script_engine.has_function("restock_food")) {
+            script_engine.call_function("restock_food");
+        }
+
+        // Initialize H.U.N.T.E.R. skills
+        if (script_engine.has_function("init_dean_skills"))
+            script_engine.call_function("init_dean_skills");
+        if (script_engine.has_function("init_sam_skills"))
+            script_engine.call_function("init_sam_skills");
+
+        // Audio engine
+        eb::AudioEngine audio;
+        if (audio.is_initialized()) {
+            audio.set_music_volume(0.5f);
+            audio.play_music("assets/audio/overworld.wav", true);
         }
 
 #ifndef EB_ANDROID
@@ -126,6 +158,16 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 return;
             }
 #endif
+            // Audio: crossfade between overworld/battle music
+            if (audio.is_initialized()) {
+                audio.update(dt);
+                if (game.battle.phase != BattlePhase::None) {
+                    audio.crossfade_music("assets/audio/battle.wav", 0.5f, true);
+                } else {
+                    audio.crossfade_music("assets/audio/overworld.wav", 1.0f, true);
+                }
+            }
+
             // Shared game update
             update_game(game, input, dt);
         };

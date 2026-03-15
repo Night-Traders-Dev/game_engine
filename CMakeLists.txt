@@ -92,6 +92,8 @@ add_library(tw_engine STATIC
     src/game/game.cpp
     src/engine/scripting/script_engine.cpp
     src/engine/graphics/text_renderer.cpp
+    src/engine/audio/audio_engine.cpp
+    src/third_party/miniaudio_impl.cpp
     src/game/dialogue/dialogue_box.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp

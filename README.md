@@ -9,6 +9,8 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating Eart
 - **Tile Map System** — Multi-layer maps, collision, portals, animated water/grass overlays
 - **Battle System** — Turn-based combat with rolling HP, party members, attack animations
 - **Inventory System** — SageLang-driven items with battle submenu, elemental weaknesses, stacking
+- **H.U.N.T.E.R. Skills** — Fallout S.P.E.C.I.A.L.-style character stats (Hardiness, Unholiness, Nerve, Tactics, Exorcism, Riflery)
+- **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends
 - **Dialogue System** — Typewriter text, character portraits, branching conversations
 - **NPC AI** — Idle wandering, hostile aggro/chase, auto-trigger encounters
 - **Tile Editor** — Dear ImGui-powered editor with tabbed asset panels, undo/redo, zoom, file dialogs

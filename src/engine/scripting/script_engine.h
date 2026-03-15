@@ -53,6 +53,7 @@ private:
     void register_engine_api();
     void register_battle_api();
     void register_inventory_api();
+    void register_skills_api();
 
     Env* env_ = nullptr;
 

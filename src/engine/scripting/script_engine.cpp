@@ -175,6 +175,68 @@ static Value native_item_count(int argc, Value* args) {
     return val_number(gs->inventory.count(id));
 }
 
+// ═══════════════ Skills API ═══════════════
+
+static HunterSkills* resolve_skills(const char* character) {
+    if (!s_active_engine || !s_active_engine->game_state_) return nullptr;
+    auto* gs = s_active_engine->game_state_;
+    if (std::strcmp(character, "dean") == 0 || std::strcmp(character, "Dean") == 0)
+        return &gs->dean_skills;
+    if (std::strcmp(character, "sam") == 0 || std::strcmp(character, "Sam") == 0)
+        return &gs->sam_skills;
+    return nullptr;
+}
+
+static int* resolve_skill_field(HunterSkills* skills, const char* name) {
+    if (!skills) return nullptr;
+    if (std::strcmp(name, "hardiness") == 0)  return &skills->hardiness;
+    if (std::strcmp(name, "unholiness") == 0) return &skills->unholiness;
+    if (std::strcmp(name, "nerve") == 0)      return &skills->nerve;
+    if (std::strcmp(name, "tactics") == 0)    return &skills->tactics;
+    if (std::strcmp(name, "exorcism") == 0)   return &skills->exorcism;
+    if (std::strcmp(name, "riflery") == 0)    return &skills->riflery;
+    return nullptr;
+}
+
+// get_skill(character, skill_name) -> number
+static Value native_get_skill(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING || args[1].type != VAL_STRING)
+        return val_number(0);
+    auto* skills = resolve_skills(args[0].as.string);
+    auto* field = resolve_skill_field(skills, args[1].as.string);
+    return val_number(field ? *field : 0);
+}
+
+// set_skill(character, skill_name, value)
+static Value native_set_skill(int argc, Value* args) {
+    if (argc < 3 || args[0].type != VAL_STRING || args[1].type != VAL_STRING)
+        return val_nil();
+    auto* skills = resolve_skills(args[0].as.string);
+    auto* field = resolve_skill_field(skills, args[1].as.string);
+    if (field) {
+        int val = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 5;
+        *field = std::max(HunterSkills::MIN_STAT, std::min(HunterSkills::MAX_STAT, val));
+    }
+    return val_nil();
+}
+
+// get_skill_bonus(character, bonus_type) -> number
+static Value native_get_skill_bonus(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING || args[1].type != VAL_STRING)
+        return val_number(0);
+    auto* skills = resolve_skills(args[0].as.string);
+    if (!skills) return val_number(0);
+    const char* bonus = args[1].as.string;
+    if (std::strcmp(bonus, "hp") == 0)         return val_number(skills->hp_bonus());
+    if (std::strcmp(bonus, "crit") == 0)       return val_number(skills->crit_chance() * 100);
+    if (std::strcmp(bonus, "defense") == 0)    return val_number(skills->defense_bonus());
+    if (std::strcmp(bonus, "holy_mult") == 0)  return val_number(skills->holy_damage_mult() * 100);
+    if (std::strcmp(bonus, "weapon_dmg") == 0) return val_number(skills->weapon_damage_bonus());
+    if (std::strcmp(bonus, "dodge") == 0)      return val_number(skills->dodge_chance() * 100);
+    if (std::strcmp(bonus, "dark_mult") == 0)  return val_number(skills->dark_power_mult() * 100);
+    return val_number(0);
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -186,6 +248,7 @@ ScriptEngine::ScriptEngine() {
         register_engine_api();
         register_battle_api();
         register_inventory_api();
+        register_skills_api();
         s_active_engine = this;
     }
 }
@@ -219,6 +282,14 @@ void ScriptEngine::register_battle_api() {
     // battle_damage: the amount of damage/healing
     // battle_target: "enemy", "dean", "sam"
     std::printf("[ScriptEngine] Battle API registered\n");
+}
+
+void ScriptEngine::register_skills_api() {
+    if (!env_) return;
+    env_define(env_, "get_skill", 9, val_native(native_get_skill));
+    env_define(env_, "set_skill", 9, val_native(native_set_skill));
+    env_define(env_, "get_skill_bonus", 15, val_native(native_get_skill_bonus));
+    std::printf("[ScriptEngine] Skills API registered\n");
 }
 
 void ScriptEngine::register_inventory_api() {
@@ -258,6 +329,15 @@ void ScriptEngine::sync_battle_to_script() {
     set_number("sam_max_hp", b.sam_hp_max);
     set_number("sam_atk", b.sam_atk);
     set_number("active_fighter", b.active_fighter);
+
+    // Sync skill values for current fighter
+    auto& skills = (b.active_fighter == 0) ? game_state_->dean_skills : game_state_->sam_skills;
+    set_number("skill_hardiness", skills.hardiness);
+    set_number("skill_unholiness", skills.unholiness);
+    set_number("skill_nerve", skills.nerve);
+    set_number("skill_tactics", skills.tactics);
+    set_number("skill_exorcism", skills.exorcism);
+    set_number("skill_riflery", skills.riflery);
 
     // Reset result vars
     set_string("battle_result", "");

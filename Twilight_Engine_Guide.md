@@ -10,15 +10,17 @@
 6. [Sprite & Animation System](#sprite--animation-system)
 7. [Battle System](#battle-system)
 8. [Inventory System](#inventory-system)
-9. [SageLang Battle Scripting](#sagelang-battle-scripting)
-10. [Dialogue System](#dialogue-system)
-11. [NPC & AI System](#npc--ai-system)
-12. [Scripting with SageLang](#scripting-with-sagelang)
-13. [Tile Editor](#tile-editor)
-14. [Map File Format](#map-file-format)
-15. [Asset Pipeline](#asset-pipeline)
-16. [Android Platform](#android-platform)
-17. [Adding New Content](#adding-new-content)
+9. [H.U.N.T.E.R. Skills System](#hunter-skills-system)
+10. [Audio System](#audio-system)
+11. [SageLang Battle Scripting](#sagelang-battle-scripting)
+12. [Dialogue System](#dialogue-system)
+13. [NPC & AI System](#npc--ai-system)
+14. [Scripting with SageLang](#scripting-with-sagelang)
+15. [Tile Editor](#tile-editor)
+16. [Map File Format](#map-file-format)
+17. [Asset Pipeline](#asset-pipeline)
+18. [Android Platform](#android-platform)
+19. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -32,6 +34,7 @@ Engine Layer (eb:: namespace)
   ├── Graphics:  VulkanContext, Renderer, SpriteBatch, Texture, TextureAtlas, Pipeline
   ├── Platform:  PlatformDesktop (GLFW), PlatformAndroid (NativeActivity)
   ├── Resource:  ResourceManager, FileIO (cross-platform asset loading)
+  ├── Audio:     AudioEngine (miniaudio — BGM, SFX, crossfade)
   └── Scripting: ScriptEngine (embedded SageLang interpreter)
 
 Game Layer (global structs)
@@ -434,6 +437,163 @@ proc use_holy_water():
 
 ---
 
+## H.U.N.T.E.R. Skills System
+
+### Overview
+
+The H.U.N.T.E.R. system is a Fallout S.P.E.C.I.A.L.-inspired character stat system themed around Supernatural monster hunting. Each stat ranges from 1-10 and provides derived combat bonuses.
+
+### Stats
+
+| Stat | Full Name | Effect Per Point |
+|------|-----------|-----------------|
+| **H** | Hardiness | +10 max HP, damage resistance |
+| **U** | Unholiness | +8% dark ability power (demon deals, psychic) |
+| **N** | Nerve | +3% crit chance, +2% dodge chance |
+| **T** | Tactics | +2 defense bonus |
+| **E** | Exorcism | +10% holy damage multiplier vs supernatural |
+| **R** | Riflery | +2 weapon damage bonus |
+
+### Default Character Builds
+
+**Dean Winchester** — Gunslinger (H5 U3 N6 T4 E3 R6):
+
+- High Nerve (6): 18% crit, 12% dodge — lucky and instinctive
+- High Riflery (6): +12 weapon damage — skilled marksman
+- Low Exorcism (3): relies on weapons over ritual
+
+**Sam Winchester** — Scholar (H4 U5 N4 T6 E6 R3):
+
+- High Exorcism (6): 1.6x holy damage — trained in lore and rituals
+- High Tactics (6): +12 defense — strategic thinker
+- High Unholiness (5): 1.4x dark power — demon blood history
+- Low Riflery (3): prefers research over guns
+
+### HunterSkills Struct (C++)
+
+```cpp
+struct HunterSkills {
+    int hardiness  = 5;  // 1-10
+    int unholiness = 3;
+    int nerve      = 5;
+    int tactics    = 5;
+    int exorcism   = 4;
+    int riflery    = 5;
+
+    // Derived bonuses
+    int hp_bonus() const;           // hardiness * 10
+    float crit_chance() const;      // nerve * 0.03
+    int defense_bonus() const;      // tactics * 2
+    float holy_damage_mult() const; // 1.0 + exorcism * 0.1
+    int weapon_damage_bonus() const;// riflery * 2
+    float dodge_chance() const;     // nerve * 0.02
+    float dark_power_mult() const;  // 1.0 + unholiness * 0.08
+};
+```
+
+### Battle Integration
+
+Skills automatically apply when a battle starts:
+
+- `player_atk` += Dean's `weapon_damage_bonus()` (Riflery)
+- `player_def` += Dean's `defense_bonus()` (Tactics)
+- `sam_atk` += Sam's `weapon_damage_bonus()` (Riflery)
+
+During battle, skill globals are synced to SageLang (`skill_hardiness`, `skill_nerve`, etc.) so scripts can apply crit/dodge/holy bonuses.
+
+### SageLang Native Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_skill` | `get_skill(character, skill)` | Get skill value (1-10) |
+| `set_skill` | `set_skill(character, skill, value)` | Set skill value (clamped 1-10) |
+| `get_skill_bonus` | `get_skill_bonus(character, type)` | Get derived bonus value |
+
+**Bonus types:** `"hp"`, `"crit"`, `"defense"`, `"holy_mult"`, `"weapon_dmg"`, `"dodge"`, `"dark_mult"`
+
+### Skill Script Example
+
+```sage
+proc skill_crit_check():
+    let fighter = "dean"
+    if active_fighter == 1:
+        fighter = "sam"
+    let nerve = get_skill(fighter, "nerve")
+    let roll = random(1, 100)
+    if roll <= nerve * 3:
+        battle_damage = battle_damage * 2
+        battle_msg = battle_msg + " CRITICAL!"
+```
+
+---
+
+## Audio System
+
+### Overview
+
+The audio system uses **miniaudio** (single-header C library) for cross-platform audio playback. It supports background music with looping, sound effects, volume control, and smooth crossfading between tracks.
+
+### AudioEngine Class
+
+```cpp
+eb::AudioEngine audio;
+
+// Background music
+audio.play_music("assets/audio/overworld.wav", true);  // loop
+audio.stop_music();
+audio.pause_music();
+audio.resume_music();
+audio.set_music_volume(0.5f);  // 0.0 - 1.0
+
+// Crossfade to different track
+audio.crossfade_music("assets/audio/battle.wav", 0.5f, true);
+
+// Sound effects
+audio.play_sfx("assets/audio/hit.wav", 1.0f);
+
+// Master volume
+audio.set_master_volume(0.8f);
+
+// Call each frame (required for crossfade)
+audio.update(dt);
+```
+
+### Automatic Music Switching
+
+The engine automatically crossfades between overworld and battle music:
+
+- **Entering battle** — crossfades to `battle.wav` over 0.5s
+- **Exiting battle** — crossfades back to `overworld.wav` over 1.0s
+- Same-track requests are ignored (no restart)
+
+### Music Tracks
+
+| Track | File | Duration | Style |
+|-------|------|----------|-------|
+| Overworld | `assets/audio/overworld.wav` | 44s | 8-bit "Carry On My Wayward Son" arrangement (A minor, 120 BPM) |
+| Battle | `assets/audio/battle.wav` | 12s | Intense 8-bit battle theme (E minor, 160 BPM) |
+
+Both tracks are procedurally generated WAVs using square wave melody and sine bass, designed to loop seamlessly.
+
+### Platform Support
+
+| Platform | Backend |
+|----------|---------|
+| Linux | PulseAudio / ALSA |
+| Windows | WASAPI |
+| Android | OpenSL ES / AAudio |
+
+miniaudio auto-detects the best backend at runtime.
+
+### Adding New Music
+
+1. Place WAV/MP3/FLAC files in `assets/audio/`
+2. Call `audio.play_music("assets/audio/my_track.wav", true)` to play
+3. Use `crossfade_music()` for smooth transitions
+4. For Android, `build.sh` automatically copies audio assets to the APK
+
+---
+
 ## SageLang Battle Scripting
 
 ### How It Works
@@ -638,6 +798,9 @@ SageLang is embedded as a C library via the `ScriptEngine` wrapper class. It's a
 | `remove_item` | `remove_item(id, qty)` | Remove item from inventory |
 | `has_item` | `has_item(id)` | Check if item exists (returns bool) |
 | `item_count` | `item_count(id)` | Get item quantity |
+| `get_skill` | `get_skill(character, skill)` | Get H.U.N.T.E.R. skill value (1-10) |
+| `set_skill` | `set_skill(character, skill, value)` | Set skill value (clamped 1-10) |
+| `get_skill_bonus` | `get_skill_bonus(character, type)` | Get derived bonus (hp, crit, etc.) |
 
 ### Script Loading
 
@@ -934,4 +1097,4 @@ proc use_machete():
 
 ---
 
-*Twilight Engine v0.3.0 — Built with Vulkan, SageLang, and Dear ImGui*
+*Twilight Engine v0.4.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

@@ -60,7 +60,8 @@ case "${1}" in
             cp -ru "${PROJECT_DIR}/assets/textures/"* "${ASSETS_DIR}/assets/textures/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/maps/"* "${ASSETS_DIR}/assets/maps/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/fonts/"* "${ASSETS_DIR}/assets/fonts/" 2>/dev/null || true
-            mkdir -p "${ASSETS_DIR}/assets/dialogue" "${ASSETS_DIR}/assets/scripts"
+            mkdir -p "${ASSETS_DIR}/assets/dialogue" "${ASSETS_DIR}/assets/scripts" "${ASSETS_DIR}/assets/audio"
+            cp -ru "${PROJECT_DIR}/assets/audio/"* "${ASSETS_DIR}/assets/audio/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/dialogue/"* "${ASSETS_DIR}/assets/dialogue/" 2>/dev/null || true
             cp -ru "${PROJECT_DIR}/assets/scripts/"* "${ASSETS_DIR}/assets/scripts/" 2>/dev/null || true
         fi

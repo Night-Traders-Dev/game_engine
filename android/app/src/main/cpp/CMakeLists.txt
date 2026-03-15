@@ -48,9 +48,11 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/game/overworld/tile_map.cpp
     ${ENGINE_ROOT}/src/game/game.cpp
     ${ENGINE_ROOT}/src/engine/scripting/script_engine.cpp
+    ${ENGINE_ROOT}/src/engine/audio/audio_engine.cpp
     ${ENGINE_ROOT}/src/game/dialogue/dialogue_box.cpp
     ${ENGINE_ROOT}/src/third_party/stb_image_impl.cpp
     ${ENGINE_ROOT}/src/third_party/stb_truetype_impl.cpp
+    ${ENGINE_ROOT}/src/third_party/miniaudio_impl.cpp
     # SageLang interpreter
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/ast.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/lexer.c

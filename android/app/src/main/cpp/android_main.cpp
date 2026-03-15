@@ -6,6 +6,7 @@
 #include "game/game.h"
 #include "engine/core/engine.h"
 #include "engine/scripting/script_engine.h"
+#include "engine/audio/audio_engine.h"
 #include "engine/platform/platform_android.h"
 #include "engine/resource/file_io.h"
 
@@ -25,6 +26,7 @@ struct AppState {
     eb::Timer timer;
     float virtual_w = 1040.0f, virtual_h = 480.0f;
     GameState game;
+    std::unique_ptr<eb::AudioEngine> audio;
     bool has_focus = false;
     bool has_window = false;
     bool running = true;
@@ -72,15 +74,46 @@ static bool init_all(AppState& state) {
         // SageLang scripting
         static eb::ScriptEngine script_engine;
         script_engine.set_game_state(&state.game);
-        script_engine.load_file("assets/scripts/battle_system.sage");
+
+        // Battle scripts (modular)
+        script_engine.load_file("assets/scripts/battle/battle_core.sage");
+        script_engine.load_file("assets/scripts/battle/dean_battle.sage");
+        script_engine.load_file("assets/scripts/battle/sam_battle.sage");
+        script_engine.load_file("assets/scripts/battle/vampire_battle.sage");
+        script_engine.load_file("assets/scripts/battle/demon_battle.sage");
+
+        // Inventory scripts (modular)
+        script_engine.load_file("assets/scripts/inventory/inventory_core.sage");
+        script_engine.load_file("assets/scripts/inventory/dean_inventory.sage");
+        script_engine.load_file("assets/scripts/inventory/sam_inventory.sage");
+        script_engine.load_file("assets/scripts/inventory/brothers_inventory.sage");
+        script_engine.load_file("assets/scripts/inventory/battle_inventory.sage");
+
+        // Skills & NPC dialogue
+        script_engine.load_file("assets/scripts/skills.sage");
         script_engine.load_file("assets/scripts/bobby.sage");
         script_engine.load_file("assets/scripts/vampire.sage");
-        script_engine.load_file("assets/scripts/inventory.sage");
         state.game.script_engine = &script_engine;
 
         // Give starter items via SageLang
         if (script_engine.has_function("give_starter_items")) {
             script_engine.call_function("give_starter_items");
+        }
+        if (script_engine.has_function("restock_food")) {
+            script_engine.call_function("restock_food");
+        }
+
+        // Initialize H.U.N.T.E.R. skills
+        if (script_engine.has_function("init_dean_skills"))
+            script_engine.call_function("init_dean_skills");
+        if (script_engine.has_function("init_sam_skills"))
+            script_engine.call_function("init_sam_skills");
+
+        // Audio engine
+        state.audio = std::make_unique<eb::AudioEngine>();
+        if (state.audio->is_initialized()) {
+            state.audio->set_music_volume(0.5f);
+            state.audio->play_music("assets/audio/overworld.wav", true);
         }
 
         LOGI("Game initialized (virtual %.0fx%.0f, native %.0fx%.0f)",
@@ -215,6 +248,15 @@ void android_main(struct android_app* app) {
             }
 
             if (state.game.initialized) {
+                // Audio: crossfade between overworld/battle music
+                if (state.audio && state.audio->is_initialized()) {
+                    state.audio->update(dt);
+                    if (state.game.battle.phase != BattlePhase::None)
+                        state.audio->crossfade_music("assets/audio/battle.wav", 0.5f, true);
+                    else
+                        state.audio->crossfade_music("assets/audio/overworld.wav", 1.0f, true);
+                }
+
                 // Shared game update
                 update_game(state.game, state.platform->input(), dt);
 

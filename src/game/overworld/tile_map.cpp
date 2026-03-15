@@ -470,7 +470,9 @@ bool TileMap::load_json(const std::string& path) {
             auto col = parse_int_array(json, i);
             collision_types_.resize(col.size());
             for (size_t ci = 0; ci < col.size(); ci++) {
-                collision_types_[ci] = static_cast<CollisionType>(col[ci]);
+                int cv = col[ci];
+                collision_types_[ci] = (cv >= 0 && cv <= 2)
+                    ? static_cast<CollisionType>(cv) : CollisionType::None;
             }
         } else if (key == "portals") {
             if (json[i] == '[') {
