@@ -5,6 +5,7 @@
 
 #include "game/game.h"
 #include "engine/core/engine.h"
+#include "engine/scripting/script_engine.h"
 #include "engine/platform/platform_android.h"
 #include "engine/resource/file_io.h"
 
@@ -67,6 +68,14 @@ static bool init_all(AppState& state) {
             LOGE("init_game failed");
             return false;
         }
+
+        // SageLang scripting
+        static eb::ScriptEngine script_engine;
+        script_engine.set_game_state(&state.game);
+        script_engine.load_file("assets/scripts/battle_system.sage");
+        script_engine.load_file("assets/scripts/bobby.sage");
+        script_engine.load_file("assets/scripts/vampire.sage");
+        state.game.script_engine = &script_engine;
 
         LOGI("Game initialized (virtual %.0fx%.0f, native %.0fx%.0f)",
              virtual_w, virtual_h, native_w, native_h);

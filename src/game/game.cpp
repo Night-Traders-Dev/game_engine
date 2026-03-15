@@ -1,5 +1,6 @@
 #include "game/game.h"
 #include "engine/resource/file_io.h"
+#include "engine/scripting/script_engine.h"
 #include <fstream>
 #include <sstream>
 
@@ -735,23 +736,38 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
         if (down && b.menu_selection < 2) b.menu_selection++;
         if (confirm) {
             b.phase_timer = 0.0f; b.attack_anim_timer = 0.0f;
-            const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
-            int atk = (b.active_fighter == 0) ? b.player_atk : b.sam_atk;
 
             if (b.menu_selection == 0) {
-                int damage = atk + (game.rng() % 5) - 2;
-                if (damage < 1) damage = 1;
-                b.enemy_hp_actual -= damage; b.last_damage = damage;
-                b.message = std::string(fighter) + " attacks! " + std::to_string(damage) + " damage!";
+                // Attack — use SageLang if available
+                if (game.script_engine && game.script_engine->has_function("attack_normal")) {
+                    game.script_engine->sync_battle_to_script();
+                    game.script_engine->call_function("attack_normal");
+                    game.script_engine->sync_battle_from_script();
+                } else {
+                    // Fallback C++ logic
+                    const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                    int atk = (b.active_fighter == 0) ? b.player_atk : b.sam_atk;
+                    int damage = atk + (game.rng() % 5) - 2;
+                    if (damage < 1) damage = 1;
+                    b.enemy_hp_actual -= damage; b.last_damage = damage;
+                    b.message = std::string(fighter) + " attacks! " + std::to_string(damage) + " damage!";
+                }
                 b.phase = BattlePhase::PlayerAttack;
             } else if (b.menu_selection == 1) {
-                int heal = 8 + game.rng() % 8;
-                if (b.active_fighter == 0) {
-                    b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
+                // Defend — use SageLang if available
+                if (game.script_engine && game.script_engine->has_function("defend")) {
+                    game.script_engine->sync_battle_to_script();
+                    game.script_engine->call_function("defend");
+                    game.script_engine->sync_battle_from_script();
                 } else {
-                    b.sam_hp_actual = std::min(b.sam_hp_actual + heal, b.sam_hp_max);
+                    const char* fighter = (b.active_fighter == 0) ? "Dean" : "Sam";
+                    int heal = 8 + game.rng() % 8;
+                    if (b.active_fighter == 0)
+                        b.player_hp_actual = std::min(b.player_hp_actual + heal, b.player_hp_max);
+                    else
+                        b.sam_hp_actual = std::min(b.sam_hp_actual + heal, b.sam_hp_max);
+                    b.message = std::string(fighter) + " braces! Recovered " + std::to_string(heal) + " HP.";
                 }
-                b.message = std::string(fighter) + " braces! Recovered " + std::to_string(heal) + " HP.";
                 b.phase = BattlePhase::PlayerAttack;
             } else {
                 if (b.random_encounter && (game.rng() % 3) != 0) {
@@ -785,23 +801,39 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
         break;
 
     case BattlePhase::EnemyTurn: {
-        // Enemy attacks a random party member
-        int target = (game.rng() % 2 == 0 && b.sam_hp_actual > 0) ? 1 : 0;
-        if (b.player_hp_actual <= 0) target = 1;
-        if (b.sam_hp_actual <= 0) target = 0;
-
-        int def = (target == 0) ? b.player_def : 2;
-        int damage = b.enemy_atk + (game.rng() % 5) - 2 - def / 3;
-        if (damage < 1) damage = 1;
-
-        if (target == 0) {
-            b.player_hp_actual -= damage;
-            b.message = b.enemy_name + " attacks Dean! " + std::to_string(damage) + " damage!";
-        } else {
-            b.sam_hp_actual -= damage;
-            b.message = b.enemy_name + " attacks Sam! " + std::to_string(damage) + " damage!";
+        // Use SageLang enemy AI if available
+        bool scripted = false;
+        if (game.script_engine) {
+            game.script_engine->sync_battle_to_script();
+            // Try vampire-specific attack first, then generic
+            if (b.enemy_name == "Vampire" && game.script_engine->has_function("vampire_attack")) {
+                game.script_engine->call_function("vampire_attack");
+                scripted = true;
+            } else if (game.script_engine->has_function("enemy_turn")) {
+                game.script_engine->call_function("enemy_turn");
+                scripted = true;
+            }
+            if (scripted) game.script_engine->sync_battle_from_script();
         }
-        b.last_damage = damage;
+
+        if (!scripted) {
+            // Fallback C++ logic
+            int target = (game.rng() % 2 == 0 && b.sam_hp_actual > 0) ? 1 : 0;
+            if (b.player_hp_actual <= 0) target = 1;
+            if (b.sam_hp_actual <= 0) target = 0;
+            int def = (target == 0) ? b.player_def : 2;
+            int damage = b.enemy_atk + (game.rng() % 5) - 2 - def / 3;
+            if (damage < 1) damage = 1;
+            if (target == 0) {
+                b.player_hp_actual -= damage;
+                b.message = b.enemy_name + " attacks Dean! " + std::to_string(damage) + " damage!";
+            } else {
+                b.sam_hp_actual -= damage;
+                b.message = b.enemy_name + " attacks Sam! " + std::to_string(damage) + " damage!";
+            }
+            b.last_damage = damage;
+        }
+
         b.phase = BattlePhase::EnemyAttack; b.phase_timer = 0.0f;
         b.attack_anim_timer = 0.0f;
         break;

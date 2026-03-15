@@ -23,6 +23,9 @@
 #include <cstdio>
 #include <algorithm>
 
+// Forward declare
+namespace eb { class ScriptEngine; }
+
 // ─── Tile IDs (1-indexed, 0 = empty) ───
 enum Tile : int {
     TILE_EMPTY = 0,
@@ -164,6 +167,8 @@ struct GameState {
     BattleState battle;
     float game_time = 0.0f, steps_since_encounter = 0.0f;
     std::mt19937 rng{std::random_device{}()};
+
+    eb::ScriptEngine* script_engine = nullptr;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;
     VkDescriptorSet dean_desc = VK_NULL_HANDLE;

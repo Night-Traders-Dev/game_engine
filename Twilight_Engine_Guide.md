@@ -9,14 +9,15 @@
 5. [Tile Map System](#tile-map-system)
 6. [Sprite & Animation System](#sprite--animation-system)
 7. [Battle System](#battle-system)
-8. [Dialogue System](#dialogue-system)
-9. [NPC & AI System](#npc--ai-system)
-10. [Scripting with SageLang](#scripting-with-sagelang)
-11. [Tile Editor](#tile-editor)
-12. [Map File Format](#map-file-format)
-13. [Asset Pipeline](#asset-pipeline)
-14. [Android Platform](#android-platform)
-15. [Adding New Content](#adding-new-content)
+8. [SageLang Battle Scripting](#sagelang-battle-scripting)
+9. [Dialogue System](#dialogue-system)
+10. [NPC & AI System](#npc--ai-system)
+11. [Scripting with SageLang](#scripting-with-sagelang)
+12. [Tile Editor](#tile-editor)
+13. [Map File Format](#map-file-format)
+14. [Asset Pipeline](#asset-pipeline)
+15. [Android Platform](#android-platform)
+16. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -26,26 +27,31 @@ Twilight Engine is a cross-platform 2D RPG engine built on Vulkan. The codebase 
 
 ```
 Engine Layer (eb:: namespace)
-  ├── Core:     Engine loop, timer, types (Vec2, Vec4, Mat4)
-  ├── Graphics: VulkanContext, Renderer, SpriteBatch, Texture, TextureAtlas, Pipeline
-  ├── Platform: PlatformDesktop (GLFW), PlatformAndroid (NativeActivity)
-  ├── Resource: ResourceManager, FileIO (cross-platform asset loading)
-  └── Scripting: ScriptEngine (SageLang integration)
+  ├── Core:      Engine loop, timer, types (Vec2, Vec4, Mat4)
+  ├── Graphics:  VulkanContext, Renderer, SpriteBatch, Texture, TextureAtlas, Pipeline
+  ├── Platform:  PlatformDesktop (GLFW), PlatformAndroid (NativeActivity)
+  ├── Resource:  ResourceManager, FileIO (cross-platform asset loading)
+  └── Scripting: ScriptEngine (embedded SageLang interpreter)
 
 Game Layer (global structs)
-  ├── GameState: All game data (player, NPCs, battle, map, party)
-  ├── game.h/cpp: Shared game logic (init, update, render)
-  ├── TileMap: Tile storage, collision, portals, rendering
-  ├── Camera: Viewport, follow, bounds, offset
+  ├── GameState:   All game data (player, NPCs, battle, map, party, script engine)
+  ├── game.h/cpp:  Shared game logic (init, update, render, save/load)
+  ├── TileMap:     Tile storage, collision, portals, animated tiles
+  ├── Camera:      Viewport, follow, bounds, offset
   └── DialogueBox: Typewriter text, portraits, choices
 
 Editor Layer (desktop only)
-  ├── TileEditor: Tools, undo/redo, zoom, selection, clipboard
+  ├── TileEditor:       Tools, undo/redo, zoom, selection, clipboard, object placement
   ├── ImGuiIntegration: Vulkan+GLFW ImGui backend
-  └── Dear ImGui: Professional windowed UI
+  └── Dear ImGui:       Professional windowed UI with tabbed asset panels
 ```
 
-**Key Design Principle**: Game logic is shared between desktop and Android via `game.h`/`game.cpp`. Platform-specific code (GLFW, touch controls, editor) is conditionally compiled. The editor is desktop-only; the game runs identically on all platforms.
+**Key Design Principles**:
+- Game logic is shared between desktop and Android via `game.h`/`game.cpp`
+- Platform-specific code is conditionally compiled (`#ifndef EB_ANDROID`)
+- Battle logic is scriptable via SageLang with C++ fallback
+- All tileset sprites use transparent backgrounds for clean rendering
+- The editor is desktop-only; the game runs identically on all platforms
 
 ---
 
@@ -63,7 +69,7 @@ Editor Layer (desktop only)
 
 ```bash
 ./build.sh linux [Debug|Release]    # Native Linux build
-./build.sh win64 [Debug|Release]    # Cross-compile for Windows
+./build.sh win64 [Debug|Release]    # Cross-compile for Windows (static linked)
 ./build.sh android [Debug|Release]  # Android APK
 ./build.sh all                      # Build all platforms
 ./build.sh clean                    # Remove all build artifacts
@@ -72,14 +78,14 @@ Editor Layer (desktop only)
 ### Build Outputs
 
 - `build-linux/twilight_game_binary` — Linux executable
-- `build-win64/twilight_game_binary.exe` — Windows executable
+- `build-win64/twilight_game_binary.exe` — Windows executable (statically linked, no DLL dependencies)
 - `android/app/build/outputs/apk/debug/app-debug.apk` — Android APK
 
 ### CMake Targets
 
 - `tw_engine` — Static library containing all engine + game code
 - `twilight_game_binary` — Desktop executable (links tw_engine)
-- `sagelang` — Static library of SageLang interpreter
+- `sagelang` — Static library of embedded SageLang interpreter
 
 ### Dependencies (auto-fetched via FetchContent)
 
@@ -91,9 +97,9 @@ Editor Layer (desktop only)
 
 - stb_image.h — Image loading
 - stb_truetype.h — Font rasterization
-- Dear ImGui — Editor UI
-- SageLang — Scripting language (git submodule)
-- tinyfiledialogs — Native file dialogs
+- Dear ImGui — Editor UI (Vulkan + GLFW backends)
+- SageLang — Scripting language (git submodule at `src/third_party/sagelang`)
+- tinyfiledialogs — Native file dialogs (Linux: zenity via popen, Windows: native)
 
 ---
 
@@ -145,7 +151,7 @@ Handles Vulkan initialization: instance, device, swapchain, command pools, buffe
 Key features:
 - Automatic swapchain recreation on resize
 - Composite alpha detection (Android compatibility)
-- Pre-transform handling for landscape mode
+- Pre-transform IDENTITY for landscape mode (avoids rotation issues)
 - Validation layer support (debug builds)
 
 ### Renderer
@@ -177,7 +183,7 @@ Batched quad rendering with Y-sorting support. Key limits:
 
 Simple 2D sprite shaders:
 - `sprite.vert` — Transforms by push-constant projection matrix
-- `sprite.frag` — Texture sampling with vertex color tinting
+- `sprite.frag` — Texture sampling with vertex color tinting (alpha blending)
 
 ---
 
@@ -197,15 +203,28 @@ map.set_animated_tiles(TILE_WATER_DEEP, TILE_WATER_SHORE_L);
 map.render(batch, camera, game_time);
 ```
 
-### Tile Types
+### Tile Types (54 ground tiles)
 
-54 ground tiles organized by category:
-- Grass (4 variants), Dirt (4), Edges/Hedges (4)
-- Dirt paths (6), Special ground (6, including pentagram)
-- Roads (12 pieces), Road extras (5)
-- Water/Shore (9 types), Water objects (4)
+| Category | Count | Examples |
+|----------|-------|---------|
+| Grass | 4 | Pure, light, flowers, dark |
+| Dirt | 4 | Brown, dark, mud, gravel |
+| Edges/Hedges | 4 | Grass edges, hedge variants |
+| Dirt Paths | 6 | Path, mixed, stone path |
+| Special Ground | 6 | Pentagram, dark ground, blood dirt, dark stone |
+| Roads | 12 | Horizontal, vertical, cross, corners, sidewalk, asphalt |
+| Road Extras | 5 | Dirt road, blood patches |
+| Water/Shore | 9 | Deep, mid, shore L/R, sand, wet sand, shallow, blood water |
+| Water Objects | 4 | Bench, rocks |
 
-39 object stamps (buildings, vehicles, trees, misc) for editor placement.
+### Object Stamps (46 objects)
+
+| Category | Count | Examples |
+|----------|-------|---------|
+| Buildings | 5 | Gas Mart, Salvage Repair, Tall Building, Motel, House |
+| Vehicles | 3 | Impala, Blue Car, Impala (side) |
+| Trees | 17 | Large trees, dead trees, gnarly trees, bushes, stumps, night variants, hedge row |
+| Misc | 21 | Tombstones, statues, urns, lamp posts, walls, pentagram, campfire, barrels |
 
 ### Collision
 
@@ -257,7 +276,7 @@ auto sr = get_character_sprite(atlas, direction, is_moving, frame);
 1. **Intro** — "A [Enemy] appeared!" (1.5s or confirm)
 2. **Dean's Turn** — Attack / Defend / Run menu
 3. **Sam's Turn** — Same menu (skipped if Sam is down)
-4. **Enemy Turn** — Attacks random party member
+4. **Enemy Turn** — SageLang AI selects target and calculates damage
 5. Repeat until victory or defeat
 
 ### Rolling HP
@@ -270,19 +289,124 @@ EarthBound-style HP odometer — display rolls down toward actual HP at 40 HP/se
 - **Enemy hit**: Sprite blinks (alternating visibility)
 - **Damage numbers**: Shown in battle message box
 
-### Battle Data
+### Battle Rendering
 
-```cpp
-struct BattleState {
-    BattlePhase phase;
-    int enemy_hp_actual, enemy_hp_max, enemy_atk;
-    int player_hp_actual, player_hp_max;
-    float player_hp_display; // Rolling odometer
-    int sam_hp_actual, sam_hp_max;
-    float sam_hp_display;
-    int active_fighter; // 0=Dean, 1=Sam
-};
+- Enemy sprite displayed at top (facing player, 1.5x size)
+- Dean and Sam displayed bottom-center (backs to camera)
+- HP bars for both Dean and Sam with active fighter highlighted
+- Battle menu shows current fighter's name
+
+### SageLang Integration
+
+The battle system calls SageLang functions at key action points:
+- `attack_normal()` — player attacks
+- `defend()` — player heals
+- `enemy_turn()` — generic enemy AI
+- `vampire_attack()` — vampire-specific AI (HP drain)
+- `on_victory()` / `on_defeat()` — battle end handlers
+
+If no script function exists, the engine falls back to built-in C++ logic.
+
+---
+
+## SageLang Battle Scripting
+
+### How It Works
+
+1. C++ syncs battle state variables TO SageLang globals
+2. C++ calls the appropriate SageLang function
+3. SageLang script reads/modifies the globals
+4. C++ syncs the modified values BACK from SageLang
+
+### Synced Variables
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `enemy_hp` | number | Current enemy HP (read/write) |
+| `enemy_max_hp` | number | Enemy max HP |
+| `enemy_atk` | number | Enemy attack power |
+| `enemy_name` | string | Enemy name |
+| `dean_hp` | number | Dean's current HP (read/write) |
+| `dean_max_hp` | number | Dean's max HP |
+| `dean_atk` | number | Dean's attack power |
+| `dean_def` | number | Dean's defense |
+| `sam_hp` | number | Sam's current HP (read/write) |
+| `sam_max_hp` | number | Sam's max HP |
+| `sam_atk` | number | Sam's attack power |
+| `active_fighter` | number | 0 = Dean, 1 = Sam |
+| `battle_damage` | number | Result: damage/heal amount |
+| `battle_msg` | string | Result: message to display |
+| `battle_target` | string | Result: who was hit |
+
+### Battle Script Example
+
+```sage
+# battle_system.sage
+
+proc attack_normal():
+    let fighter_name = "Dean"
+    let base_atk = dean_atk
+    if active_fighter == 1:
+        fighter_name = "Sam"
+        base_atk = sam_atk
+
+    let damage = base_atk + random(-2, 2)
+    if damage < 1:
+        damage = 1
+
+    # Critical hit chance (10%)
+    let crit = random(1, 10)
+    if crit == 10:
+        damage = damage * 2
+        battle_msg = fighter_name + " lands a CRITICAL HIT! " + str(damage) + " damage!"
+    else:
+        battle_msg = fighter_name + " attacks! " + str(damage) + " damage!"
+
+    enemy_hp = enemy_hp - damage
+    battle_damage = damage
+
+proc vampire_attack():
+    # Vampires drain HP — damages target AND heals self
+    let target = random(0, 1)
+    if dean_hp <= 0:
+        target = 1
+    if sam_hp <= 0:
+        target = 0
+
+    let damage = enemy_atk + random(0, 5)
+    let drain = damage / 3
+
+    if target == 0:
+        dean_hp = dean_hp - damage
+    else:
+        sam_hp = sam_hp - damage
+
+    enemy_hp = enemy_hp + drain
+    if enemy_hp > enemy_max_hp:
+        enemy_hp = enemy_max_hp
+
+    battle_msg = enemy_name + " drains " + str(damage) + " HP!"
 ```
+
+### Available Script Functions
+
+| Function | Called When | Purpose |
+|----------|-----------|---------|
+| `attack_normal()` | Player selects Attack | Calculate and apply damage to enemy |
+| `attack_shotgun()` | (future: item menu) | Shotgun attack (requires `has_shotgun` flag) |
+| `attack_holy_water()` | (future: item menu) | Holy water attack (requires flag) |
+| `defend()` | Player selects Defend | Heal the active fighter |
+| `enemy_turn()` | Enemy's turn (generic) | AI selects target and attacks |
+| `vampire_attack()` | Enemy's turn (vampire) | Vampire-specific drain attack |
+| `on_victory()` | Battle won | Award XP, set flags |
+| `on_defeat()` | Battle lost | Set flags |
+
+### Adding New Attacks
+
+1. Write a new `proc` in `battle_system.sage`
+2. Read from synced globals, modify `enemy_hp`/`dean_hp`/`sam_hp`
+3. Set `battle_msg` and `battle_damage` for display
+4. Call from C++ via `script_engine->call_function("my_attack")`
 
 ---
 
@@ -293,16 +417,16 @@ struct BattleState {
 Features:
 - Typewriter effect (35 chars/sec)
 - Word wrapping
-- Character portraits (loaded from cropped images)
-- Dialog.png background texture
-- Speaker name highlighting
+- Character portraits (Dean, Sam, Bobby — cropped from Profiles.png)
+- Dialog.png background texture (Stardew Valley-style dark atmospheric box)
+- Speaker name highlighting (cyan)
 - Blinking advance indicator
 - Choice menus
 
 ### Dialogue Files (`.dialogue`)
 
 Legacy format with labeled sections:
-```sage
+```
 @greeting
 Bobby: You idjits better be prepared.
 Bobby: Watch your back.
@@ -312,9 +436,9 @@ Bobby: You boys alright?
 Dean: Nothing a cold beer won't fix.
 ```
 
-### SageLang Scripts (`.sage`)
+### SageLang Dialogue Scripts (`.sage`)
 
-Modern format with full scripting:
+Modern format with full scripting and conditional logic:
 ```sage
 proc greeting():
     say("Bobby", "You idjits better be prepared.")
@@ -322,7 +446,16 @@ proc greeting():
         say("Bobby", "Good, you've got supplies.")
     else:
         say("Bobby", "Talk to me about supplies.")
+
+proc supplies():
+    say("Bobby", "Here, take this shotgun.")
+    set_flag("has_shotgun", true)
+    set_flag("has_holy_water", true)
 ```
+
+### Dialogue File Loading
+
+Both formats are loaded at startup. `.dialogue` files are parsed by `load_dialogue_file()` using the cross-platform `FileIO::read_file()` (works on desktop and Android). `.sage` files are loaded into the SageLang interpreter.
 
 ---
 
@@ -337,10 +470,10 @@ struct NPC {
     int dir, frame;
     float interact_radius;
     bool hostile;           // Will chase player
-    float aggro_range;      // Distance to start chasing
-    float attack_range;     // Distance to trigger dialogue/battle
-    float move_speed;
-    float wander_interval;
+    float aggro_range;      // Distance to start chasing (px)
+    float attack_range;     // Distance to auto-trigger dialogue/battle (px)
+    float move_speed;       // Movement speed (px/sec)
+    float wander_interval;  // Time between wander target changes (sec)
     bool has_battle;
     int sprite_atlas_id;
     std::vector<DialogueLine> dialogue;
@@ -349,13 +482,10 @@ struct NPC {
 
 ### AI Behaviors
 
-- **Passive NPCs**: Wander randomly near home position, require manual interaction (Z/Enter)
-- **Hostile NPCs**: Chase player when within aggro range, auto-trigger dialogue + battle at attack range
+- **Passive NPCs**: Wander randomly near home position, require manual interaction (Z/Enter or A button)
+- **Hostile NPCs**: Chase player when within aggro range at increased speed, auto-trigger dialogue + battle at attack range
 - **Post-encounter**: Hostile NPCs become passive after triggering (`has_triggered` flag)
-
-### Walk Animation
-
-NPCs animate while moving — direction determined by movement vector, frames toggle every 0.2s.
+- **Walk Animation**: NPCs animate while moving — direction from movement vector, frames toggle every 0.2s
 
 ---
 
@@ -363,48 +493,47 @@ NPCs animate while moving — direction determined by movement vector, frames to
 
 ### Overview
 
-SageLang is embedded as a C library via the `ScriptEngine` wrapper class. Scripts are `.sage` files loaded at runtime.
+SageLang is embedded as a C library via the `ScriptEngine` wrapper class. It's a Python-like language that compiles to C, is self-hosted, and runs as both a scripting and compiled language.
+
+- **Repository**: https://github.com/Night-Traders-Dev/SageLang
+- **Integration**: Git submodule at `src/third_party/sagelang/`
+- **Build**: Compiled as a static library, linked into `tw_engine`
 
 ### Engine API Functions
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `say` | `say(speaker, text)` | Display dialogue line |
-| `dialogue` | `dialogue(s1, t1, s2, t2, ...)` | Multi-line dialogue |
-| `start_battle` | `start_battle(name, hp, atk)` | Trigger battle |
-| `spawn_npc` | `spawn_npc(name, x, y)` | Create NPC at position |
-| `teleport` | `teleport(x, y)` | Move player |
-| `log` | `log(message)` | Debug output |
-| `set_flag` | `set_flag(name, value)` | Set game flag |
-| `get_flag` | `get_flag(name)` | Check game flag |
+| `log` | `log(message)` | Debug output to console |
+| `set_flag` | `set_flag(name, value)` | Set a persistent game flag |
+| `get_flag` | `get_flag(name)` | Check a game flag (returns bool) |
+| `random` | `random(min, max)` | Random integer in [min, max] |
+| `clamp` | `clamp(value, min, max)` | Clamp a number to range |
 
-### Script Example
-
-```sage
-# bobby.sage
-proc greeting():
-    say("Bobby", "You idjits better be prepared.")
-    say("Bobby", "I've got some supplies if you need 'em.")
-
-proc supplies():
-    say("Bobby", "Here, take this shotgun.")
-    set_flag("has_shotgun", true)
-    set_flag("has_holy_water", true)
-
-proc after_battle():
-    say("Bobby", "You boys alright?")
-    say("Dean", "Nothing a cold beer won't fix.")
-    set_flag("bobby_checked_in", true)
-```
-
-### Using Scripts
+### Script Loading
 
 ```cpp
-eb::ScriptEngine script;
-script.load_file("assets/scripts/bobby.sage");
-script.call_function("greeting");  // Executes the greeting proc
-script.set_number("player_hp", 100);
+eb::ScriptEngine script_engine;
+script_engine.set_game_state(&game);
+script_engine.load_file("assets/scripts/battle_system.sage");
+script_engine.load_file("assets/scripts/bobby.sage");
+script_engine.call_function("greeting");
 ```
+
+### Game State Sync (Battle)
+
+```cpp
+// Before calling a battle script function:
+script_engine.sync_battle_to_script();  // Push C++ state → SageLang globals
+script_engine.call_function("attack_normal");
+script_engine.sync_battle_from_script(); // Pull SageLang globals → C++ state
+```
+
+### Platform Notes
+
+- **Linux**: Full SageLang support including FFI (`dlfcn.h`)
+- **Windows**: Compiled with `SAGE_NO_FFI` (no dynamic library loading)
+- **Android**: SageLang sources compiled directly into the APK native library
 
 ---
 
@@ -418,21 +547,51 @@ Press **Tab** to toggle the editor. The game world renders underneath; editor UI
 
 | Tool | Key | Description |
 |------|-----|-------------|
-| Paint | P | Place selected tile |
-| Erase | E | Remove tiles |
-| Fill | F | Flood fill area |
+| Paint | P | Place selected tile or stamp object |
+| Erase | E | Remove tiles (right-click also erases) |
+| Fill | F | Flood fill area with selected tile |
 | Eyedrop | I | Pick tile from map |
-| Select | R | Rectangle selection |
-| Collision | C | Cycle collision types |
-| Line | L | Draw straight lines |
-| Rectangle | B | Draw rectangles |
+| Select | R | Rectangle selection (then Copy/Fill/Delete) |
+| Collision | C | Cycle collision types (None → Solid → Portal) |
+| Line | L | Draw straight lines of tiles |
+| Rectangle | B | Draw filled rectangles |
 
-### Panels
+### ImGui Panels
 
-- **Tools** — Tool buttons, grid/collision toggles, layer management, zoom, undo/redo, save/load
-- **Assets** — Tabbed panel with Tiles, Buildings, Vehicles, Trees, Misc categories
-- All assets show image previews from the tileset
-- Ghost cursor shows selected item at mouse position
+**Tools Window** (left):
+- 8 tool buttons with active highlight
+- Grid/Collision checkboxes
+- Layer buttons with individual visibility toggles (Shift+1-9)
+- Zoom display + reset
+- Undo/Redo buttons with counts
+- Save As... / Load... (native file dialogs) + Quick Save
+- Selection tools (Copy, Fill, Delete, Flip H/V)
+- Status messages
+
+**Assets Window** (right, tabbed):
+- **Tiles** — all 54 ground tiles as image buttons with actual texture previews
+- **Buildings** — Gas Mart, Salvage Repair, etc. with image previews and labels
+- **Vehicles** — Impala, cars with previews
+- **Trees** — all 17 tree/bush types with previews
+- **Misc** — all 21 misc objects with previews
+- Selected item preview at bottom of panel
+
+### Ghost Cursor
+
+When hovering over the map with a tile or stamp selected, a semi-transparent preview appears at the mouse cursor showing what will be placed.
+
+### Object Placement & Deletion
+
+- **Place**: Select an object from Buildings/Vehicles/Trees/Misc tab, click on map
+- **Delete**: Right-click near a placed object (within 48px) to remove it
+- Both placement and deletion are fully undoable (Ctrl+Z)
+
+### File Dialogs
+
+- **Save As...** / **Load...** open native OS file dialogs
+- Linux: Uses `zenity` via `popen()` (isolated from Vulkan process to prevent GTK/Wayland crashes)
+- Windows: Uses tinyfiledialogs (native Win32 dialogs)
+- `vkDeviceWaitIdle()` called before dialog opens to prevent semaphore corruption
 
 ### Keyboard Shortcuts
 
@@ -444,18 +603,25 @@ Press **Tab** to toggle the editor. The game world renders underneath; editor UI
 | Ctrl+C | Copy selection |
 | Ctrl+V | Paste |
 | Ctrl+H | Flip clipboard horizontal |
+| Ctrl+J | Flip clipboard vertical |
 | Ctrl+0 | Reset zoom |
 | G | Toggle grid |
 | V | Toggle collision overlay |
-| 1-9 | Switch layer |
+| 1-9 | Switch active layer |
 | Shift+1-9 | Toggle layer visibility |
 | Delete | Clear selection |
 | Middle mouse | Pan camera |
 | Scroll wheel | Zoom (over map) / Scroll (over palette) |
+| Right-click | Erase tile or delete nearest object |
 
 ### Undo/Redo
 
-100-action history stack. All tile/collision operations are recorded and fully reversible.
+100-action history stack. All operations are recorded and fully reversible:
+- Tile painting, erasing, filling
+- Collision type changes
+- Object placement and deletion
+- Paste operations
+- Selection clearing
 
 ---
 
@@ -474,54 +640,66 @@ Maps are saved as JSON (version 2):
     "player_start_x": 480, "player_start_y": 320
   },
   "layers": [
-    {"name": "ground", "data": [1,2,3,...]},
-    {"name": "details", "data": [0,0,5,...]}
+    {"name": "ground", "data": [1,2,3,...]}
   ],
   "collision": [1,1,0,0,...],
   "portals": [
     {"x":5, "y":10, "target_map":"indoor.json", "target_x":3, "target_y":8, "label":"door"}
   ],
   "objects": [
-    {"x":224, "y":256, "src_x":1007, "src_y":86, "src_w":157, "src_h":103, "render_w":140, "render_h":96}
+    {"x":224, "y":256, "src_x":1007, "src_y":92, "src_w":157, "src_h":97,
+     "render_w":140, "render_h":86}
   ],
   "npcs": [
     {"name":"Bobby", "x":256, "y":224, "dir":0, "sprite_atlas_id":0,
-     "hostile":false, "has_battle":false,
+     "interact_radius":40, "hostile":false, "aggro_range":150,
+     "attack_range":32, "move_speed":30, "wander_interval":4,
+     "has_battle":false,
      "dialogue":[{"speaker":"Bobby", "text":"Hello."}]}
   ]
 }
 ```
 
+### What's Saved
+
+- **Metadata**: Map name, dimensions, tile size, tileset path, player start position
+- **Tile layers**: All layers with names and full tile data arrays
+- **Collision**: Per-tile collision types (0=none, 1=solid, 2=portal)
+- **Portals**: Position, target map file, target coordinates, label
+- **World objects**: Position + full source region info for reconstruction
+- **NPCs**: Full definition including AI parameters, battle info, and dialogue
+
 ---
 
 ## Asset Pipeline
 
-### Tilesets
+### Tileset Processing
 
-PNG images with sprites arranged in any layout. Regions are defined programmatically:
+The engine uses `new_tileset.png` with transparent backgrounds (green background removed via flood-fill). All sprite regions are defined with precise bounding boxes from automated sprite detection.
 
 ```cpp
-atlas.add_region(x, y, width, height);  // Adds a tile region
-atlas.define_region("name", x, y, w, h); // Named region
+atlas.add_region(x, y, width, height);     // Tile region (ground tiles)
+atlas.add_region(x, y, width, height);     // Object region (buildings, trees, etc.)
 ```
 
-### Character Sprites
+### Character Sprite Sheets
 
 Sprite sheets with named regions for each direction/animation:
 - `idle_down`, `idle_up`, `idle_right` (left = flipped right)
 - `walk_down_0/1`, `walk_up_0/1`, `walk_right_0/1`
 
-### Processing New Assets
-
-Character sprite sheets from source PNGs are processed with Python:
+Processing pipeline (Python):
 1. Remove background (flood fill from edges)
-2. Find sprite bounding boxes
+2. Find sprite bounding boxes via connected component analysis
 3. Arrange into engine grid format (3 cols x 3 rows)
 4. Save as `*_sprites.png`
 
 ### Fonts
 
-TTF fonts are baked into texture atlases at runtime via stb_truetype. Default: DejaVu Sans Mono Bold at 7px with 6px letter spacing.
+TTF fonts baked into texture atlases at runtime via stb_truetype.
+- Default: DejaVu Sans Mono Bold
+- Game text: 7px with 6px letter spacing
+- Editor text: Rendered via Dear ImGui's built-in font
 
 ---
 
@@ -533,15 +711,19 @@ Forced via `setRequestedOrientation(SCREEN_ORIENTATION_SENSOR_LANDSCAPE)` in Jav
 
 ### Virtual Resolution
 
-Android uses 480p virtual height (width scaled by aspect ratio). The GPU stretches the rendered frame to fill the native screen. Touch controls render at native resolution.
+Android uses 480p virtual height (width scaled by aspect ratio). The GPU stretches the rendered frame to fill the native screen. Touch controls render at native resolution for accurate finger hit detection.
 
 ### Touch Controls
 
-Scaled dynamically based on screen DPI:
+Scaled dynamically based on screen DPI (scale = shorter_side / 720):
 - D-pad (bottom-left): 120px base radius
 - A button (confirm): 60px base radius
-- B button (cancel): 60px
+- B button (cancel): 60px base radius
 - Menu button (top-right)
+
+### Touch Input Timing
+
+Touch events arrive via `ALooper` before `poll_events()`. The `apply_to()` call copies touch state to input BEFORE `begin_frame()` clears pressed flags, ensuring button presses are not lost.
 
 ---
 
@@ -550,28 +732,45 @@ Scaled dynamically based on screen DPI:
 ### Adding a New NPC
 
 1. Create sprite sheet (3x3 grid: idle/walk for down/up/right)
-2. Add atlas region in `define_tileset_regions()` or load as separate texture
-3. Add NPC in `setup_npcs()` with position, sprite ID, dialogue
-4. Create `.sage` script in `assets/scripts/`
+2. Process with Python to remove background and find bounding boxes
+3. Add atlas region in `define_tileset_regions()` or load as separate texture
+4. Add NPC in `setup_npcs()` with position, sprite ID, AI parameters
+5. Create `.sage` script in `assets/scripts/` for dialogue
+6. Create `.dialogue` file in `assets/dialogue/` as fallback
 
 ### Adding a New Tile Type
 
 1. Add entry to `Tile` enum in `game.h`
-2. Add `atlas.add_region()` call in `define_tileset_regions()`
+2. Add `atlas.add_region()` call in `define_tileset_regions()` with precise pixel coordinates
 3. Available immediately in the editor's Tiles palette
+
+### Adding a New Object Stamp
+
+1. Add `atlas.add_region()` for the sprite in `define_tileset_regions()`
+2. Add `add()` call in `define_object_stamps()` with name, region index, placement size, category
+3. Appears in the appropriate editor tab (Buildings/Vehicles/Trees/Misc)
 
 ### Adding a New Map
 
 1. Use the editor to build the map (Tab to enter editor)
-2. Save via Save As... button (native file dialog)
-3. Map file includes tiles, collision, objects, NPCs, portals
+2. Place tiles, objects, set collision
+3. Save via Save As... button (native file dialog)
+4. Map file includes tiles, collision, objects, NPCs, portals
 
-### Adding New Script Functions
+### Adding New Battle Attacks
 
-1. Write a native C++ function matching `Value fn(int argc, Value* args)`
-2. Register in `ScriptEngine::register_engine_api()`
-3. Call from `.sage` scripts
+1. Write a new `proc` in `assets/scripts/battle_system.sage`
+2. Read synced globals (`enemy_hp`, `dean_atk`, etc.)
+3. Modify HP values and set `battle_msg`, `battle_damage`
+4. Call from C++ via `script_engine->call_function("my_attack")`
+5. Use `get_flag()`/`set_flag()` for item requirements
+
+### Adding New Script Functions (C++ → SageLang)
+
+1. Write a C function matching `Value fn(int argc, Value* args)`
+2. Register in `ScriptEngine::register_engine_api()` via `env_define()`
+3. Call from `.sage` scripts by name
 
 ---
 
-*Twilight Engine v0.1.0 — Built with Vulkan, SageLang, and Dear ImGui*
+*Twilight Engine v0.2.0 — Built with Vulkan, SageLang, and Dear ImGui*

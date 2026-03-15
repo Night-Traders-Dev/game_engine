@@ -1,5 +1,6 @@
 #include "game/game.h"
 #include "engine/core/engine.h"
+#include "engine/scripting/script_engine.h"
 
 #ifndef EB_ANDROID
 #include "editor/tile_editor.h"
@@ -37,6 +38,17 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // Initialize shared game logic
         init_game(game, engine.renderer(), engine.resources(),
                   (float)config.width, (float)config.height);
+
+        // SageLang scripting engine
+        eb::ScriptEngine script_engine;
+        script_engine.set_game_state(&game);
+        script_engine.load_file("assets/scripts/battle_system.sage");
+        script_engine.load_file("assets/scripts/bobby.sage");
+        script_engine.load_file("assets/scripts/vampire.sage");
+        script_engine.load_file("assets/scripts/stranger.sage");
+        script_engine.load_file("assets/scripts/azazel.sage");
+        script_engine.load_file("assets/scripts/map_events.sage");
+        game.script_engine = &script_engine;
 
 #ifndef EB_ANDROID
         // Editor (desktop only)

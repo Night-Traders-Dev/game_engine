@@ -47,9 +47,29 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/game/overworld/camera.cpp
     ${ENGINE_ROOT}/src/game/overworld/tile_map.cpp
     ${ENGINE_ROOT}/src/game/game.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_engine.cpp
     ${ENGINE_ROOT}/src/game/dialogue/dialogue_box.cpp
     ${ENGINE_ROOT}/src/third_party/stb_image_impl.cpp
     ${ENGINE_ROOT}/src/third_party/stb_truetype_impl.cpp
+    # SageLang interpreter
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/ast.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/lexer.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/parser.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/interpreter.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/env.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/value.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/gc.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/stdlib.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/module.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/diagnostic.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/typecheck.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/pass.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/constfold.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/dce.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/inline.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/formatter.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/linter.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/sage_thread.c
 )
 
 # ── Build as shared library (required for Android NativeActivity) ──
@@ -61,6 +81,7 @@ add_library(twilight_game_binary SHARED
 target_include_directories(twilight_game_binary PRIVATE
     ${ENGINE_ROOT}/src
     ${ENGINE_ROOT}/src/third_party
+    ${ENGINE_ROOT}/src/third_party/sagelang/include
     ${ANDROID_NDK}/sources/android/native_app_glue
 )
 
