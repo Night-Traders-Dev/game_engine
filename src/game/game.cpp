@@ -1497,6 +1497,63 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
         if (b.phase_timer > 2.0f || confirm) {
             game.player_hp = std::max(b.player_hp_actual, 1);
             game.sam_hp = std::max(b.sam_hp_actual, 1);
+
+            // Spawn loot drops from loot tables
+            eb::Vec2 drop_pos = game.player_pos; // Drop near player
+            // Find matching loot table for this enemy
+            for (auto& table : game.loot_tables) {
+                if (table.enemy_name == b.enemy_name || table.enemy_name == "*") {
+                    for (auto& entry : table.entries) {
+                        float roll = (game.rng() % 1000) / 1000.0f;
+                        if (roll < entry.drop_chance) {
+                            WorldDrop wd;
+                            wd.item_id = entry.item_id;
+                            wd.item_name = entry.item_name;
+                            wd.description = entry.description;
+                            wd.type = entry.type;
+                            wd.heal_hp = entry.heal_hp;
+                            wd.damage = entry.damage;
+                            wd.element = entry.element;
+                            wd.sage_func = entry.sage_func;
+                            // Scatter drops around the player
+                            float angle = (game.rng() % 628) / 100.0f;
+                            float r = 20.0f + (game.rng() % 30);
+                            wd.position = {drop_pos.x + std::cos(angle) * r,
+                                           drop_pos.y + std::sin(angle) * r};
+                            game.world_drops.push_back(wd);
+                        }
+                    }
+                }
+            }
+
+            // Call loot_func + remove defeated NPC
+            for (int ni = (int)game.npcs.size() - 1; ni >= 0; ni--) {
+                auto& npc = game.npcs[ni];
+                if (npc.battle_enemy_name == b.enemy_name && npc.has_triggered) {
+                    // Call loot func if set
+                    if (!npc.loot_func.empty() && game.script_engine) {
+                        game.script_engine->set_string("drop_x", std::to_string(drop_pos.x));
+                        game.script_engine->set_string("drop_y", std::to_string(drop_pos.y));
+                        if (game.script_engine->has_function(npc.loot_func))
+                            game.script_engine->call_function(npc.loot_func);
+                    }
+                    // Check if this NPC is a spawn template — if so, hide instead of delete
+                    bool is_template = false;
+                    for (auto& loop : game.spawn_loops)
+                        if (loop.npc_template_name == npc.name) { is_template = true; break; }
+                    if (is_template) {
+                        // Hide the template: move off-screen, reset trigger so it can respawn
+                        npc.position = {-9999, -9999};
+                        npc.home_pos = npc.position;
+                        npc.has_triggered = true;
+                        npc.schedule.currently_visible = false;
+                    } else {
+                        game.npcs.erase(game.npcs.begin() + ni);
+                    }
+                    break;
+                }
+            }
+
             b.phase = BattlePhase::None;
         }
         break;
@@ -1537,6 +1594,33 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         std::remove_if(game.script_ui.notifications.begin(), game.script_ui.notifications.end(),
                         [](auto& n) { return n.timer >= n.duration; }),
         game.script_ui.notifications.end());
+
+    // Pause menu toggle (ESC / Menu)
+    if (input.is_pressed(eb::InputAction::Menu)) {
+        game.paused = !game.paused;
+        game.pause_selection = 0;
+    }
+
+    // Pause menu input
+    if (game.paused) {
+        if (input.is_pressed(eb::InputAction::MoveUp) && game.pause_selection > 0)
+            game.pause_selection--;
+        if (input.is_pressed(eb::InputAction::MoveDown) && game.pause_selection < 4)
+            game.pause_selection++;
+        if (input.is_pressed(eb::InputAction::Confirm)) {
+            switch (game.pause_selection) {
+                case 0: game.paused = false; break;                    // Resume
+                case 1: game.paused = false; game.pause_request_editor = true; break; // Editor
+                case 2: game.pause_request_reset = true; game.paused = false; break;  // Reset
+                case 3: break;                                         // Settings (TODO)
+                case 4: game.pause_request_quit = true; break;        // Quit
+            }
+        }
+        if (input.is_pressed(eb::InputAction::Cancel)) {
+            game.paused = false;
+        }
+        return; // Don't update game while paused
+    }
 
     // Battle mode
     if (game.battle.phase != BattlePhase::None) {
@@ -1709,6 +1793,107 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         for (auto& pm : game.party) { pm.moving = false; pm.frame = 0; pm.anim_timer = 0.0f; }
     }
 
+    // ── NPC-NPC separation (prevent clumping) ──
+    static constexpr float NPC_SEP_DIST = 40.0f;
+    static constexpr float NPC_SEP_FORCE = 200.0f;
+    for (int i = 0; i < (int)game.npcs.size(); i++) {
+        auto& a = game.npcs[i];
+        if (!a.schedule.currently_visible) continue;
+        for (int j = i + 1; j < (int)game.npcs.size(); j++) {
+            auto& b = game.npcs[j];
+            if (!b.schedule.currently_visible) continue;
+            float sx = a.position.x - b.position.x;
+            float sy = a.position.y - b.position.y;
+            float sd = std::sqrt(sx*sx + sy*sy);
+            if (sd > 0.5f && sd < NPC_SEP_DIST) {
+                // Stronger push the closer they are
+                float overlap = 1.0f - (sd / NPC_SEP_DIST);
+                float push = overlap * overlap * NPC_SEP_FORCE * dt;
+                float nx = sx / sd, ny = sy / sd;
+                a.position.x += nx * push;
+                a.position.y += ny * push;
+                b.position.x -= nx * push;
+                b.position.y -= ny * push;
+            } else if (sd <= 0.5f) {
+                // Exactly on top — random nudge
+                float angle = (game.rng() % 628) / 100.0f;
+                a.position.x += std::cos(angle) * 8.0f;
+                a.position.y += std::sin(angle) * 8.0f;
+            }
+        }
+    }
+
+    // ── Despawn hostile mobs at day ──
+    if (game.day_night.game_hours >= 6.0f && game.day_night.game_hours < 7.0f) {
+        for (int i = (int)game.npcs.size() - 1; i >= 0; i--) {
+            auto& npc = game.npcs[i];
+            if (!npc.despawn_at_day || !npc.hostile) continue;
+            if (!npc.schedule.currently_visible) continue; // Already hidden
+
+            // Drop loot from loot tables before despawning
+            for (auto& table : game.loot_tables) {
+                if (table.enemy_name == npc.battle_enemy_name || table.enemy_name == "*") {
+                    for (auto& entry : table.entries) {
+                        float roll = (game.rng() % 1000) / 1000.0f;
+                        if (roll < entry.drop_chance) {
+                            WorldDrop wd;
+                            wd.item_id = entry.item_id; wd.item_name = entry.item_name;
+                            wd.description = entry.description; wd.type = entry.type;
+                            wd.heal_hp = entry.heal_hp; wd.damage = entry.damage;
+                            wd.element = entry.element; wd.sage_func = entry.sage_func;
+                            float angle = (game.rng() % 628) / 100.0f;
+                            float r = 10.0f + (game.rng() % 20);
+                            wd.position = {npc.position.x + std::cos(angle) * r,
+                                           npc.position.y + std::sin(angle) * r};
+                            game.world_drops.push_back(wd);
+                        }
+                    }
+                }
+            }
+
+            // Call loot_func if set
+            if (!npc.loot_func.empty() && game.script_engine) {
+                game.script_engine->set_string("drop_x", std::to_string(npc.position.x));
+                game.script_engine->set_string("drop_y", std::to_string(npc.position.y));
+                if (game.script_engine->has_function(npc.loot_func))
+                    game.script_engine->call_function(npc.loot_func);
+            }
+
+            // Don't delete spawn templates — just hide them
+            bool is_template = false;
+            for (auto& loop : game.spawn_loops)
+                if (loop.npc_template_name == npc.name) { is_template = true; break; }
+
+            if (is_template) {
+                npc.position = {-9999, -9999};
+                npc.home_pos = npc.position;
+                npc.schedule.currently_visible = false;
+                npc.has_triggered = false;
+            } else {
+                game.npcs.erase(game.npcs.begin() + i);
+            }
+        }
+    }
+
+    // ── World item drops: pickup + lifetime ──
+    for (int di = (int)game.world_drops.size() - 1; di >= 0; di--) {
+        auto& drop = game.world_drops[di];
+        drop.anim_timer += dt;
+        drop.lifetime -= dt;
+        if (drop.lifetime <= 0) { game.world_drops.erase(game.world_drops.begin() + di); continue; }
+
+        // Check player pickup
+        float pdx = game.player_pos.x - drop.position.x;
+        float pdy = game.player_pos.y - drop.position.y;
+        float pdist = std::sqrt(pdx*pdx + pdy*pdy);
+        if (pdist < drop.pickup_radius) {
+            game.inventory.add(drop.item_id, drop.item_name, 1, drop.type, drop.description,
+                               drop.heal_hp, drop.damage, drop.element, drop.sage_func);
+            game.script_ui.notifications.push_back({"Picked up " + drop.item_name, 2.0f, 0.0f});
+            game.world_drops.erase(game.world_drops.begin() + di);
+        }
+    }
+
     // ── NPC AI update ──
     int ts = game.tile_map.tile_size();
     for (int i = 0; i < (int)game.npcs.size(); i++) {
@@ -1753,12 +1938,101 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                 game.pending_battle_npc = npc.has_battle ? i : -1;
             }
         }
-        // Priority 2: Path following (from npc_move_to)
+        // Priority 2: Route following (non-blocking, each NPC fully independent)
+        else if (npc.route.active && !npc.route.waypoints.empty()) {
+            npc.moving = true;
+            npc.route.stuck_timer += dt;
+
+            auto& wp = npc.route.waypoints[npc.route.current_waypoint];
+            float rx = wp.x - npc.position.x, ry = wp.y - npc.position.y;
+            float rd = std::sqrt(rx*rx + ry*ry);
+
+            // Advance waypoint helper
+            auto advance_waypoint = [&]() {
+                npc.route.stuck_timer = 0;
+                npc.route.pathfind_failures = 0;
+                npc.path_active = false;
+                npc.current_path.clear();
+                int wps = (int)npc.route.waypoints.size();
+                if (npc.route.mode == RouteMode::Patrol) {
+                    npc.route.current_waypoint = (npc.route.current_waypoint + 1) % wps;
+                } else if (npc.route.mode == RouteMode::Once) {
+                    if (npc.route.current_waypoint + 1 < wps) npc.route.current_waypoint++;
+                    else { npc.route.active = false; npc.moving = false; }
+                } else if (npc.route.mode == RouteMode::PingPong) {
+                    if (npc.route.forward) {
+                        if (npc.route.current_waypoint + 1 < wps) npc.route.current_waypoint++;
+                        else { npc.route.forward = false; if (npc.route.current_waypoint > 0) npc.route.current_waypoint--; }
+                    } else {
+                        if (npc.route.current_waypoint > 0) npc.route.current_waypoint--;
+                        else { npc.route.forward = true; if (wps > 1) npc.route.current_waypoint++; }
+                    }
+                }
+            };
+
+            // Reached waypoint — advance
+            if (rd <= 12.0f) {
+                advance_waypoint();
+            }
+            // Stuck too long — skip to next waypoint
+            else if (npc.route.stuck_timer > npc.route.stuck_timeout) {
+                advance_waypoint();
+            }
+            // Move toward waypoint
+            else {
+                // Use direct movement (simple and reliable, works with separation forces)
+                // Only use A* for long distances with obstacles
+                bool use_pathfind = (rd > 120.0f) && (npc.route.pathfind_failures < 3);
+
+                if (use_pathfind && !npc.path_active) {
+                    int sx2 = (int)(npc.position.x / ts), sy2 = (int)(npc.position.y / ts);
+                    int ex2 = (int)(wp.x / ts), ey2 = (int)(wp.y / ts);
+                    npc.current_path = eb::find_path(game.tile_map, sx2, sy2, ex2, ey2);
+                    npc.path_index = 0;
+                    npc.path_active = !npc.current_path.empty();
+                    if (!npc.path_active) npc.route.pathfind_failures++;
+                }
+
+                if (npc.path_active && !npc.current_path.empty()) {
+                    // Follow A* path
+                    auto& target = npc.current_path[npc.path_index];
+                    float ptx = target.x * ts + ts * 0.5f;
+                    float pty = target.y * ts + ts * 0.5f;
+                    float px = ptx - npc.position.x, py = pty - npc.position.y;
+                    float pd = std::sqrt(px*px + py*py);
+                    if (pd > 2.0f) {
+                        float mx = (px/pd) * npc.move_speed * dt;
+                        float my = (py/pd) * npc.move_speed * dt;
+                        npc.position.x += mx; npc.position.y += my;
+                        if (std::abs(px) > std::abs(py)) npc.dir = (px > 0) ? 3 : 2;
+                        else npc.dir = (py > 0) ? 0 : 1;
+                    } else {
+                        npc.path_index++;
+                        if (npc.path_index >= (int)npc.current_path.size()) {
+                            npc.path_active = false;
+                            npc.current_path.clear();
+                        }
+                    }
+                } else {
+                    // Direct movement toward waypoint (always works)
+                    float mx = (rx/rd) * npc.move_speed * dt;
+                    float my = (ry/rd) * npc.move_speed * dt;
+                    // Collision check
+                    float new_x = npc.position.x + mx;
+                    float new_y = npc.position.y + my;
+                    if (!game.tile_map.is_solid_world(new_x, npc.position.y)) npc.position.x = new_x;
+                    if (!game.tile_map.is_solid_world(npc.position.x, new_y)) npc.position.y = new_y;
+                    if (std::abs(rx) > std::abs(ry)) npc.dir = (rx > 0) ? 3 : 2;
+                    else npc.dir = (ry > 0) ? 0 : 1;
+                }
+            }
+        }
+        // Priority 2b: One-shot path following (from npc_move_to, no route)
         else if (npc.path_active && !npc.current_path.empty()) {
             auto& target = npc.current_path[npc.path_index];
-            float tx = target.x * ts + ts * 0.5f;
-            float ty = target.y * ts + ts * 0.5f;
-            float px = tx - npc.position.x, py = ty - npc.position.y;
+            float ptx = target.x * ts + ts * 0.5f;
+            float pty = target.y * ts + ts * 0.5f;
+            float px = ptx - npc.position.x, py = pty - npc.position.y;
             float pd = std::sqrt(px*px + py*py);
             if (pd > 2.0f) {
                 npc.position.x += (px/pd) * npc.move_speed * dt;
@@ -1772,52 +2046,6 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                     npc.path_active = false;
                     npc.current_path.clear();
                     npc.moving = false;
-                }
-            }
-        }
-        // Priority 3: Route following (waypoint patrol)
-        else if (npc.route.active && !npc.route.waypoints.empty()) {
-            auto& wp = npc.route.waypoints[npc.route.current_waypoint];
-            float rx = wp.x - npc.position.x, ry = wp.y - npc.position.y;
-            float rd = std::sqrt(rx*rx + ry*ry);
-            if (rd > 4.0f) {
-                // If no active path to this waypoint, compute one
-                if (!npc.path_active) {
-                    int sx = (int)(npc.position.x / ts), sy = (int)(npc.position.y / ts);
-                    int ex = (int)(wp.x / ts), ey = (int)(wp.y / ts);
-                    npc.current_path = eb::find_path(game.tile_map, sx, sy, ex, ey);
-                    npc.path_index = 0;
-                    npc.path_active = !npc.current_path.empty();
-                    if (!npc.path_active) {
-                        // Can't pathfind — move directly
-                        npc.position.x += (rx/rd) * npc.move_speed * dt;
-                        npc.position.y += (ry/rd) * npc.move_speed * dt;
-                        npc.moving = true;
-                        if (std::abs(rx) > std::abs(ry)) npc.dir = (rx > 0) ? 3 : 2;
-                        else npc.dir = (ry > 0) ? 0 : 1;
-                    }
-                }
-            } else {
-                // Reached waypoint — advance
-                npc.path_active = false;
-                npc.current_path.clear();
-                if (npc.route.mode == RouteMode::Patrol) {
-                    npc.route.current_waypoint = (npc.route.current_waypoint + 1) % (int)npc.route.waypoints.size();
-                } else if (npc.route.mode == RouteMode::Once) {
-                    if (npc.route.current_waypoint + 1 < (int)npc.route.waypoints.size())
-                        npc.route.current_waypoint++;
-                    else
-                        npc.route.active = false;
-                } else if (npc.route.mode == RouteMode::PingPong) {
-                    if (npc.route.forward) {
-                        if (npc.route.current_waypoint + 1 < (int)npc.route.waypoints.size())
-                            npc.route.current_waypoint++;
-                        else { npc.route.forward = false; npc.route.current_waypoint--; }
-                    } else {
-                        if (npc.route.current_waypoint > 0)
-                            npc.route.current_waypoint--;
-                        else { npc.route.forward = true; npc.route.current_waypoint++; }
-                    }
                 }
             }
         }
@@ -2392,6 +2620,80 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             }
         }
     }
+
+    // ── Minimap (bottom-right corner) ──
+    if (H.show_minimap && game.tile_map.width() > 0 && game.tile_map.height() > 0) {
+        float mm_base = H.minimap_size * S;
+        float mw = (float)game.tile_map.width();
+        float mh = (float)game.tile_map.height();
+        float aspect = mw / mh;
+        float mm_w, mm_h;
+        if (aspect >= 1.0f) { mm_w = mm_base; mm_h = mm_base / aspect; }
+        else { mm_h = mm_base; mm_w = mm_base * aspect; }
+
+        float mm_x = screen_w - mm_w - 10;
+        float mm_y = screen_h - mm_h - 10;
+        float px_w = mm_w / mw;  // Pixels per tile
+        float px_h = mm_h / mh;
+
+        // Background panel
+        draw_ui_region(batch, game, "panel_hud_sq", mm_x - 4, mm_y - 4, mm_w + 8, mm_h + 8);
+
+        // Draw tile colors (every Nth tile for performance on large maps)
+        batch.set_texture(game.white_desc);
+        int step = std::max(1, (int)mw / 80);  // Limit to ~80 samples across
+        for (int y = 0; y < (int)mh; y += step) {
+            for (int x = 0; x < (int)mw; x += step) {
+                int t = game.tile_map.tile_at(0, x, y);
+                eb::Vec4 col;
+                if (t == 0)                          col = {0.08f, 0.08f, 0.12f, 1};
+                else if (t >= 42 && t <= 50)         col = {0.12f, 0.24f, 0.47f, 1}; // Water
+                else if (t >= 25 && t <= 36)         col = {0.31f, 0.31f, 0.31f, 1}; // Roads
+                else if (t >= 5 && t <= 8)           col = {0.47f, 0.35f, 0.24f, 1}; // Dirt
+                else if (t >= 19 && t <= 24)         col = {0.20f, 0.12f, 0.16f, 1}; // Dark
+                else                                 col = {0.20f, 0.39f, 0.16f, 1}; // Grass
+                if (game.tile_map.collision_at(x, y) == eb::CollisionType::Solid && t > 0)
+                    col = {col.x * 0.5f, col.y * 0.5f, col.z * 0.5f, 1};
+
+                batch.draw_quad({mm_x + x * px_w, mm_y + y * px_h},
+                                {px_w * step + 0.5f, px_h * step + 0.5f}, {0,0}, {1,1}, col);
+            }
+        }
+
+        // Player dot (yellow, pulsing)
+        float ts = (float)game.tile_map.tile_size();
+        float pp_x = mm_x + (game.player_pos.x / ts) * px_w;
+        float pp_y = mm_y + (game.player_pos.y / ts) * px_h;
+        float dot_sz = 4.0f * S;
+        float pulse = 0.8f + 0.2f * std::sin(game.game_time * 5.0f);
+        batch.draw_quad({pp_x - dot_sz*0.5f, pp_y - dot_sz*0.5f}, {dot_sz, dot_sz},
+                        {0,0}, {1,1}, {1.0f, 1.0f, 0.3f, pulse});
+
+        // NPC dots
+        for (auto& npc : game.npcs) {
+            if (!npc.schedule.currently_visible) continue;
+            float np_x = mm_x + (npc.position.x / ts) * px_w;
+            float np_y = mm_y + (npc.position.y / ts) * px_h;
+            float nd = 2.5f * S;
+            eb::Vec4 nc = npc.hostile ? eb::Vec4{1.0f, 0.2f, 0.2f, 0.9f}
+                                      : eb::Vec4{0.2f, 0.8f, 1.0f, 0.7f};
+            batch.draw_quad({np_x - nd*0.5f, np_y - nd*0.5f}, {nd, nd}, {0,0}, {1,1}, nc);
+        }
+
+        // Item drop dots (gold)
+        for (auto& drop : game.world_drops) {
+            float dp_x = mm_x + (drop.position.x / ts) * px_w;
+            float dp_y = mm_y + (drop.position.y / ts) * px_h;
+            batch.draw_quad({dp_x - 1.5f, dp_y - 1.5f}, {3, 3},
+                            {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.8f});
+        }
+
+        // Border
+        batch.draw_quad({mm_x, mm_y}, {mm_w, 1}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
+        batch.draw_quad({mm_x, mm_y + mm_h - 1}, {mm_w, 1}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
+        batch.draw_quad({mm_x, mm_y}, {1, mm_h}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
+        batch.draw_quad({mm_x + mm_w - 1, mm_y}, {1, mm_h}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
+    }
 }
 
 // ─── Render world ───
@@ -2456,6 +2758,34 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, game.player_pos.y, game.dean_desc);
     }
 
+    // World item drops (bouncing icons on the ground)
+    for (auto& drop : game.world_drops) {
+        float bob = std::sin(drop.anim_timer * 4.0f) * 3.0f;
+        float glow = 0.5f + 0.3f * std::sin(drop.anim_timer * 3.0f);
+        float drop_sz = 20.0f;
+        eb::Vec2 dp = {drop.position.x - drop_sz * 0.5f, drop.position.y - drop_sz - 4.0f + bob};
+
+        // Glow circle underneath
+        batch.set_texture(game.white_desc);
+        batch.draw_sorted({drop.position.x - 10, drop.position.y - 4},
+                         {20, 8}, {0,0}, {1,1}, drop.position.y + 1,
+                         game.white_desc, {1.0f, 0.9f, 0.3f, glow * 0.3f});
+
+        // Item icon
+        const char* icon = "icon_gem_blue";
+        if (drop.damage > 0) icon = "icon_sword";
+        else if (drop.heal_hp > 0) icon = "icon_potion";
+        else if (drop.element == "fire") icon = "icon_heart_red";
+        else if (drop.element == "holy") icon = "icon_star";
+        if (game.ui_atlas) {
+            auto* r = game.ui_atlas->find_region(icon);
+            if (r) {
+                batch.draw_sorted(dp, {drop_sz, drop_sz}, r->uv_min, r->uv_max,
+                                 drop.position.y, game.ui_desc);
+            }
+        }
+    }
+
     batch.flush_sorted();
     batch.flush();
 }
@@ -2474,23 +2804,30 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     }
 
     // NPC labels (skip hidden NPCs)
+    // Render in world-space projection so labels track NPC position exactly
+    batch.set_projection(game.camera.projection_matrix());
     for (const auto& npc : game.npcs) {
         if (!npc.schedule.currently_visible) continue;
         float dx = game.player_pos.x - npc.position.x;
         float dy = game.player_pos.y - npc.position.y;
         float dist = std::sqrt(dx*dx + dy*dy);
         if (dist < npc.interact_radius * 1.5f) {
-            eb::Vec2 cam_off = game.camera.offset();
-            float sx = npc.position.x + cam_off.x;
-            float sy = npc.position.y + cam_off.y - 100.0f;
-            float ns = 0.7f;
+            // Position label directly above the NPC sprite
+            float label_x = npc.position.x;
+            float label_y = npc.position.y - 72.0f; // Just above the 64px sprite
+
+            float ns = 1.1f;
             auto name_size = text.measure_text(npc.name, ns);
-            float lp = 6.0f;
+            float lp = 8.0f;
             batch.set_texture(game.white_desc);
-            batch.draw_quad({sx-name_size.x*0.5f-lp, sy-lp*0.5f},
-                {name_size.x+lp*2, name_size.y+lp}, {0,0},{1,1},{0,0,0,0.6f});
+            batch.draw_quad({label_x - name_size.x*0.5f - lp, label_y - lp*0.5f},
+                {name_size.x + lp*2, name_size.y + lp}, {0,0},{1,1}, {0.05f, 0.05f, 0.12f, 0.75f});
+            // Border
+            batch.draw_quad({label_x - name_size.x*0.5f - lp, label_y - lp*0.5f},
+                {name_size.x + lp*2, 1.5f}, {0,0},{1,1}, {0.5f, 0.5f, 0.7f, 0.6f});
             text.draw_text(batch, game.font_desc, npc.name,
-                {sx-name_size.x*0.5f, sy}, {1,1,0.4f,1}, ns);
+                {label_x - name_size.x*0.5f, label_y}, {1, 1, 0.5f, 1}, ns);
+
             if (dist < npc.interact_radius) {
                 const char* hint_text =
 #ifdef __ANDROID__
@@ -2498,17 +2835,19 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
 #else
                     "[Z] Talk";
 #endif
-                float hs = 0.5f;
+                float hs = 0.85f;
                 auto hint_size = text.measure_text(hint_text, hs);
-                float hy = sy + name_size.y + 8.0f;
+                float hy = label_y + name_size.y + 6.0f;
                 batch.set_texture(game.white_desc);
-                batch.draw_quad({sx-hint_size.x*0.5f-4,hy-2},
-                    {hint_size.x+8,hint_size.y+4},{0,0},{1,1},{0,0,0,0.5f});
+                batch.draw_quad({label_x - hint_size.x*0.5f - 6, hy - 3},
+                    {hint_size.x + 12, hint_size.y + 6}, {0,0},{1,1}, {0.05f, 0.05f, 0.12f, 0.65f});
                 text.draw_text(batch, game.font_desc, hint_text,
-                    {sx-hint_size.x*0.5f, hy}, {0.8f,0.8f,0.8f,0.9f}, hs);
+                    {label_x - hint_size.x*0.5f, hy}, {0.8f, 0.9f, 1.0f, 0.95f}, hs);
             }
         }
     }
+    // Switch back to screen projection for HUD
+    batch.set_projection(screen_proj);
 
     // HUD
     render_hud(game, batch, text, sw, sh);
@@ -2551,5 +2890,70 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
                         {0,0}, {1,1}, {0, 0, 0, 0.7f * alpha});
         text.draw_text(batch, game.font_desc, n.text,
                        {nx, ny}, {1, 1, 1, alpha}, ns);
+    }
+
+    // ── Pause Menu ──
+    if (game.paused) {
+        // Dim overlay
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0, 0, 0, 0.65f});
+
+        // Menu panel
+        float S = game.hud.scale;
+        float menu_w = 220 * S, menu_h = 300 * S;
+        float menu_x = (sw - menu_w) * 0.5f;
+        float menu_y = (sh - menu_h) * 0.5f;
+        draw_ui_region(batch, game, "panel_large", menu_x, menu_y, menu_w, menu_h);
+
+        // Title
+        float title_scale = 1.2f * S;
+        const char* title = "PAUSED";
+        auto tsz = text.measure_text(title, title_scale);
+        text.draw_text(batch, game.font_desc, title,
+                       {menu_x + (menu_w - tsz.x) * 0.5f, menu_y + 16 * S},
+                       {1.0f, 0.9f, 0.5f, 1}, title_scale);
+
+        // Menu items
+        const char* items[] = {"Resume Game", "Editor Mode", "Reset", "Settings", "Quit"};
+        float item_h = 38 * S;
+        float item_y = menu_y + 60 * S;
+        float item_w = menu_w - 40 * S;
+        float item_x = menu_x + 20 * S;
+
+        for (int i = 0; i < 5; i++) {
+            float iy = item_y + i * (item_h + 6 * S);
+            bool selected = (i == game.pause_selection);
+
+            // Button background
+            draw_ui_region(batch, game, "btn_xlarge", item_x, iy, item_w, item_h);
+
+            // Selection highlight
+            if (selected) {
+                batch.set_texture(game.white_desc);
+                batch.draw_quad({item_x, iy}, {item_w, item_h}, {0,0}, {1,1},
+                               {1.0f, 0.9f, 0.3f, 0.2f});
+                // Left accent
+                batch.draw_quad({item_x, iy}, {4 * S, item_h}, {0,0}, {1,1},
+                               {1.0f, 0.85f, 0.2f, 0.9f});
+                // Cursor
+                draw_ui_icon(batch, game, "cursor_box", item_x - 20 * S, iy + (item_h - 16*S)*0.5f, 16 * S);
+            }
+
+            // Text
+            float ts2 = 0.85f * S;
+            auto isz = text.measure_text(items[i], ts2);
+            eb::Vec4 tc = selected ? eb::Vec4{1, 1, 0.9f, 1} : eb::Vec4{0.8f, 0.78f, 0.72f, 1};
+            text.draw_text(batch, game.font_desc, items[i],
+                           {item_x + (item_w - isz.x) * 0.5f, iy + (item_h - isz.y) * 0.5f},
+                           tc, ts2);
+        }
+
+        // Hint
+        float hint_scale = 0.5f * S;
+        const char* hint = "[Up/Down] Select   [Z] Confirm   [ESC] Resume";
+        auto hsz = text.measure_text(hint, hint_scale);
+        text.draw_text(batch, game.font_desc, hint,
+                       {menu_x + (menu_w - hsz.x) * 0.5f, menu_y + menu_h - 20 * S},
+                       {0.5f, 0.5f, 0.5f, 0.7f}, hint_scale);
     }
 }

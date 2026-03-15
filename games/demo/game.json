@@ -99,7 +99,9 @@
   "init_scripts": [
     "give_starter_items",
     "init_player_stats",
-    "init_ally_stats"
+    "init_ally_stats",
+    "init_day_night",
+    "init_patrols"
   ],
 
   "audio": {

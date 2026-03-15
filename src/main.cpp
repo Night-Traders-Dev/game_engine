@@ -179,16 +179,50 @@ int main(int /*argc*/, char* /*argv*/[]) {
                 if (editor.is_active()) {
                     game.camera.clear_bounds();
                 } else {
+                    // Restore camera to game viewport (manifest size, not native screen)
+                    float gw = (float)config.width;
+                    float gh = (float)config.height;
+                    game.camera.set_viewport(gw, gh);
                     game.camera.set_bounds(0, 0,
                         game.tile_map.world_width(), game.tile_map.world_height());
-                    game.camera.set_follow_offset(eb::Vec2(0.0f, -config.height * 0.1f));
+                    game.camera.set_follow_offset(eb::Vec2(0.0f, -gh * 0.1f));
                     game.camera.follow(game.player_pos, 100.0f);
+                    game.camera.center_on(game.player_pos);
                 }
             }
 
-            if (input.is_pressed(eb::InputAction::Menu) && !editor.is_active()) {
+            // ESC in editor mode → close editor (pause menu handles ESC in game mode)
+            if (input.is_pressed(eb::InputAction::Menu) && editor.is_active()) {
+                editor.toggle();
+                float gw = (float)config.width;
+                float gh = (float)config.height;
+                game.camera.set_viewport(gw, gh);
+                game.camera.set_bounds(0, 0,
+                    game.tile_map.world_width(), game.tile_map.world_height());
+                game.camera.set_follow_offset(eb::Vec2(0.0f, -gh * 0.1f));
+                game.camera.follow(game.player_pos, 100.0f);
+                game.camera.center_on(game.player_pos);
+            }
+
+            // Handle pause menu requests
+            if (game.pause_request_quit) {
                 engine.quit();
                 return;
+            }
+            if (game.pause_request_editor) {
+                game.pause_request_editor = false;
+                if (!editor.is_active()) {
+                    editor.toggle();
+                    game.camera.clear_bounds();
+                }
+            }
+            if (game.pause_request_reset) {
+                game.pause_request_reset = false;
+                game.player_pos = {15.0f * 32.0f, 10.0f * 32.0f};
+                game.player_hp = game.player_hp_max;
+                game.sam_hp = game.sam_hp_max;
+                game.camera.center_on(game.player_pos);
+                game.script_ui.notifications.push_back({"Game Reset", 2.0f, 0.0f});
             }
 
             if (editor.is_active()) {

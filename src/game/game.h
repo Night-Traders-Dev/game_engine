@@ -87,7 +87,10 @@ struct NPCRoute {
     RouteMode mode = RouteMode::Patrol;
     int current_waypoint = 0;
     bool active = false;
-    bool forward = true;  // for pingpong direction
+    bool forward = true;
+    float stuck_timer = 0.0f;       // Time spent trying to reach current waypoint
+    float stuck_timeout = 8.0f;     // Skip waypoint after this many seconds
+    int pathfind_failures = 0;      // Consecutive failed A* attempts
 };
 
 // ─── NPC Schedule ───
@@ -124,6 +127,11 @@ struct SpawnLoop {
     bool active = false;
     eb::Vec2 area_min = {0,0}, area_max = {0,0};
     bool has_area = false;
+    std::string on_spawn_func;
+    // Time-of-day gating (only spawn during these hours)
+    float spawn_start_hour = 0.0f;
+    float spawn_end_hour = 24.0f;
+    bool has_time_gate = false;
 };
 
 // ─── Survival Stats ───
@@ -155,6 +163,9 @@ struct HUDConfig {
     // Survival bars
     float surv_bar_w = 80, surv_bar_h = 8;
 
+    // Minimap
+    float minimap_size = 120;  // Base size (before scale)
+
     // Global scale
     float scale = 1.5f;
 
@@ -163,6 +174,7 @@ struct HUDConfig {
     bool show_time = true;
     bool show_inventory = true;
     bool show_survival = true;
+    bool show_minimap = true;
 
     // Inventory selection (overworld item use)
     bool inv_open = false;      // Item bar is in selection mode
@@ -194,6 +206,37 @@ struct ScriptUI {
     std::vector<ScriptUINotification> notifications;
 };
 
+// ─── Item type (forward for loot/drops) ───
+enum class ItemType { Consumable, Weapon, KeyItem };
+
+// ─── Loot Table ───
+struct LootEntry {
+    std::string item_id, item_name, description;
+    ItemType type = ItemType::Consumable;
+    int heal_hp = 0, damage = 0;
+    std::string element, sage_func;
+    float drop_chance = 0.5f;  // 0.0 to 1.0
+};
+
+struct LootTable {
+    std::string enemy_name;  // Which enemy type this applies to (or "*" for all)
+    std::vector<LootEntry> entries;
+};
+
+// ─── World Item Drop ───
+struct WorldDrop {
+    std::string item_id;
+    std::string item_name;
+    std::string description;
+    eb::Vec2 position;
+    float anim_timer = 0.0f;
+    int heal_hp = 0, damage = 0;
+    std::string element, sage_func;
+    ItemType type = ItemType::Consumable;
+    float pickup_radius = 24.0f;
+    float lifetime = 60.0f;  // Despawn after this many seconds
+};
+
 // ─── NPC ───
 struct NPC {
     std::string name;
@@ -214,6 +257,8 @@ struct NPC {
     eb::Vec2 wander_target;
     float move_speed = 50.0f;
     bool aggro_active = false, has_triggered = false;
+    bool despawn_at_day = false;  // Remove when day starts
+    std::string loot_func;       // SageLang function called on death to spawn drops
 
     // Pathfinding
     std::vector<PathNode> current_path;
@@ -251,7 +296,6 @@ struct BattleState {
 };
 
 // ─── Item / Inventory ───
-enum class ItemType { Consumable, Weapon, KeyItem };
 
 struct Item {
     std::string id;         // e.g. "first_aid_kit"
@@ -407,6 +451,8 @@ struct GameState {
     SurvivalStats survival;
     HUDConfig hud;
     ScriptUI script_ui;
+    std::vector<WorldDrop> world_drops;
+    std::vector<LootTable> loot_tables;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;
     VkDescriptorSet dean_desc = VK_NULL_HANDLE;
@@ -418,6 +464,13 @@ struct GameState {
     std::unique_ptr<eb::TextureAtlas> ui_atlas;
     std::unique_ptr<eb::TextureAtlas> icons_atlas;
     bool initialized = false;
+
+    // Pause menu
+    bool paused = false;
+    int pause_selection = 0;  // 0=Resume, 1=Editor, 2=Reset, 3=Settings, 4=Quit
+    bool pause_request_editor = false;
+    bool pause_request_reset = false;
+    bool pause_request_quit = false;
 };
 
 // ─── Map file I/O ───

@@ -15,9 +15,10 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **NPC AI** — A* pathfinding, waypoint patrol routes, idle wandering with collision, hostile aggro/chase
 - **NPC Schedules** — Time-based NPC visibility tied to the day-night cycle (e.g. merchant appears 8AM-6PM)
 - **NPC Interactions** — Proximity-triggered callbacks between NPCs, face-each-other, meet events
-- **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, and spawn areas
+- **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, and callbacks via `set_spawn_callback()` for auto-configuring spawned NPCs
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
 - **Script-Driven UI** — Labels, progress bars, and timed notifications created from SageLang scripts
+- **HUD System** — Pixel art panels from UI sprite sheet: player stats with HP bar, time-of-day clock (12-hour AM/PM with day period), inventory quick-bar with item use, survival bars. All dimensions script-controllable via `hud_set()`/`hud_get()`
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
 - **SageLang Scripting** — 60+ API functions across 16 modules driving all game systems with hot reload
@@ -84,6 +85,26 @@ if is_night():
     spawn_loop("Skeleton", 30, 3)
 ```
 
+### HUD System
+
+```sage
+# Configure HUD from script
+hud_set("scale", 2.0)
+hud_set("show_survival", true)
+hud_set("inv_max_slots", 10)
+```
+
+### Inventory Quick-Use
+
+```sage
+# Items with sage_func are auto-called when used from inventory
+add_item("bread", "Bread", 5, "consumable", "Restores hunger", 0, 0, "", "use_bread")
+
+proc use_bread():
+    set_hunger(get_hunger() + 40)
+    ui_notify("Ate bread!", 2)
+```
+
 ### Survival System
 
 ```sage
@@ -125,27 +146,29 @@ set_hunger(get_hunger() + 40)
 
 ### Desktop
 
-| Input         | Action                    |
-|---------------|---------------------------|
-| WASD / Arrows | Move                      |
-| Shift         | Run                       |
-| Z / Enter     | Talk / Confirm / Buy      |
-| X / Backspace | Cancel / Close Shop       |
-| Tab           | Toggle Editor             |
-| F2            | NPC Spawner               |
-| F3            | Script IDE                |
-| F4            | Debug Console             |
-| ESC           | Quit                      |
+| Input         | Action                                 |
+|---------------|----------------------------------------|
+| WASD / Arrows | Move                                   |
+| Shift         | Run                                    |
+| Z / Enter     | Talk / Confirm / Buy                   |
+| X / Backspace | Open Inventory / Cancel / Close Shop   |
+| Left/Right    | Browse inventory items                 |
+| Z             | Use selected item                      |
+| Tab           | Toggle Editor                          |
+| F2            | NPC Spawner                            |
+| F3            | Script IDE                             |
+| F4            | Debug Console                          |
+| ESC           | Quit                                   |
 
 ### Android
 
-| Input            | Action                |
-|------------------|-----------------------|
-| Left stick       | Move                  |
-| A button         | Talk / Confirm / Buy  |
-| B button         | Cancel / Close        |
-| Menu button      | Toggle Editor         |
-| Back button      | Quit                  |
+| Input            | Action                          |
+|------------------|---------------------------------|
+| Left stick       | Move                            |
+| A button         | Talk / Confirm / Buy            |
+| B button         | Open Inventory / Cancel / Close |
+| Menu button      | Toggle Editor                   |
+| Back button      | Quit                            |
 
 ## Project Structure
 

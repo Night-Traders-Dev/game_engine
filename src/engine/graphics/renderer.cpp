@@ -46,8 +46,10 @@ Renderer::~Renderer() {
 
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(ctx_->device(), image_available_[i], nullptr);
-            vkDestroySemaphore(ctx_->device(), render_finished_[i], nullptr);
             vkDestroyFence(ctx_->device(), in_flight_[i], nullptr);
+        }
+        for (auto sem : render_finished_) {
+            vkDestroySemaphore(ctx_->device(), sem, nullptr);
         }
 
         if (descriptor_pool_) vkDestroyDescriptorPool(ctx_->device(), descriptor_pool_, nullptr);
@@ -131,8 +133,10 @@ void Renderer::cleanup_framebuffers() {
 }
 
 void Renderer::create_sync_objects() {
+    uint32_t image_count = static_cast<uint32_t>(ctx_->swapchain_image_views().size());
+
     image_available_.resize(MAX_FRAMES_IN_FLIGHT);
-    render_finished_.resize(MAX_FRAMES_IN_FLIGHT);
+    render_finished_.resize(image_count);  // One per swapchain image
     in_flight_.resize(MAX_FRAMES_IN_FLIGHT);
 
     VkSemaphoreCreateInfo sem_info{};
@@ -144,14 +148,18 @@ void Renderer::create_sync_objects() {
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateSemaphore(ctx_->device(), &sem_info, nullptr, &image_available_[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(ctx_->device(), &sem_info, nullptr, &render_finished_[i]) != VK_SUCCESS ||
             vkCreateFence(ctx_->device(), &fence_info, nullptr, &in_flight_[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create sync objects");
         }
     }
+    for (uint32_t i = 0; i < image_count; i++) {
+        if (vkCreateSemaphore(ctx_->device(), &sem_info, nullptr, &render_finished_[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create render finished semaphore");
+        }
+    }
 
     // Per-swapchain-image fence tracking (initialized to null)
-    images_in_flight_.resize(ctx_->swapchain_image_views().size(), VK_NULL_HANDLE);
+    images_in_flight_.resize(image_count, VK_NULL_HANDLE);
 }
 
 void Renderer::create_command_buffers() {
@@ -296,7 +304,19 @@ void Renderer::handle_resize() {
     sprite_pipeline_.reset();
     create_sprite_pipeline();
 
-    images_in_flight_.assign(ctx_->swapchain_image_views().size(), VK_NULL_HANDLE);
+    // Recreate per-image semaphores if image count changed
+    uint32_t new_count = static_cast<uint32_t>(ctx_->swapchain_image_views().size());
+    if (new_count != render_finished_.size()) {
+        ctx_->wait_idle();
+        for (auto sem : render_finished_)
+            vkDestroySemaphore(ctx_->device(), sem, nullptr);
+        render_finished_.resize(new_count);
+        VkSemaphoreCreateInfo sem_info{};
+        sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        for (uint32_t i = 0; i < new_count; i++)
+            vkCreateSemaphore(ctx_->device(), &sem_info, nullptr, &render_finished_[i]);
+    }
+    images_in_flight_.assign(new_count, VK_NULL_HANDLE);
 }
 
 void Renderer::set_clear_color(float r, float g, float b, float a) {
@@ -407,7 +427,7 @@ void Renderer::end_frame() {
 
     VkSemaphore wait_semaphores[] = {image_available_[current_frame_]};
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSemaphore signal_semaphores[] = {render_finished_[current_frame_]};
+    VkSemaphore signal_semaphores[] = {render_finished_[image_index_]};
 
     VkSubmitInfo submit{};
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

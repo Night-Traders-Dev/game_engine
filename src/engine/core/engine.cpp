@@ -54,11 +54,7 @@ void Engine::run() {
             break;
         }
 
-        // ESC to quit
-        if (platform_->input().is_pressed(InputAction::Menu)) {
-            quit();
-            break;
-        }
+        // ESC is handled by the game's pause menu — don't quit here
 
         // Update
         if (on_update) on_update(dt_);

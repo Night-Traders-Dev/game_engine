@@ -518,6 +518,8 @@ static Value native_hud_set(int argc, Value* args) {
     else if (std::strcmp(prop, "show_time") == 0)      H.show_time = bv;
     else if (std::strcmp(prop, "show_inventory") == 0)  H.show_inventory = bv;
     else if (std::strcmp(prop, "show_survival") == 0)   H.show_survival = bv;
+    else if (std::strcmp(prop, "show_minimap") == 0)   H.show_minimap = bv;
+    else if (std::strcmp(prop, "minimap_size") == 0)   H.minimap_size = v;
     return val_nil();
 }
 
@@ -543,6 +545,8 @@ static Value native_hud_get(int argc, Value* args) {
     if (std::strcmp(prop, "show_time") == 0)      return val_bool(H.show_time);
     if (std::strcmp(prop, "show_inventory") == 0) return val_bool(H.show_inventory);
     if (std::strcmp(prop, "show_survival") == 0)  return val_bool(H.show_survival);
+    if (std::strcmp(prop, "show_minimap") == 0)  return val_bool(H.show_minimap);
+    if (std::strcmp(prop, "minimap_size") == 0)  return val_number(H.minimap_size);
     return val_number(0);
 }
 
@@ -747,6 +751,33 @@ static Value native_set_spawn_area(int argc, Value* args) {
             l.area_max.x = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 0;
             l.area_max.y = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 0;
             l.has_area = true;
+            break;
+        }
+    }
+    return val_nil();
+}
+
+// set_spawn_callback(npc_name, callback_func)
+static Value native_set_spawn_callback(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<2) return val_nil();
+    std::string name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    std::string func = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    for (auto& l : s_active_engine->game_state_->spawn_loops)
+        if (l.npc_template_name == name) { l.on_spawn_func = func; break; }
+    return val_nil();
+}
+
+// set_spawn_time(name, start_hour, end_hour) — only spawn during these hours
+static Value native_set_spawn_time(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    std::string name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float start = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float end = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 24;
+    for (auto& l : s_active_engine->game_state_->spawn_loops) {
+        if (l.npc_template_name == name) {
+            l.spawn_start_hour = start;
+            l.spawn_end_hour = end;
+            l.has_time_gate = true;
             break;
         }
     }
@@ -1040,7 +1071,87 @@ void ScriptEngine::register_spawn_api() {
     env_define(env_, "spawn_loop", 10, val_native(native_spawn_loop));
     env_define(env_, "stop_spawn_loop", 15, val_native(native_stop_spawn_loop));
     env_define(env_, "set_spawn_area", 14, val_native(native_set_spawn_area));
+    env_define(env_, "set_spawn_callback", 18, val_native(native_set_spawn_callback));
+    env_define(env_, "set_spawn_time", 14, val_native(native_set_spawn_time));
     std::printf("[ScriptEngine] Spawn API registered\n");
+}
+
+// add_loot(enemy_name, item_id, item_name, drop_chance, type, desc, heal, dmg, element, sage_func)
+static Value native_add_loot(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string enemy = (args[0].type == VAL_STRING) ? args[0].as.string : "*";
+    LootEntry entry;
+    entry.item_id = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    entry.item_name = (args[2].type == VAL_STRING) ? args[2].as.string : "";
+    entry.drop_chance = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 0.5f;
+    if (argc > 4 && args[4].type == VAL_STRING) {
+        const char* t = args[4].as.string;
+        if (std::strcmp(t, "weapon") == 0) entry.type = ItemType::Weapon;
+        else if (std::strcmp(t, "key") == 0) entry.type = ItemType::KeyItem;
+    }
+    if (argc > 5 && args[5].type == VAL_STRING) entry.description = args[5].as.string;
+    if (argc > 6 && args[6].type == VAL_NUMBER) entry.heal_hp = (int)args[6].as.number;
+    if (argc > 7 && args[7].type == VAL_NUMBER) entry.damage = (int)args[7].as.number;
+    if (argc > 8 && args[8].type == VAL_STRING) entry.element = args[8].as.string;
+    if (argc > 9 && args[9].type == VAL_STRING) entry.sage_func = args[9].as.string;
+
+    // Find or create table for this enemy
+    for (auto& table : gs->loot_tables) {
+        if (table.enemy_name == enemy) { table.entries.push_back(entry); return val_nil(); }
+    }
+    gs->loot_tables.push_back({enemy, {entry}});
+    return val_nil();
+}
+
+// clear_loot(enemy_name) — remove all loot entries for an enemy
+static Value native_clear_loot(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    std::string enemy = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    auto& tables = s_active_engine->game_state_->loot_tables;
+    tables.erase(std::remove_if(tables.begin(), tables.end(),
+        [&](auto& t) { return t.enemy_name == enemy; }), tables.end());
+    return val_nil();
+}
+
+// drop_item(x, y, id, name, type, desc, heal, dmg, element, sage_func)
+static Value native_drop_item(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    WorldDrop drop;
+    drop.position.x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    drop.position.y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    drop.item_id = (args[2].type == VAL_STRING) ? args[2].as.string : "";
+    drop.item_name = (args[3].type == VAL_STRING) ? args[3].as.string : "";
+    if (argc > 4 && args[4].type == VAL_STRING) {
+        const char* t = args[4].as.string;
+        if (std::strcmp(t, "weapon") == 0) drop.type = ItemType::Weapon;
+        else if (std::strcmp(t, "key") == 0) drop.type = ItemType::KeyItem;
+    }
+    if (argc > 5 && args[5].type == VAL_STRING) drop.description = args[5].as.string;
+    if (argc > 6 && args[6].type == VAL_NUMBER) drop.heal_hp = (int)args[6].as.number;
+    if (argc > 7 && args[7].type == VAL_NUMBER) drop.damage = (int)args[7].as.number;
+    if (argc > 8 && args[8].type == VAL_STRING) drop.element = args[8].as.string;
+    if (argc > 9 && args[9].type == VAL_STRING) drop.sage_func = args[9].as.string;
+    gs->world_drops.push_back(drop);
+    return val_nil();
+}
+
+// npc_set_despawn_day(name, enabled) — hostile NPCs disappear at dawn
+static Value native_npc_set_despawn_day(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (npc) npc->despawn_at_day = (args[1].type == VAL_BOOL) ? args[1].as.boolean :
+                                    (args[1].type == VAL_NUMBER && args[1].as.number != 0);
+    return val_nil();
+}
+
+// npc_set_loot(name, loot_func) — SageLang function called when NPC dies/despawns
+static Value native_npc_set_loot(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (npc) npc->loot_func = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    return val_nil();
 }
 
 void ScriptEngine::register_map_api() {
@@ -1052,6 +1163,11 @@ void ScriptEngine::register_map_api() {
     env_define(env_, "remove_portal", 13, val_native(native_remove_portal));
     env_define(env_, "set_collision", 13, val_native(native_set_collision));
     env_define(env_, "set_tile", 8, val_native(native_set_tile));
+    env_define(env_, "drop_item", 9, val_native(native_drop_item));
+    env_define(env_, "add_loot", 8, val_native(native_add_loot));
+    env_define(env_, "clear_loot", 10, val_native(native_clear_loot));
+    env_define(env_, "npc_set_despawn_day", 19, val_native(native_npc_set_despawn_day));
+    env_define(env_, "npc_set_loot", 12, val_native(native_npc_set_loot));
     std::printf("[ScriptEngine] Map API registered\n");
 }
 

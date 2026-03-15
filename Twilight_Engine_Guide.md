@@ -1462,6 +1462,29 @@ stop_spawn_loop("Slime")
 - Position is randomized within the spawn area (or uses template position if no area set)
 - `current_count` tracks how many have been spawned; stops at `max_count`
 
+### Spawn Callbacks
+
+Register a SageLang function to be called each time a spawn loop creates an NPC:
+
+```sage
+set_spawn_callback("Skeleton", "on_skeleton_spawn")
+
+proc on_skeleton_spawn():
+    let name = spawned_npc      # e.g. "Skeleton_0", "Skeleton_1"
+    let idx = spawned_index     # 0, 1, 2...
+
+    # Auto-assign patrol route
+    npc_add_waypoint(name, 400 + idx * 80, 300)
+    npc_add_waypoint(name, 500 + idx * 80, 400)
+    npc_set_route(name, "patrol")
+    npc_start_route(name)
+```
+
+Callback globals:
+
+- `spawned_npc` -- the unique name of the just-spawned NPC
+- `spawned_index` -- the spawn count index (0-based)
+
 ---
 
 ## Survival System
@@ -1562,6 +1585,56 @@ ui_notify("Night is falling...", 4)
 ```
 
 Notifications auto-fade and auto-remove when their duration expires.
+
+### HUD Configuration
+
+The built-in HUD (player stats, time, inventory bar, survival bars) uses pixel art panels from the UI sprite sheet. All dimensions are controllable via SageLang.
+
+#### HUD Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `scale` | number | 1.5 | Global scale multiplier |
+| `player_x`, `player_y` | number | 8, 8 | Player panel position |
+| `player_w`, `player_h` | number | 280, 72 | Player panel base size |
+| `hp_bar_w`, `hp_bar_h` | number | 170, 14 | HP bar base size |
+| `text_scale` | number | 0.9 | Player panel text scale |
+| `time_w`, `time_h` | number | 140, 64 | Time panel base size |
+| `time_text_scale` | number | 0.9 | Time panel text scale |
+| `inv_slot_size` | number | 46 | Inventory slot base size |
+| `inv_padding` | number | 4 | Gap between slots |
+| `inv_max_slots` | number | 8 | Max visible inventory slots |
+| `inv_y_offset` | number | 54 | Distance from bottom edge |
+| `surv_bar_w`, `surv_bar_h` | number | 80, 8 | Survival bar base size |
+| `show_player` | bool | true | Show/hide player panel |
+| `show_time` | bool | true | Show/hide time panel |
+| `show_inventory` | bool | true | Show/hide inventory bar |
+| `show_survival` | bool | true | Show/hide survival bars |
+
+```sage
+hud_set("scale", 2.0)           # Double HUD size
+hud_set("show_survival", false)  # Hide survival bars
+hud_set("inv_max_slots", 10)    # Show more items
+let s = hud_get("scale")
+```
+
+### Inventory Quick-Use
+
+Press **X** (or B on Android) to open the inventory bar in selection mode:
+
+- **Left/Right** to browse items
+- **Z** (or A) to use the selected item
+- **X** again to close
+
+Items with `heal_hp > 0` restore HP directly. Items with a `sage_func` call their SageLang function for custom effects (hunger restoration, buffs, etc.).
+
+```sage
+proc use_bread():
+    set_hunger(get_hunger() + 40)
+    if get_hunger() > 100:
+        set_hunger(100)
+    ui_notify("Ate bread!", 2)
+```
 
 ---
 
@@ -1802,6 +1875,7 @@ Complete reference of all 60+ functions available in `.sage` scripts.
 | `spawn_loop` | `spawn_loop(name, interval, max_count)` | Start periodic spawning |
 | `stop_spawn_loop` | `stop_spawn_loop(name)` | Stop spawning |
 | `set_spawn_area` | `set_spawn_area(name, x1, y1, x2, y2)` | Set random spawn area |
+| `set_spawn_callback` | `set_spawn_callback(name, callback_func)` | Register function called on each spawn (receives spawned_npc, spawned_index globals) |
 
 ### Survival
 
@@ -1824,6 +1898,8 @@ Complete reference of all 60+ functions available in `.sage` scripts.
 | `ui_bar` | `ui_bar(id, value, max, x, y, w, h, r, g, b, a)` | Create/update progress bar |
 | `ui_remove` | `ui_remove(id)` | Remove element by ID |
 | `ui_notify` | `ui_notify(text, duration)` | Show timed notification |
+| `hud_set` | `hud_set(property, value)` | Set HUD dimension/visibility (scale, player_w, show_time, etc.) |
+| `hud_get` | `hud_get(property) → number/bool` | Get HUD property value |
 
 ### Map API
 
@@ -1878,4 +1954,4 @@ These globals are automatically synced before/after battle script calls:
 
 ---
 
-*Twilight Engine v0.6.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v0.7.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
