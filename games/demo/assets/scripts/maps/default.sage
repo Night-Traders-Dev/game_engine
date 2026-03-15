@@ -15,24 +15,36 @@ proc map_init():
     ui_label("hud_gold", "200", 275, 18, 1, 0.95, 0.3, 1)
     ui_set("hud_gold", "scale", 0.9)
 
-    # Time panel
-    ui_panel("hud_time_bg", 780, 8, 170, 80, "panel_hud_sq")
-    ui_label("hud_time", "8:00 AM", 794, 18, 1, 1, 0.9, 1)
+    # Time panel (right-aligned using screen width)
+    let tw = hud_get("screen_w")
+    if tw < 100:
+        tw = 960
+    let tx = tw - 180
+    ui_panel("hud_time_bg", tx, 8, 170, 80, "panel_hud_sq")
+    ui_label("hud_time", "8:00 AM", tx + 14, 18, 1, 1, 0.9, 1)
     ui_set("hud_time", "scale", 1.1)
-    ui_label("hud_period", "Morning", 794, 46, 1, 0.85, 0.4, 1)
+    ui_label("hud_period", "Morning", tx + 14, 46, 1, 0.85, 0.4, 1)
     ui_set("hud_period", "scale", 0.8)
-    ui_image("hud_sun", 910, 18, 26, 26, "icon_star")
+    ui_image("hud_sun", tx + 130, 18, 26, 26, "icon_star")
 
-    # Pause menu (hidden by default)
-    ui_panel("pause_bg", 370, 260, 220, 280, "panel_large")
-    ui_label("pause_title", "PAUSED", 428, 278, 1, 0.9, 0.5, 1)
+    # Pause menu (hidden by default, screen-relative positioning)
+    let sw = hud_get("screen_w")
+    let sh = hud_get("screen_h")
+    if sw < 100:
+        sw = 960
+    if sh < 100:
+        sh = 720
+    let px = sw / 2 - 110
+    let py = sh / 2 - 130
+    ui_panel("pause_bg", px, py, 220, 260, "panel_large")
+    ui_label("pause_title", "PAUSED", px + 58, py + 14, 1, 0.9, 0.5, 1)
     ui_set("pause_title", "scale", 1.3)
-    ui_label("pause_item_0", "Resume Game", 408, 320, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_1", "Editor Mode", 408, 360, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_2", "Reset", 432, 400, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_3", "Settings", 422, 440, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_4", "Quit", 440, 480, 0.85, 0.82, 0.75, 1)
-    ui_image("pause_cursor", 380, 320, 20, 20, "cursor_box")
+    ui_label("pause_item_0", "Resume Game", px + 38, py + 56, 0.85, 0.82, 0.75, 1)
+    ui_label("pause_item_1", "Editor Mode", px + 38, py + 92, 0.85, 0.82, 0.75, 1)
+    ui_label("pause_item_2", "Reset", px + 62, py + 128, 0.85, 0.82, 0.75, 1)
+    ui_label("pause_item_3", "Settings", px + 52, py + 164, 0.85, 0.82, 0.75, 1)
+    ui_label("pause_item_4", "Quit", px + 70, py + 200, 0.85, 0.82, 0.75, 1)
+    ui_image("pause_cursor", px + 10, py + 56, 20, 20, "cursor_box")
     ui_set("pause_bg", "visible", false)
     ui_set("pause_title", "visible", false)
     ui_set("pause_item_0", "visible", false)

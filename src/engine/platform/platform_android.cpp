@@ -26,9 +26,15 @@ PlatformAndroid::~PlatformAndroid() = default;
 
 void PlatformAndroid::poll_events() {
     input_.clear_frame();
-    // Apply touch state BEFORE begin_frame clears the pressed flags
+    // Apply touch control actions (A/B/DPad)
     touch_controls_.apply_to(input_);
-    // Now reset pressed flags for next frame
+    // Apply touch → mouse button mapping (survives clear_frame)
+    input_.mouse.buttons[0] = touch_is_down_;
+    if (touch_just_pressed_) {
+        input_.mouse.buttons_pressed[0] = true;
+        touch_just_pressed_ = false;
+    }
+    // Reset touch pressed flags for next frame
     touch_controls_.begin_frame(width_, height_);
 }
 
@@ -164,13 +170,13 @@ void PlatformAndroid::process_touch(AInputEvent* event) {
         input_.mouse.x = AMotionEvent_getX(event, 0);
         input_.mouse.y = AMotionEvent_getY(event, 0);
     }
-    // Map touch down/up to left mouse button for menu clicks
+    // Track touch state for mouse button emulation
     if (action_masked == AMOTION_EVENT_ACTION_DOWN) {
-        input_.mouse.buttons[0] = true;
-        input_.mouse.buttons_pressed[0] = true;
-    } else if (action_masked == AMOTION_EVENT_ACTION_UP) {
-        input_.mouse.buttons[0] = false;
-        input_.mouse.buttons_released[0] = true;
+        touch_is_down_ = true;
+        touch_just_pressed_ = true;
+    } else if (action_masked == AMOTION_EVENT_ACTION_UP ||
+               action_masked == AMOTION_EVENT_ACTION_CANCEL) {
+        touch_is_down_ = false;
     }
 }
 

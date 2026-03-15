@@ -51,6 +51,8 @@ private:
     InputState input_;
 
     TouchControls touch_controls_;
+    bool touch_is_down_ = false;
+    bool touch_just_pressed_ = false;
 };
 
 } // namespace eb
