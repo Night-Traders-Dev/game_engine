@@ -17,7 +17,8 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **NPC Interactions** — Proximity-triggered callbacks between NPCs, face-each-other, meet events
 - **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, and callbacks via `set_spawn_callback()` for auto-configuring spawned NPCs
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
-- **Script-Driven UI** — Labels, progress bars, and timed notifications created from SageLang scripts
+- **Script-Driven UI** — Labels, progress bars, panels, images, and timed notifications created from SageLang scripts; any component property modifiable via `ui_set()`
+- **Pause Menu** — ESC opens an in-game pause menu (Resume, Editor Mode, Reset, Settings, Quit) using UI sprite sheet panels and buttons
 - **HUD System** — Pixel art panels from UI sprite sheet: player stats with HP bar, time-of-day clock (12-hour AM/PM with day period), inventory quick-bar with item use, survival bars. All dimensions script-controllable via `hud_set()`/`hud_get()`
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
@@ -35,7 +36,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Assets Panel** — Tabbed tileset browser (Tiles, Buildings, Trees, Misc) with image previews
 - **Minimap** — Color-coded map overview with player/NPC markers, click to teleport
 - **NPC Spawner** (F2) — Spawn NPCs with presets (animals, enemies, villagers), click-to-place on map
-- **Script IDE** (F3) — Built-in SageLang editor with syntax highlighting, asset click-to-highlight, menu bar (File/Help), and integrated API manual
+- **Script IDE** (F3) — Built-in SageLang editor with syntax highlighting, asset click-to-highlight, menu bar (File/Help), integrated API manual, and a **Map Script** panel (gold "MAP SCRIPT" header) for editing the current map's companion script
 - **Debug Console** (F4) — Color-coded log stream, filter by level, live SageLang command input
 - **Map Script Generation** — Every editor action auto-appends SageLang to the map's companion `.sage` script
 
@@ -55,6 +56,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Syntax Highlighting** — Keywords (purple), strings (gold), numbers (cyan), built-in functions (teal), booleans (orange), comments (green)
 - **Asset Highlighting** — Click any string literal in code to highlight matching NPCs/items in the game world for 5 seconds
 - **View/Edit Toggle** — Syntax-highlighted read-only view by default; click "Edit" for full text editing
+- **Map Script Panel** — The current map's companion `.sage` script appears at the top of the file list under a gold "MAP SCRIPT" header; regular scripts are listed below under a blue "SCRIPTS" header. The map script is fully editable and saveable from the IDE
 
 ### Map Scripting (Visual Basic Style)
 
@@ -92,6 +94,19 @@ if is_night():
 hud_set("scale", 2.0)
 hud_set("show_survival", true)
 hud_set("inv_max_slots", 10)
+```
+
+### UI Components
+
+```sage
+# Panels and images from UI sprite sheet
+ui_panel("quest_bg", 380, 8, 200, 40, "panel_mini")
+ui_image("quest_icon", 388, 14, 24, 24, "icon_book")
+ui_label("quest_text", "Explore the village", 418, 16, 0.9, 0.85, 0.7, 1)
+
+# Modify any component property by ID
+ui_set("quest_text", "text", "Find the Crystal")
+ui_set("quest_bg", "visible", false)
 ```
 
 ### Inventory Quick-Use
@@ -146,19 +161,19 @@ set_hunger(get_hunger() + 40)
 
 ### Desktop
 
-| Input         | Action                                 |
-|---------------|----------------------------------------|
-| WASD / Arrows | Move                                   |
-| Shift         | Run                                    |
-| Z / Enter     | Talk / Confirm / Buy                   |
-| X / Backspace | Open Inventory / Cancel / Close Shop   |
-| Left/Right    | Browse inventory items                 |
-| Z             | Use selected item                      |
-| Tab           | Toggle Editor                          |
-| F2            | NPC Spawner                            |
-| F3            | Script IDE                             |
-| F4            | Debug Console                          |
-| ESC           | Quit                                   |
+| Input         | Action                                          |
+|---------------|-------------------------------------------------|
+| WASD / Arrows | Move                                            |
+| Shift         | Run                                             |
+| Z / Enter     | Talk / Confirm / Buy                            |
+| X / Backspace | Open Inventory / Cancel / Close Shop            |
+| Left/Right    | Browse inventory items                          |
+| Z             | Use selected item                               |
+| Tab           | Toggle Editor                                   |
+| F2            | NPC Spawner                                     |
+| F3            | Script IDE                                      |
+| F4            | Debug Console                                   |
+| ESC           | Pause Menu (in game) / Exit Editor (in editor)  |
 
 ### Android
 

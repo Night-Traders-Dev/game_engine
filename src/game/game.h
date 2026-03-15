@@ -188,6 +188,7 @@ struct ScriptUILabel {
     eb::Vec2 position;
     eb::Vec4 color = {1,1,1,1};
     float scale = 0.7f;
+    bool visible = true;
 };
 struct ScriptUIBar {
     std::string id;
@@ -195,6 +196,24 @@ struct ScriptUIBar {
     eb::Vec2 position;
     float width = 100, height = 12;
     eb::Vec4 color = {0.2f, 0.8f, 0.2f, 1.0f};
+    eb::Vec4 bg_color = {0.15f, 0.15f, 0.15f, 0.8f};
+    bool visible = true;
+};
+struct ScriptUIPanel {
+    std::string id;
+    eb::Vec2 position;
+    float width = 100, height = 60;
+    std::string sprite_region;  // UI atlas region name (e.g. "panel_hud_wide")
+    eb::Vec4 color = {1,1,1,1}; // Tint / fallback color
+    bool visible = true;
+};
+struct ScriptUIImage {
+    std::string id;
+    eb::Vec2 position;
+    float width = 32, height = 32;
+    std::string icon_name;  // UI atlas region name (e.g. "icon_sword")
+    eb::Vec4 tint = {1,1,1,1};
+    bool visible = true;
 };
 struct ScriptUINotification {
     std::string text;
@@ -203,6 +222,8 @@ struct ScriptUINotification {
 struct ScriptUI {
     std::vector<ScriptUILabel> labels;
     std::vector<ScriptUIBar> bars;
+    std::vector<ScriptUIPanel> panels;
+    std::vector<ScriptUIImage> images;
     std::vector<ScriptUINotification> notifications;
 };
 

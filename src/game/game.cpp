@@ -2863,16 +2863,30 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     }
 
     // ── Script-driven UI elements ──
+    // Panels (rendered first as backgrounds)
+    for (auto& panel : game.script_ui.panels) {
+        if (!panel.visible) continue;
+        draw_ui_region(batch, game, panel.sprite_region.c_str(),
+                       panel.position.x, panel.position.y, panel.width, panel.height);
+    }
+    // Images
+    for (auto& img : game.script_ui.images) {
+        if (!img.visible) continue;
+        draw_ui_icon(batch, game, img.icon_name.c_str(),
+                     img.position.x, img.position.y, img.width);
+    }
     // Labels
     for (auto& label : game.script_ui.labels) {
+        if (!label.visible) continue;
         text.draw_text(batch, game.font_desc, label.text,
                        label.position, label.color, label.scale);
     }
     // Bars
     for (auto& bar : game.script_ui.bars) {
+        if (!bar.visible) continue;
         batch.set_texture(game.white_desc);
         batch.draw_quad(bar.position, {bar.width, bar.height},
-                        {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.8f});
+                        {0,0}, {1,1}, bar.bg_color);
         float pct = bar.max_value > 0 ? bar.value / bar.max_value : 0;
         batch.draw_quad(bar.position, {bar.width * pct, bar.height},
                         {0,0}, {1,1}, bar.color);

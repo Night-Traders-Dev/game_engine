@@ -29,8 +29,9 @@
 25. [Script-Driven UI](#script-driven-ui)
 26. [Shop System](#shop-system)
 27. [Map Scripting (Visual Basic Style)](#map-scripting-visual-basic-style)
-28. [SageLang API Reference](#sagelang-api-reference)
-29. [Adding New Content](#adding-new-content)
+28. [Pause Menu](#pause-menu)
+29. [SageLang API Reference](#sagelang-api-reference)
+30. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -1586,6 +1587,55 @@ ui_notify("Night is falling...", 4)
 
 Notifications auto-fade and auto-remove when their duration expires.
 
+### Panels
+
+UI panels drawn from named sprite sheet regions. Create or update by ID.
+
+```sage
+# Show a panel (id, x, y, w, h, sprite_region)
+ui_panel("quest_bg", 380, 8, 200, 40, "panel_mini")
+ui_panel("stats_bg", 10, 10, 280, 72, "panel_large")
+```
+
+Available sprite regions: `panel_large`, `panel_scroll`, `panel_dialogue`, `panel_mini`, `panel_hud_wide`, `panel_hud_sq`, `panel_dark`, `panel_settings`, `btn_xlarge`, `bar_bg`
+
+### Images
+
+Icons and images from the UI atlas. Create or update by ID.
+
+```sage
+# Show an image (id, x, y, w, h, icon_name)
+ui_image("quest_icon", 388, 14, 24, 24, "icon_book")
+ui_image("weapon_icon", 20, 20, 32, 32, "icon_sword")
+```
+
+Available icons: `icon_sword`, `icon_book`, `icon_scroll`, `icon_shield`, `icon_heart_red`, `icon_heart_orange`, `icon_potion`, `icon_gem_blue`, `icon_gem_green`, `icon_ring`, `icon_star`, `icon_coin`
+
+### Modifying Components with `ui_set`
+
+Any UI component (label, bar, panel, image) can have its properties modified after creation using `ui_set(id, property, value)`.
+
+| Component | Properties |
+|-----------|------------|
+| Labels | x, y, scale, text, visible, r, g, b, a |
+| Bars | x, y, w, h, value, max, visible, r, g, b, a |
+| Panels | x, y, w, h, sprite, visible |
+| Images | x, y, w, h, icon, visible |
+
+All components support a `visible` flag to show/hide without removing.
+
+```sage
+# Build a custom quest tracker
+ui_panel("quest_bg", 380, 8, 200, 40, "panel_mini")
+ui_image("quest_icon", 388, 14, 24, 24, "icon_book")
+ui_label("quest_text", "Explore the village", 418, 16, 0.9, 0.85, 0.7, 1)
+ui_set("quest_text", "scale", 0.65)
+
+# Modify later
+ui_set("quest_text", "text", "Find the Crystal")
+ui_set("quest_bg", "visible", false)  # Hide quest tracker
+```
+
 ### HUD Configuration
 
 The built-in HUD (player stats, time, inventory bar, survival bars) uses pixel art panels from the UI sprite sheet. All dimensions are controllable via SageLang.
@@ -1704,7 +1754,7 @@ The editor uses a Visual Basic-style approach: every editor action that modifies
 1. Each map JSON file (e.g., `assets/maps/village.json`) has a companion script: `assets/scripts/maps/village.sage`
 2. When you use the editor to spawn an NPC, place an object, or set a portal, the action is written as SageLang into the map script automatically
 3. When the map is loaded at runtime, the engine executes `map_init()` from the companion script to recreate all NPCs, objects, portals, schedules, and routes
-4. You can also edit the script manually in the Script IDE for advanced logic (schedules, routes, NPC interactions, spawn loops)
+4. You can also edit the script manually in the Script IDE for advanced logic (schedules, routes, NPC interactions, spawn loops). The Script IDE displays the map script in its own section labeled **"MAP SCRIPT"** (gold text) at the top of the file list, with regular scripts listed below under **"SCRIPTS"** (blue text). Saving the map script from the IDE correctly updates the internal buffer
 
 ### Auto-Generated Script Example
 
@@ -1780,6 +1830,28 @@ When you save a map (File > Save), the companion `.sage` script is saved alongsi
 | `remove_portal` | `remove_portal(tx, ty)` | Remove a portal at tile |
 | `set_collision` | `set_collision(tx, ty, type)` | Set collision (0=None, 1=Solid, 2=Portal) |
 | `set_tile` | `set_tile(layer, tx, ty, tile_id)` | Override a tile from script |
+
+---
+
+## Pause Menu
+
+Pressing **ESC** during gameplay opens a pause menu overlay instead of quitting. The menu is rendered using UI sprite sheet panels and buttons.
+
+### Menu Items
+
+| Item | Action |
+|------|--------|
+| Resume Game | Close the pause menu and return to gameplay |
+| Editor Mode | Open the tile editor (same as Tab) |
+| Reset | Reset the current game state |
+| Settings | Open settings |
+| Quit | Exit the game |
+
+### ESC Behavior
+
+- **In game**: Toggles the pause menu open/closed
+- **In editor**: Exits the editor and returns to gameplay
+- ESC no longer immediately quits the application
 
 ---
 
@@ -1896,6 +1968,9 @@ Complete reference of all 60+ functions available in `.sage` scripts.
 |----------|-----------|-------------|
 | `ui_label` | `ui_label(id, text, x, y, r, g, b, a)` | Create/update text label |
 | `ui_bar` | `ui_bar(id, value, max, x, y, w, h, r, g, b, a)` | Create/update progress bar |
+| `ui_panel` | `ui_panel(id, x, y, w, h, sprite_region)` | Create/update panel from UI sprite sheet region |
+| `ui_image` | `ui_image(id, x, y, w, h, icon_name)` | Create/update icon/image from UI atlas |
+| `ui_set` | `ui_set(id, property, value)` | Modify any UI component property by ID |
 | `ui_remove` | `ui_remove(id)` | Remove element by ID |
 | `ui_notify` | `ui_notify(text, duration)` | Show timed notification |
 | `hud_set` | `hud_set(property, value)` | Set HUD dimension/visibility (scale, player_w, show_time, etc.) |
@@ -1954,4 +2029,4 @@ These globals are automatically synced before/after battle script calls:
 
 ---
 
-*Twilight Engine v0.7.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+*Twilight Engine v0.8.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

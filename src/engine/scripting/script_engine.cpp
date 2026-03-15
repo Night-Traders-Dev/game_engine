@@ -487,6 +487,105 @@ static Value native_ui_notify(int argc, Value* args) {
     return val_nil();
 }
 
+// ui_panel(id, x, y, w, h, sprite_region)
+static Value native_ui_panel(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 5) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    float w = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 100;
+    float h = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 60;
+    std::string region = (argc > 5 && args[5].type == VAL_STRING) ? args[5].as.string : "panel_hud_wide";
+    for (auto& p : gs->script_ui.panels) {
+        if (p.id == id) { p.position={x,y}; p.width=w; p.height=h; p.sprite_region=region; return val_nil(); }
+    }
+    gs->script_ui.panels.push_back({id, {x,y}, w, h, region});
+    return val_nil();
+}
+
+// ui_image(id, x, y, w, h, icon_name)
+static Value native_ui_image(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 6) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    float w = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 32;
+    float h = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 32;
+    std::string icon = (args[5].type == VAL_STRING) ? args[5].as.string : "";
+    for (auto& img : gs->script_ui.images) {
+        if (img.id == id) { img.position={x,y}; img.width=w; img.height=h; img.icon_name=icon; return val_nil(); }
+    }
+    gs->script_ui.images.push_back({id, {x,y}, w, h, icon});
+    return val_nil();
+}
+
+// ui_set(id, property, value) — modify any UI component's properties
+static Value native_ui_set(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    const char* prop = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    float nv = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    bool bv = (args[2].type == VAL_BOOL) ? args[2].as.boolean : (nv != 0);
+    const char* sv = (args[2].type == VAL_STRING) ? args[2].as.string : "";
+
+    // Search labels
+    for (auto& l : gs->script_ui.labels) {
+        if (l.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) l.position.x = nv;
+        else if (std::strcmp(prop, "y") == 0) l.position.y = nv;
+        else if (std::strcmp(prop, "scale") == 0) l.scale = nv;
+        else if (std::strcmp(prop, "text") == 0) l.text = sv;
+        else if (std::strcmp(prop, "visible") == 0) l.visible = bv;
+        else if (std::strcmp(prop, "r") == 0) l.color.x = nv;
+        else if (std::strcmp(prop, "g") == 0) l.color.y = nv;
+        else if (std::strcmp(prop, "b") == 0) l.color.z = nv;
+        else if (std::strcmp(prop, "a") == 0) l.color.w = nv;
+        return val_nil();
+    }
+    // Search bars
+    for (auto& b : gs->script_ui.bars) {
+        if (b.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) b.position.x = nv;
+        else if (std::strcmp(prop, "y") == 0) b.position.y = nv;
+        else if (std::strcmp(prop, "w") == 0) b.width = nv;
+        else if (std::strcmp(prop, "h") == 0) b.height = nv;
+        else if (std::strcmp(prop, "value") == 0) b.value = nv;
+        else if (std::strcmp(prop, "max") == 0) b.max_value = nv;
+        else if (std::strcmp(prop, "visible") == 0) b.visible = bv;
+        else if (std::strcmp(prop, "r") == 0) b.color.x = nv;
+        else if (std::strcmp(prop, "g") == 0) b.color.y = nv;
+        else if (std::strcmp(prop, "b") == 0) b.color.z = nv;
+        else if (std::strcmp(prop, "a") == 0) b.color.w = nv;
+        return val_nil();
+    }
+    // Search panels
+    for (auto& p : gs->script_ui.panels) {
+        if (p.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) p.position.x = nv;
+        else if (std::strcmp(prop, "y") == 0) p.position.y = nv;
+        else if (std::strcmp(prop, "w") == 0) p.width = nv;
+        else if (std::strcmp(prop, "h") == 0) p.height = nv;
+        else if (std::strcmp(prop, "sprite") == 0) p.sprite_region = sv;
+        else if (std::strcmp(prop, "visible") == 0) p.visible = bv;
+        return val_nil();
+    }
+    // Search images
+    for (auto& img : gs->script_ui.images) {
+        if (img.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) img.position.x = nv;
+        else if (std::strcmp(prop, "y") == 0) img.position.y = nv;
+        else if (std::strcmp(prop, "w") == 0) img.width = nv;
+        else if (std::strcmp(prop, "h") == 0) img.height = nv;
+        else if (std::strcmp(prop, "icon") == 0) img.icon_name = sv;
+        else if (std::strcmp(prop, "visible") == 0) img.visible = bv;
+        return val_nil();
+    }
+    return val_nil();
+}
+
 // ═══════════════ HUD Config API ═══════════════
 
 // hud_set(property, value) — configure HUD dimensions and visibility
@@ -1016,6 +1115,9 @@ void ScriptEngine::register_ui_api() {
     env_define(env_, "ui_bar", 6, val_native(native_ui_bar));
     env_define(env_, "ui_remove", 9, val_native(native_ui_remove));
     env_define(env_, "ui_notify", 9, val_native(native_ui_notify));
+    env_define(env_, "ui_panel", 8, val_native(native_ui_panel));
+    env_define(env_, "ui_image", 8, val_native(native_ui_image));
+    env_define(env_, "ui_set", 6, val_native(native_ui_set));
     env_define(env_, "hud_set", 7, val_native(native_hud_set));
     env_define(env_, "hud_get", 7, val_native(native_hud_get));
     std::printf("[ScriptEngine] UI API registered\n");
