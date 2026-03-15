@@ -11,7 +11,7 @@
 7. [Sprite & Animation System](#sprite--animation-system)
 8. [Battle System](#battle-system)
 9. [Inventory System](#inventory-system)
-10. [H.U.N.T.E.R. Skills System](#hunter-skills-system)
+10. [Character Stats System](#character-stats-system)
 11. [Audio System](#audio-system)
 12. [SageLang Battle Scripting](#sagelang-battle-scripting)
 13. [Dialogue System](#dialogue-system)
@@ -21,7 +21,15 @@
 17. [Map File Format](#map-file-format)
 18. [Asset Pipeline](#asset-pipeline)
 19. [Android Platform](#android-platform)
-20. [Adding New Content](#adding-new-content)
+20. [Day-Night Cycle](#day-night-cycle)
+21. [NPC Pathfinding & Routes](#npc-pathfinding--routes)
+22. [NPC Schedules & Interactions](#npc-schedules--interactions)
+23. [Spawn System](#spawn-system)
+24. [Survival System](#survival-system)
+25. [Script-Driven UI](#script-driven-ui)
+26. [Shop System](#shop-system)
+27. [SageLang API Reference](#sagelang-api-reference)
+28. [Adding New Content](#adding-new-content)
 
 ---
 
@@ -91,13 +99,13 @@ game_engine/
       game.json
       assets/
     Twilight_Engine_Games/     # External game submodule
-      supernatural/            # Supernatural TV show fan RPG
+      supernatural/            # Separate game in external submodule
         game.json
         assets/
           textures/            # Character sprites, tilesets, portraits
           scripts/
-            battle/            # Modular battle scripts (battle_core, dean, sam, vampire, demon)
-            inventory/         # Modular inventory scripts (core, dean, sam, brothers, battle)
+            battle/            # Modular battle scripts (battle_core, player, ally, vampire, demon)
+            inventory/         # Modular inventory scripts (core, player, ally, party, battle)
           dialogue/            # NPC dialogue files
           audio/               # Music tracks
           maps/                # Map JSON files
@@ -113,7 +121,7 @@ Each game defines a JSON manifest that declares all game-specific data:
   "player": {
     "name": "Hero", "sprite": "assets/textures/hero.png", "sprite_grid": [32, 48],
     "hp": 100, "atk": 15, "def": 5,
-    "skills": { "hardiness": 5, "nerve": 5, "tactics": 5, "exorcism": 5, "riflery": 5, "unholiness": 3 }
+    "skills": { "vitality": 5, "agility": 5, "tactics": 5, "spirit": 5, "strength": 5, "arcana": 3 }
   },
   "party": [ { "name": "Ally", "sprite": "assets/textures/ally.png", ... } ],
   "tileset": "assets/textures/tileset.png",
@@ -387,8 +395,8 @@ auto sr = get_character_sprite(atlas, direction, is_moving, frame);
 ### Turn Flow
 
 1. **Intro** — "A [Enemy] appeared!" (1.5s or confirm)
-2. **Dean's Turn** — Attack / Items / Defend / Run menu
-3. **Sam's Turn** — Same menu (skipped if Sam is down)
+2. **Hero's Turn** — Attack / Items / Defend / Run menu
+3. **Ally's Turn** — Same menu (skipped if Ally is down)
 4. **Enemy Turn** — SageLang AI selects target and calculates damage
 5. Repeat until victory or defeat
 
@@ -405,8 +413,8 @@ EarthBound-style HP odometer — display rolls down toward actual HP at 40 HP/se
 ### Battle Rendering
 
 - Enemy sprite displayed at top (facing player, 1.5x size)
-- Dean and Sam displayed bottom-center (backs to camera)
-- HP bars for both Dean and Sam with active fighter highlighted
+- Hero and Ally displayed bottom-center (backs to camera)
+- HP bars for both Hero and Ally with active fighter highlighted
 - Battle menu shows current fighter's name
 
 ### SageLang Integration
@@ -466,7 +474,7 @@ struct Inventory {
 };
 ```
 
-### Built-in Items (Supernatural Theme)
+### Built-in Items (Default Items)
 
 **Starter Items** (given at game start via `give_starter_items()`):
 
@@ -477,7 +485,7 @@ struct Inventory {
 | Beer | Consumable | Heals 15-20 HP |
 | Salt Rounds | Weapon | 20-28 dmg, x2 vs Spirits/Ghosts |
 
-**Bobby's Supplies** (given via `bobby_supplies()`):
+**Elder's Supplies** (given via `elder_supplies()`):
 
 | Item | Type | Effect |
 |------|------|--------|
@@ -521,9 +529,9 @@ Selecting **Items** opens a scrollable submenu showing usable items with quantit
 
 ```sage
 proc use_holy_water():
-    let fighter_name = "Dean"
+    let fighter_name = "Hero"
     if active_fighter == 1:
-        fighter_name = "Sam"
+        fighter_name = "Ally"
     let damage = 35 + random(0, 15)
     # Super effective against demons and vampires
     if enemy_name == "Vampire" or enemy_name == "Demon":
@@ -546,57 +554,56 @@ proc use_holy_water():
 
 ---
 
-## H.U.N.T.E.R. Skills System
+## Character Stats System
 
 ### Overview
 
-The H.U.N.T.E.R. system is a Fallout S.P.E.C.I.A.L.-inspired character stat system themed around Supernatural monster hunting. Each stat ranges from 1-10 and provides derived combat bonuses.
+The Character Stats system is a Fallout S.P.E.C.I.A.L.-inspired character stat system for RPG combat. Each stat ranges from 1-10 and provides derived combat bonuses.
 
 ### Stats
 
 | Stat | Full Name | Effect Per Point |
 |------|-----------|-----------------|
-| **H** | Hardiness | +10 max HP, damage resistance |
-| **U** | Unholiness | +8% dark ability power (demon deals, psychic) |
-| **N** | Nerve | +3% crit chance, +2% dodge chance |
+| **V** | Vitality | +10 max HP, damage resistance |
+| **A** | Arcana | +8% spell power |
+| **Ag** | Agility | +3% crit chance, +2% dodge chance |
 | **T** | Tactics | +2 defense bonus |
-| **E** | Exorcism | +10% holy damage multiplier vs supernatural |
-| **R** | Riflery | +2 weapon damage bonus |
+| **S** | Spirit | +10% magic damage multiplier |
+| **St** | Strength | +2 weapon damage bonus |
 
 ### Default Character Builds
 
-**Dean Winchester** — Gunslinger (H5 U3 N6 T4 E3 R6):
+**Hero** — Fighter (V5 A3 Ag6 T4 S3 St6):
 
-- High Nerve (6): 18% crit, 12% dodge — lucky and instinctive
-- High Riflery (6): +12 weapon damage — skilled marksman
-- Low Exorcism (3): relies on weapons over ritual
+- High Agility (6): 18% crit, 12% dodge — lucky and instinctive
+- High Strength (6): +12 weapon damage — skilled fighter
+- Low Spirit (3): relies on weapons over magic
 
-**Sam Winchester** — Scholar (H4 U5 N4 T6 E6 R3):
+**Ally** — Mage (V4 A5 Ag4 T6 S6 St3):
 
-- High Exorcism (6): 1.6x holy damage — trained in lore and rituals
+- High Spirit (6): 1.6x magic damage — trained in lore and rituals
 - High Tactics (6): +12 defense — strategic thinker
-- High Unholiness (5): 1.4x dark power — demon blood history
-- Low Riflery (3): prefers research over guns
+- High Arcana (5): 1.4x spell power — innate magical talent
+- Low Strength (3): prefers research over combat
 
-### HunterSkills Struct (C++)
+### CharacterStats Struct (C++)
 
 ```cpp
-struct HunterSkills {
-    int hardiness  = 5;  // 1-10
-    int unholiness = 3;
-    int nerve      = 5;
-    int tactics    = 5;
-    int exorcism   = 4;
-    int riflery    = 5;
+struct CharacterStats {
+    int vitality  = 5;  // 1-10
+    int arcana    = 3;
+    int agility   = 5;
+    int tactics   = 5;
+    int spirit    = 4;
+    int strength  = 5;
 
-    // Derived bonuses
-    int hp_bonus() const;           // hardiness * 10
-    float crit_chance() const;      // nerve * 0.03
+    int hp_bonus() const;           // vitality * 10
+    float crit_chance() const;      // agility * 0.03
     int defense_bonus() const;      // tactics * 2
-    float holy_damage_mult() const; // 1.0 + exorcism * 0.1
-    int weapon_damage_bonus() const;// riflery * 2
-    float dodge_chance() const;     // nerve * 0.02
-    float dark_power_mult() const;  // 1.0 + unholiness * 0.08
+    float magic_damage_mult() const; // 1.0 + spirit * 0.1
+    int weapon_damage_bonus() const; // strength * 2
+    float dodge_chance() const;     // agility * 0.02
+    float spell_power_mult() const; // 1.0 + arcana * 0.08
 };
 ```
 
@@ -604,11 +611,11 @@ struct HunterSkills {
 
 Skills automatically apply when a battle starts:
 
-- `player_atk` += Dean's `weapon_damage_bonus()` (Riflery)
-- `player_def` += Dean's `defense_bonus()` (Tactics)
-- `sam_atk` += Sam's `weapon_damage_bonus()` (Riflery)
+- `player_atk` += Hero's `weapon_damage_bonus()` (Strength)
+- `player_def` += Hero's `defense_bonus()` (Tactics)
+- `ally_atk` += Ally's `weapon_damage_bonus()` (Strength)
 
-During battle, skill globals are synced to SageLang (`skill_hardiness`, `skill_nerve`, etc.) so scripts can apply crit/dodge/holy bonuses.
+During battle, skill globals are synced to SageLang (`skill_vitality`, `skill_agility`, etc.) so scripts can apply crit/dodge/magic bonuses.
 
 ### SageLang Native Functions
 
@@ -618,18 +625,18 @@ During battle, skill globals are synced to SageLang (`skill_hardiness`, `skill_n
 | `set_skill` | `set_skill(character, skill, value)` | Set skill value (clamped 1-10) |
 | `get_skill_bonus` | `get_skill_bonus(character, type)` | Get derived bonus value |
 
-**Bonus types:** `"hp"`, `"crit"`, `"defense"`, `"holy_mult"`, `"weapon_dmg"`, `"dodge"`, `"dark_mult"`
+**Bonus types:** `"hp"`, `"crit"`, `"defense"`, `"magic_mult"`, `"weapon_dmg"`, `"dodge"`, `"spell_mult"`
 
 ### Skill Script Example
 
 ```sage
 proc skill_crit_check():
-    let fighter = "dean"
+    let fighter = "player"
     if active_fighter == 1:
-        fighter = "sam"
-    let nerve = get_skill(fighter, "nerve")
+        fighter = "ally"
+    let agility = get_skill(fighter, "agility")
     let roll = random(1, 100)
-    if roll <= nerve * 3:
+    if roll <= agility * 3:
         battle_damage = battle_damage * 2
         battle_msg = battle_msg + " CRITICAL!"
 ```
@@ -679,7 +686,7 @@ The engine automatically crossfades between overworld and battle music:
 
 | Track | File | Duration | Style |
 |-------|------|----------|-------|
-| Overworld | `assets/audio/overworld.wav` | 44s | 8-bit "Carry On My Wayward Son" arrangement (A minor, 120 BPM) |
+| Overworld | `assets/audio/overworld.wav` | 44s | 8-bit overworld theme (A minor, 120 BPM) |
 | Battle | `assets/audio/battle.wav` | 12s | Intense 8-bit battle theme (E minor, 160 BPM) |
 
 Both tracks are procedurally generated WAVs using square wave melody and sine bass, designed to loop seamlessly.
@@ -720,14 +727,14 @@ miniaudio auto-detects the best backend at runtime.
 | `enemy_max_hp` | number | Enemy max HP |
 | `enemy_atk` | number | Enemy attack power |
 | `enemy_name` | string | Enemy name |
-| `dean_hp` | number | Dean's current HP (read/write) |
-| `dean_max_hp` | number | Dean's max HP |
-| `dean_atk` | number | Dean's attack power |
-| `dean_def` | number | Dean's defense |
-| `sam_hp` | number | Sam's current HP (read/write) |
-| `sam_max_hp` | number | Sam's max HP |
-| `sam_atk` | number | Sam's attack power |
-| `active_fighter` | number | 0 = Dean, 1 = Sam |
+| `player_hp` | number | Hero's current HP (read/write) |
+| `player_max_hp` | number | Hero's max HP |
+| `player_atk` | number | Hero's attack power |
+| `player_def` | number | Hero's defense |
+| `ally_hp` | number | Ally's current HP (read/write) |
+| `ally_max_hp` | number | Ally's max HP |
+| `ally_atk` | number | Ally's attack power |
+| `active_fighter` | number | 0 = Player, 1 = Ally |
 | `battle_damage` | number | Result: damage/heal amount |
 | `battle_msg` | string | Result: message to display |
 | `battle_target` | string | Result: who was hit |
@@ -738,11 +745,11 @@ miniaudio auto-detects the best backend at runtime.
 # battle_system.sage
 
 proc attack_normal():
-    let fighter_name = "Dean"
-    let base_atk = dean_atk
+    let fighter_name = "Hero"
+    let base_atk = player_atk
     if active_fighter == 1:
-        fighter_name = "Sam"
-        base_atk = sam_atk
+        fighter_name = "Ally"
+        base_atk = ally_atk
 
     let damage = base_atk + random(-2, 2)
     if damage < 1:
@@ -762,18 +769,18 @@ proc attack_normal():
 proc vampire_attack():
     # Vampires drain HP — damages target AND heals self
     let target = random(0, 1)
-    if dean_hp <= 0:
+    if player_hp <= 0:
         target = 1
-    if sam_hp <= 0:
+    if ally_hp <= 0:
         target = 0
 
     let damage = enemy_atk + random(0, 5)
     let drain = damage / 3
 
     if target == 0:
-        dean_hp = dean_hp - damage
+        player_hp = player_hp - damage
     else:
-        sam_hp = sam_hp - damage
+        ally_hp = ally_hp - damage
 
     enemy_hp = enemy_hp + drain
     if enemy_hp > enemy_max_hp:
@@ -787,7 +794,7 @@ proc vampire_attack():
 | Function | Called When | Purpose |
 |----------|-----------|---------|
 | `attack_normal()` | Player selects Attack | Calculate and apply damage to enemy |
-| `attack_shotgun()` | Legacy (use inventory) | Shotgun attack (requires `has_shotgun` flag) |
+| `attack_iron_sword()` | Legacy (use inventory) | Iron sword attack (requires `has_iron_sword` flag) |
 | `attack_holy_water()` | Legacy (use inventory) | Holy water attack (requires flag) |
 | `defend()` | Player selects Defend | Heal the active fighter |
 | `enemy_turn()` | Enemy's turn (generic) | AI selects target and attacks |
@@ -798,7 +805,7 @@ proc vampire_attack():
 ### Adding New Attacks
 
 1. Write a new `proc` in `battle_system.sage`
-2. Read from synced globals, modify `enemy_hp`/`dean_hp`/`sam_hp`
+2. Read from synced globals, modify `enemy_hp`/`player_hp`/`ally_hp`
 3. Set `battle_msg` and `battle_damage` for display
 4. Call from C++ via `script_engine->call_function("my_attack")`
 
@@ -811,7 +818,7 @@ proc vampire_attack():
 Features:
 - Typewriter effect (35 chars/sec)
 - Word wrapping
-- Character portraits (Dean, Sam, Bobby — cropped from Profiles.png)
+- Character portraits (Hero, Ally, Elder — cropped from Profiles.png)
 - Dialog.png background texture (Stardew Valley-style dark atmospheric box)
 - Speaker name highlighting (cyan)
 - Blinking advance indicator
@@ -822,12 +829,12 @@ Features:
 Legacy format with labeled sections:
 ```
 @greeting
-Bobby: You idjits better be prepared.
-Bobby: Watch your back.
+Elder: Adventurers, you better be prepared.
+Elder: Watch your back.
 
 @after_battle
-Bobby: You boys alright?
-Dean: Nothing a cold beer won't fix.
+Elder: Are you alright?
+Hero: Nothing a good rest won't fix.
 ```
 
 ### SageLang Dialogue Scripts (`.sage`)
@@ -835,15 +842,15 @@ Dean: Nothing a cold beer won't fix.
 Modern format with full scripting and conditional logic:
 ```sage
 proc greeting():
-    say("Bobby", "You idjits better be prepared.")
-    if get_flag("has_shotgun"):
-        say("Bobby", "Good, you've got supplies.")
+    say("Elder", "Adventurers, you better be prepared.")
+    if get_flag("has_iron_sword"):
+        say("Elder", "Good, you've got supplies.")
     else:
-        say("Bobby", "Talk to me about supplies.")
+        say("Elder", "Talk to me about supplies.")
 
 proc supplies():
-    say("Bobby", "Here, take this shotgun.")
-    set_flag("has_shotgun", true)
+    say("Elder", "Here, take this iron sword.")
+    set_flag("has_iron_sword", true)
     set_flag("has_holy_water", true)
 ```
 
@@ -907,7 +914,7 @@ SageLang is embedded as a C library via the `ScriptEngine` wrapper class. It's a
 | `remove_item` | `remove_item(id, qty)` | Remove item from inventory |
 | `has_item` | `has_item(id)` | Check if item exists (returns bool) |
 | `item_count` | `item_count(id)` | Get item quantity |
-| `get_skill` | `get_skill(character, skill)` | Get H.U.N.T.E.R. skill value (1-10) |
+| `get_skill` | `get_skill(character, skill)` | Get Character Stats skill value (1-10) |
 | `set_skill` | `set_skill(character, skill, value)` | Set skill value (clamped 1-10) |
 | `get_skill_bonus` | `get_skill_bonus(character, type)` | Get derived bonus (hp, crit, etc.) |
 
@@ -918,7 +925,7 @@ eb::ScriptEngine script_engine;
 script_engine.set_game_state(&game);
 script_engine.load_file("assets/scripts/battle_system.sage");
 script_engine.load_file("assets/scripts/inventory.sage");
-script_engine.load_file("assets/scripts/bobby.sage");
+script_engine.load_file("assets/scripts/elder.sage");
 script_engine.call_function("give_starter_items");
 script_engine.call_function("greeting");
 ```
@@ -1071,11 +1078,11 @@ Maps are saved as JSON (version 2):
      "render_w":140, "render_h":86}
   ],
   "npcs": [
-    {"name":"Bobby", "x":256, "y":224, "dir":0, "sprite_atlas_id":0,
+    {"name":"Elder", "x":256, "y":224, "dir":0, "sprite_atlas_id":0,
      "interact_radius":40, "hostile":false, "aggro_range":150,
      "attack_range":32, "move_speed":30, "wander_interval":4,
      "has_battle":false,
-     "dialogue":[{"speaker":"Bobby", "text":"Hello."}]}
+     "dialogue":[{"speaker":"Elder", "text":"Hello."}]}
   ]
 }
 ```
@@ -1232,9 +1239,9 @@ proc find_machete():
 
 ```sage
 proc use_machete():
-    let fighter_name = "Dean"
+    let fighter_name = "Hero"
     if active_fighter == 1:
-        fighter_name = "Sam"
+        fighter_name = "Ally"
     let damage = 45 + random(0, 12)
     if enemy_name == "Vampire":
         damage = damage * 2
@@ -1252,7 +1259,7 @@ proc use_machete():
 ### Adding New Battle Attacks
 
 1. Write a new `proc` in `assets/scripts/battle_system.sage`
-2. Read synced globals (`enemy_hp`, `dean_atk`, etc.)
+2. Read synced globals (`enemy_hp`, `player_atk`, etc.)
 3. Modify HP values and set `battle_msg`, `battle_damage`
 4. Call from C++ via `script_engine->call_function("my_attack")`
 
@@ -1264,4 +1271,510 @@ proc use_machete():
 
 ---
 
-*Twilight Engine v0.5.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+## Day-Night Cycle
+
+The engine includes a real-time day-night cycle that drives visual tinting and NPC schedules.
+
+### How It Works
+
+- `DayNightCycle` struct in `GameState` tracks `game_hours` (0.0–24.0) and `day_speed` (minutes per real second)
+- Each frame, the clock advances: `game_hours += (dt * day_speed) / 60.0`
+- A tint color is computed from the hour and rendered as a fullscreen overlay
+- Default start: 8:00 AM, speed 1.0 (1 real second = 1 game minute)
+
+### Visual Tint Schedule
+
+| Time | Tint | Description |
+|------|------|-------------|
+| 5:00–6:00 | Dark blue → warm orange | Dawn |
+| 6:00–7:30 | Warm → clear | Morning |
+| 7:30–16:00 | No tint | Daytime |
+| 16:00–18:00 | Clear → orange | Sunset |
+| 18:00–20:00 | Orange → purple-blue | Dusk |
+| 20:00–21:00 | Purple-blue → dark blue | Evening |
+| 21:00–5:00 | Dark blue | Night |
+
+### SageLang API
+
+```sage
+# Query time
+let hour = get_hour()       # 0-23
+let min = get_minute()      # 0-59
+
+# Set time directly
+set_time(12, 0)             # Noon
+set_time(22, 30)            # 10:30 PM
+
+# Control speed
+set_day_speed(1)            # Default: 1 real second = 1 game minute
+set_day_speed(60)           # Fast: full day in 24 seconds
+set_day_speed(0)            # Freeze time
+
+# Check day/night
+if is_day():                # true between 6:00 and 18:00
+    say("Elder", "Good day!")
+if is_night():              # true between 18:00 and 6:00
+    say("Elder", "Be careful at night.")
+```
+
+### Implementation Files
+
+- `src/game/systems/day_night.h` / `.cpp` — `update_day_night()`, `compute_day_tint()`, `is_hour_in_range()`
+- Tint rendered in `render_game_ui()` before HUD
+- Clock updated in `update_game()` before all other systems
+
+---
+
+## NPC Pathfinding & Routes
+
+### A* Pathfinding
+
+NPCs can navigate around obstacles using A* pathfinding on the tile collision grid.
+
+- 4-directional (no diagonals), max 200 search steps
+- Uses `TileMap::is_solid()` for obstacle detection
+- Path computed once per `npc_move_to()` call, then followed each frame
+- NPCs also check collision during idle wander now
+
+```sage
+# Move an NPC to a specific tile (pathfinds around walls)
+npc_move_to("Elder", 10, 8)
+
+# Returns true if path found, false if blocked
+let ok = npc_move_to("Merchant", 15, 12)
+```
+
+### Route / Patrol System
+
+NPCs can follow waypoint-based routes with three modes:
+
+| Mode | Behavior |
+|------|----------|
+| `"patrol"` | Loop: 1→2→3→1→2→3→... |
+| `"once"` | Stop at last waypoint |
+| `"pingpong"` | Reverse: 1→2→3→2→1→2→... |
+
+Each waypoint-to-waypoint segment uses A* pathfinding automatically.
+
+```sage
+# Define a patrol route for the Elder
+npc_add_waypoint("Elder", 320, 256)    # World coordinates
+npc_add_waypoint("Elder", 480, 256)
+npc_add_waypoint("Elder", 480, 384)
+npc_add_waypoint("Elder", 320, 384)
+npc_set_route("Elder", "patrol")       # Loop forever
+npc_start_route("Elder")
+
+# Stop or clear
+npc_stop_route("Elder")                # Pause in place
+npc_clear_route("Elder")               # Remove all waypoints
+```
+
+### NPC AI Priority Order
+
+Each NPC's behavior is evaluated in this order each frame:
+
+1. **Schedule** — If outside active hours, hide and skip
+2. **Hostile chase** — If aggressive and player in aggro range
+3. **Path following** — If `npc_move_to()` was called
+4. **Route patrol** — If route is active with waypoints
+5. **Idle wander** — Random movement near home position (now collision-aware)
+
+### Implementation Files
+
+- `src/game/ai/pathfinding.h` / `.cpp` — `find_path()` A* implementation
+- NPC AI loop in `game.cpp` `update_game()`
+
+---
+
+## NPC Schedules & Interactions
+
+### NPC Schedules
+
+NPCs can be assigned time windows during which they appear. Outside their schedule, they become invisible and skip all AI updates.
+
+```sage
+# Merchant only appears during business hours
+npc_set_schedule("Merchant", 8, 18)        # 8 AM to 6 PM
+npc_set_spawn_point("Merchant", 512, 256)  # Where they appear
+
+# Night guard appears at night
+npc_set_schedule("Guard", 20, 6)           # 8 PM to 6 AM (wraps midnight)
+npc_set_spawn_point("Guard", 300, 300)
+
+# Remove schedule (always visible)
+npc_clear_schedule("Merchant")
+```
+
+When a schedule activates:
+- NPC teleports to their spawn point
+- NPC resumes normal AI (wander, patrol, etc.)
+
+When a schedule deactivates:
+- NPC becomes invisible
+- NPC stops all movement and AI
+
+### NPC-to-NPC Interactions
+
+Register callbacks that fire when two NPCs come within proximity of each other.
+
+```sage
+# When Elder and Merchant meet, they chat
+npc_on_meet("Elder", "Merchant", "elder_merchant_chat")
+
+proc elder_merchant_chat():
+    npc_face_each_other("Elder", "Merchant")
+    say("Elder", "How's business today?")
+    say("Merchant", "Selling well, thanks!")
+
+# Adjust trigger radius (default 40px)
+npc_set_meet_radius("Elder", "Merchant", 60)
+
+# Make two NPCs face each other immediately
+npc_face_each_other("Elder", "Merchant")
+```
+
+Meet triggers fire once by default. They check visibility (scheduled-out NPCs won't trigger).
+
+---
+
+## Spawn System
+
+Periodically spawn NPCs from a template with configurable intervals, limits, and spawn areas.
+
+```sage
+# Spawn slimes every 30 seconds, max 5 at a time
+spawn_loop("Slime", 30, 5)
+
+# Restrict spawn area to a region
+set_spawn_area("Slime", 400, 300, 700, 500)
+
+# Stop spawning
+stop_spawn_loop("Slime")
+```
+
+### How It Works
+
+- The first NPC matching the template name is used as a clone source
+- Spawned NPCs get unique names: `"Slime_0"`, `"Slime_1"`, etc.
+- Spawned NPCs inherit the template's sprite, stats, hostility, and behavior
+- Position is randomized within the spawn area (or uses template position if no area set)
+- `current_count` tracks how many have been spawned; stops at `max_count`
+
+---
+
+## Survival System
+
+Optional hunger, thirst, and energy meters that deplete over game time.
+
+### Enabling
+
+```sage
+# Turn on survival mechanics
+enable_survival(true)
+
+# Configure depletion rates (per game-minute)
+set_survival_rate("hunger", 1.0)     # Default: 1.0
+set_survival_rate("thirst", 1.5)     # Default: 1.5
+set_survival_rate("energy", 0.8)     # Default: 0.8
+```
+
+### Reading & Setting Values
+
+```sage
+let h = get_hunger()     # 0-100
+let t = get_thirst()     # 0-100
+let e = get_energy()     # 0-100
+
+# Restore via items
+set_hunger(100)          # Full
+set_thirst(get_thirst() + 30)
+set_energy(100)
+```
+
+### Effects
+
+| Stat | Threshold | Effect |
+|------|-----------|--------|
+| Hunger < 25 | Speed -20% | Player moves slower |
+| Thirst < 25 | Speed -15% | Player moves slower |
+| Energy < 20 | Speed -25% | Player moves slower |
+| Hunger = 0 | HP drain | 1 HP per game-minute |
+| Thirst = 0 | HP drain | 1 HP per game-minute |
+| Minimum speed | 30% | Player never stops completely |
+
+### Example: Food Item
+
+```sage
+proc use_bread():
+    set_hunger(get_hunger() + 40)
+    if get_hunger() > 100:
+        set_hunger(100)
+    battle_msg = "Ate bread. Hunger restored."
+    remove_item("bread", 1)
+```
+
+---
+
+## Script-Driven UI
+
+Scripts can create overlay UI elements: labels, progress bars, and timed notifications.
+
+### Labels
+
+Persistent text displayed at a screen position. Create or update by ID.
+
+```sage
+# Show a label (id, text, x, y, r, g, b, a)
+ui_label("clock", "12:00 PM", 850, 10, 1, 1, 1, 1)
+
+# Update it each frame from a script
+ui_label("clock", str(get_hour()) + ":" + str(get_minute()), 850, 10, 1, 1, 0.8, 1)
+
+# Remove it
+ui_remove("clock")
+```
+
+### Bars
+
+Progress bars for displaying stats. Create or update by ID.
+
+```sage
+# Show a bar (id, value, max, x, y, width, height, r, g, b, a)
+ui_bar("hp_bar", 80, 100, 10, 50, 150, 12, 0.2, 0.8, 0.2, 1)
+
+# Survival bars example
+ui_bar("hunger", get_hunger(), 100, 10, 680, 120, 8, 0.8, 0.6, 0.2, 1)
+ui_bar("thirst", get_thirst(), 100, 140, 680, 120, 8, 0.2, 0.5, 0.9, 1)
+ui_bar("energy", get_energy(), 100, 270, 680, 120, 8, 0.9, 0.8, 0.2, 1)
+```
+
+### Notifications
+
+Timed popup messages displayed at the top center of the screen.
+
+```sage
+# Show a notification (text, duration_seconds)
+ui_notify("Quest Updated!", 3)
+ui_notify("You found a key!", 5)
+ui_notify("Night is falling...", 4)
+```
+
+Notifications auto-fade and auto-remove when their duration expires.
+
+---
+
+## Shop System
+
+The merchant store UI is driven entirely by SageLang scripts.
+
+### Opening a Shop
+
+```sage
+proc merchant_shop_items():
+    # add_shop_item(id, name, price, type, desc, heal, dmg, element, sage_func)
+    add_shop_item("potion", "Potion", 25, "consumable", "Restores 50 HP", 50, 0, "", "use_potion")
+    add_shop_item("fire", "Fire Scroll", 60, "weapon", "Fire magic", 0, 30, "fire", "use_fire")
+    open_shop("Merchant")
+```
+
+The function `{npc_name}_shop_items()` is auto-called when the player talks to that NPC.
+
+### Shop Features
+
+- **Buy tab**: Browse and purchase items (deducts gold)
+- **Sell tab**: Sell inventory items for half buy price
+- **Gold display**: Shows current gold with coin icon
+- **Item descriptions**: Stats shown at bottom of panel
+- **Affordable indicator**: Prices turn red when player can't afford
+
+### Gold API
+
+```sage
+set_gold(500)              # Set gold directly
+let g = get_gold()         # Query current gold
+```
+
+### Dynamic Inventory
+
+Use `random()`, `get_flag()`, and `set_flag()` to create shops with rotating stock:
+
+```sage
+proc merchant_shop_items():
+    let visits = get_flag("shop_visits")
+    visits = visits + 1
+    set_flag("shop_visits", visits)
+
+    # Always available
+    add_shop_item("potion", "Potion", 25, "consumable", "Heals 50 HP", 50, 0, "", "use_potion")
+
+    # Random stock
+    if random(1, 3) == 1:
+        add_shop_item("rare_gem", "Rare Gem", 300, "key", "A valuable gem", 0, 0, "", "")
+
+    # Unlock after 3 visits
+    if visits >= 3:
+        add_shop_item("steel_sword", "Steel Sword", 450, "weapon", "25 ATK", 0, 25, "", "")
+
+    open_shop("Merchant")
+```
+
+---
+
+## SageLang API Reference
+
+Complete reference of all functions available in `.sage` scripts.
+
+### Engine Core
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `say` | `say(speaker, text)` | Queue a dialogue line |
+| `log` | `log(message)` | Print to debug console |
+| `set_flag` | `set_flag(name, value)` | Store a persistent value (any type) |
+| `get_flag` | `get_flag(name) → value` | Retrieve a stored value (0 if unset) |
+| `random` | `random(min, max) → number` | Random integer in [min, max] |
+| `clamp` | `clamp(value, min, max) → number` | Constrain to range |
+| `str` | `str(value) → string` | Convert number/bool to string |
+
+### Inventory
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `add_item` | `add_item(id, name, qty, type, desc, heal, dmg, element, sage_func)` | Add item to inventory |
+| `remove_item` | `remove_item(id, qty)` | Remove from inventory |
+| `has_item` | `has_item(id) → bool` | Check if player has item |
+| `item_count` | `item_count(id) → number` | Get quantity |
+
+### Shop
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `add_shop_item` | `add_shop_item(id, name, price, type, desc, heal, dmg, element, sage_func)` | Queue shop item |
+| `open_shop` | `open_shop(merchant_name)` | Open store UI |
+| `set_gold` | `set_gold(amount)` | Set player gold |
+| `get_gold` | `get_gold() → number` | Get player gold |
+
+### Character Stats
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_skill` | `get_skill(character, stat) → number` | Get stat (1-10). Character: "player"/"ally" |
+| `set_skill` | `set_skill(character, stat, value)` | Set stat. Stats: vitality, arcana, agility, tactics, spirit, strength |
+| `get_skill_bonus` | `get_skill_bonus(character, bonus) → number` | Derived bonus: hp, crit, defense, magic_mult, weapon_dmg, dodge, spell_mult |
+
+### Day-Night Cycle
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_hour` | `get_hour() → number` | Current game hour (0-23) |
+| `get_minute` | `get_minute() → number` | Current game minute (0-59) |
+| `set_time` | `set_time(hour, minute)` | Set game clock |
+| `set_day_speed` | `set_day_speed(multiplier)` | Time speed (default 1.0, 0 = freeze) |
+| `is_day` | `is_day() → bool` | True if 6:00–18:00 |
+| `is_night` | `is_night() → bool` | True if 18:00–6:00 |
+
+### NPC Pathfinding
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `npc_move_to` | `npc_move_to(name, tile_x, tile_y) → bool` | A* pathfind NPC to tile |
+
+### NPC Routes
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `npc_add_waypoint` | `npc_add_waypoint(name, x, y)` | Add world-coord waypoint |
+| `npc_set_route` | `npc_set_route(name, mode)` | Set mode: "patrol", "once", "pingpong" |
+| `npc_start_route` | `npc_start_route(name)` | Activate route following |
+| `npc_stop_route` | `npc_stop_route(name)` | Pause route |
+| `npc_clear_route` | `npc_clear_route(name)` | Remove all waypoints |
+
+### NPC Schedules
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `npc_set_schedule` | `npc_set_schedule(name, start_hour, end_hour)` | Set active hours |
+| `npc_set_spawn_point` | `npc_set_spawn_point(name, x, y)` | Where NPC appears |
+| `npc_clear_schedule` | `npc_clear_schedule(name)` | Remove schedule |
+
+### NPC Interactions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `npc_on_meet` | `npc_on_meet(npc1, npc2, callback)` | Register proximity trigger |
+| `npc_set_meet_radius` | `npc_set_meet_radius(npc1, npc2, radius)` | Set trigger distance (default 40) |
+| `npc_face_each_other` | `npc_face_each_other(npc1, npc2)` | Make NPCs face each other |
+
+### Spawn System
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `spawn_loop` | `spawn_loop(name, interval, max_count)` | Start periodic spawning |
+| `stop_spawn_loop` | `stop_spawn_loop(name)` | Stop spawning |
+| `set_spawn_area` | `set_spawn_area(name, x1, y1, x2, y2)` | Set random spawn area |
+
+### Survival
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `enable_survival` | `enable_survival(enabled)` | Turn survival on/off |
+| `get_hunger` | `get_hunger() → number` | Current hunger (0-100) |
+| `set_hunger` | `set_hunger(value)` | Set hunger |
+| `get_thirst` | `get_thirst() → number` | Current thirst (0-100) |
+| `set_thirst` | `set_thirst(value)` | Set thirst |
+| `get_energy` | `get_energy() → number` | Current energy (0-100) |
+| `set_energy` | `set_energy(value)` | Set energy |
+| `set_survival_rate` | `set_survival_rate(stat, rate)` | Depletion per game-minute |
+
+### Script UI
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `ui_label` | `ui_label(id, text, x, y, r, g, b, a)` | Create/update text label |
+| `ui_bar` | `ui_bar(id, value, max, x, y, w, h, r, g, b, a)` | Create/update progress bar |
+| `ui_remove` | `ui_remove(id)` | Remove element by ID |
+| `ui_notify` | `ui_notify(text, duration)` | Show timed notification |
+
+### Debug
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `debug` | `debug(msg)` | Log at debug level (grey) |
+| `info` | `info(msg)` | Log at info level (green) |
+| `warn` | `warn(msg)` | Log at warning level (yellow) |
+| `error` | `error(msg)` | Log at error level (red) |
+| `print` | `print(a, b, ...)` | Print multiple values (cyan) |
+| `assert_true` | `assert_true(condition, msg)` | Assert, logs error if false |
+
+### Battle Variables
+
+These globals are automatically synced before/after battle script calls:
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `enemy_hp` | number | Enemy current HP (read/write) |
+| `enemy_max_hp` | number | Enemy max HP |
+| `enemy_atk` | number | Enemy attack power |
+| `enemy_name` | string | Enemy name |
+| `player_hp` | number | Player current HP (read/write) |
+| `player_max_hp` | number | Player max HP |
+| `player_atk` | number | Player attack power |
+| `player_def` | number | Player defense |
+| `ally_hp` | number | Ally current HP (read/write) |
+| `ally_max_hp` | number | Ally max HP |
+| `ally_atk` | number | Ally attack power |
+| `active_fighter` | number | 0 = Player, 1 = Ally |
+| `battle_damage` | number | Set to damage/healing amount |
+| `battle_msg` | string | Set to combat message |
+| `battle_target` | string | Set to "enemy", player name, or ally name |
+| `skill_vitality` | number | Current fighter's vitality stat |
+| `skill_arcana` | number | Current fighter's arcana stat |
+| `skill_agility` | number | Current fighter's agility stat |
+| `skill_tactics` | number | Current fighter's tactics stat |
+| `skill_spirit` | number | Current fighter's spirit stat |
+| `skill_strength` | number | Current fighter's strength stat |
+
+---
+
+*Twilight Engine v0.6.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*

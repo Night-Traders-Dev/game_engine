@@ -60,6 +60,14 @@ private:
     void register_skills_api();
     void register_debug_api();
     void register_shop_api();
+    void register_daynight_api();
+    void register_ui_api();
+    void register_survival_api();
+    void register_pathfinding_api();
+    void register_route_api();
+    void register_schedule_api();
+    void register_npc_interact_api();
+    void register_spawn_api();
 
     Env* env_ = nullptr;
 

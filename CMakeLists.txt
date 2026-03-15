@@ -97,6 +97,10 @@ add_library(tw_engine STATIC
     src/third_party/miniaudio_impl.cpp
     src/game/dialogue/dialogue_box.cpp
     src/game/ui/merchant_ui.cpp
+    src/game/ai/pathfinding.cpp
+    src/game/systems/day_night.cpp
+    src/game/systems/survival.cpp
+    src/game/systems/spawn_system.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp
 )

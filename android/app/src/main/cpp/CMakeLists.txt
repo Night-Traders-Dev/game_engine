@@ -52,6 +52,10 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/engine/audio/audio_engine.cpp
     ${ENGINE_ROOT}/src/game/dialogue/dialogue_box.cpp
     ${ENGINE_ROOT}/src/game/ui/merchant_ui.cpp
+    ${ENGINE_ROOT}/src/game/ai/pathfinding.cpp
+    ${ENGINE_ROOT}/src/game/systems/day_night.cpp
+    ${ENGINE_ROOT}/src/game/systems/survival.cpp
+    ${ENGINE_ROOT}/src/game/systems/spawn_system.cpp
     ${ENGINE_ROOT}/src/third_party/stb_image_impl.cpp
     ${ENGINE_ROOT}/src/third_party/stb_truetype_impl.cpp
     ${ENGINE_ROOT}/src/third_party/miniaudio_impl.cpp

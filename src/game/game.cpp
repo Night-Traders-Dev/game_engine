@@ -1,8 +1,13 @@
 #include "game/game.h"
 #include "engine/resource/file_io.h"
 #include "engine/scripting/script_engine.h"
+#include "game/ai/pathfinding.h"
+#include "game/systems/day_night.h"
+#include "game/systems/survival.h"
+#include "game/systems/spawn_system.h"
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 // ─── Map file save/load ───
 
@@ -1492,6 +1497,26 @@ void update_battle(GameState& game, float dt, bool confirm, bool up, bool down) 
 void update_game(GameState& game, const eb::InputState& input, float dt) {
     game.game_time += dt;
 
+    // ── World systems (always tick, even during menus) ──
+    eb::update_day_night(game.day_night, dt);
+
+    // Survival stats
+    if (game.survival.enabled) {
+        float minutes_elapsed = dt * game.day_night.day_speed / 60.0f;
+        eb::update_survival(game.survival, minutes_elapsed,
+                            game.player_speed, game.player_hp, 120.0f);
+    }
+
+    // Spawn loops
+    eb::update_spawn_loops(game, dt);
+
+    // Script UI notification timers
+    for (auto& n : game.script_ui.notifications) n.timer += dt;
+    game.script_ui.notifications.erase(
+        std::remove_if(game.script_ui.notifications.begin(), game.script_ui.notifications.end(),
+                        [](auto& n) { return n.timer >= n.duration; }),
+        game.script_ui.notifications.end());
+
     // Battle mode
     if (game.battle.phase != BattlePhase::None) {
         update_battle(game, dt,
@@ -1616,14 +1641,32 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
     }
 
     // ── NPC AI update ──
+    int ts = game.tile_map.tile_size();
     for (int i = 0; i < (int)game.npcs.size(); i++) {
         auto& npc = game.npcs[i];
+
+        // Schedule check: hide NPCs outside their active hours
+        if (npc.schedule.has_schedule) {
+            bool in_range = eb::is_hour_in_range(game.day_night.game_hours,
+                                                  npc.schedule.start_hour, npc.schedule.end_hour);
+            if (in_range && !npc.schedule.currently_visible) {
+                npc.position = npc.schedule.spawn_point;
+                npc.home_pos = npc.schedule.spawn_point;
+                npc.wander_target = npc.position;
+                npc.schedule.currently_visible = true;
+            } else if (!in_range) {
+                npc.schedule.currently_visible = false;
+                npc.moving = false;
+                continue;
+            }
+        }
+
         float dx = game.player_pos.x - npc.position.x;
         float dy = game.player_pos.y - npc.position.y;
         float dist = std::sqrt(dx*dx + dy*dy);
 
+        // Priority 1: Hostile chase
         if (npc.hostile && !npc.has_triggered && dist < npc.aggro_range) {
-            // Hostile NPC: chase player
             npc.aggro_active = true;
             float nx = dx / dist, ny = dy / dist;
             npc.position.x += nx * npc.move_speed * dt;
@@ -1633,8 +1676,6 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                 npc.dir = (dx > 0) ? 3 : 2;
             else
                 npc.dir = (dy > 0) ? 0 : 1;
-
-            // Reached attack range — auto trigger dialogue then battle
             if (dist < npc.attack_range) {
                 npc.has_triggered = true;
                 npc.aggro_active = false;
@@ -1642,8 +1683,77 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                 game.dialogue.start(npc.dialogue);
                 game.pending_battle_npc = npc.has_battle ? i : -1;
             }
-        } else if (!npc.hostile || npc.has_triggered) {
-            // Friendly/passive NPC: idle wander near home
+        }
+        // Priority 2: Path following (from npc_move_to)
+        else if (npc.path_active && !npc.current_path.empty()) {
+            auto& target = npc.current_path[npc.path_index];
+            float tx = target.x * ts + ts * 0.5f;
+            float ty = target.y * ts + ts * 0.5f;
+            float px = tx - npc.position.x, py = ty - npc.position.y;
+            float pd = std::sqrt(px*px + py*py);
+            if (pd > 2.0f) {
+                npc.position.x += (px/pd) * npc.move_speed * dt;
+                npc.position.y += (py/pd) * npc.move_speed * dt;
+                npc.moving = true;
+                if (std::abs(px) > std::abs(py)) npc.dir = (px > 0) ? 3 : 2;
+                else npc.dir = (py > 0) ? 0 : 1;
+            } else {
+                npc.path_index++;
+                if (npc.path_index >= (int)npc.current_path.size()) {
+                    npc.path_active = false;
+                    npc.current_path.clear();
+                    npc.moving = false;
+                }
+            }
+        }
+        // Priority 3: Route following (waypoint patrol)
+        else if (npc.route.active && !npc.route.waypoints.empty()) {
+            auto& wp = npc.route.waypoints[npc.route.current_waypoint];
+            float rx = wp.x - npc.position.x, ry = wp.y - npc.position.y;
+            float rd = std::sqrt(rx*rx + ry*ry);
+            if (rd > 4.0f) {
+                // If no active path to this waypoint, compute one
+                if (!npc.path_active) {
+                    int sx = (int)(npc.position.x / ts), sy = (int)(npc.position.y / ts);
+                    int ex = (int)(wp.x / ts), ey = (int)(wp.y / ts);
+                    npc.current_path = eb::find_path(game.tile_map, sx, sy, ex, ey);
+                    npc.path_index = 0;
+                    npc.path_active = !npc.current_path.empty();
+                    if (!npc.path_active) {
+                        // Can't pathfind — move directly
+                        npc.position.x += (rx/rd) * npc.move_speed * dt;
+                        npc.position.y += (ry/rd) * npc.move_speed * dt;
+                        npc.moving = true;
+                        if (std::abs(rx) > std::abs(ry)) npc.dir = (rx > 0) ? 3 : 2;
+                        else npc.dir = (ry > 0) ? 0 : 1;
+                    }
+                }
+            } else {
+                // Reached waypoint — advance
+                npc.path_active = false;
+                npc.current_path.clear();
+                if (npc.route.mode == RouteMode::Patrol) {
+                    npc.route.current_waypoint = (npc.route.current_waypoint + 1) % (int)npc.route.waypoints.size();
+                } else if (npc.route.mode == RouteMode::Once) {
+                    if (npc.route.current_waypoint + 1 < (int)npc.route.waypoints.size())
+                        npc.route.current_waypoint++;
+                    else
+                        npc.route.active = false;
+                } else if (npc.route.mode == RouteMode::PingPong) {
+                    if (npc.route.forward) {
+                        if (npc.route.current_waypoint + 1 < (int)npc.route.waypoints.size())
+                            npc.route.current_waypoint++;
+                        else { npc.route.forward = false; npc.route.current_waypoint--; }
+                    } else {
+                        if (npc.route.current_waypoint > 0)
+                            npc.route.current_waypoint--;
+                        else { npc.route.forward = true; npc.route.current_waypoint++; }
+                    }
+                }
+            }
+        }
+        // Priority 4: Idle wander (with collision check)
+        else if (!npc.hostile || npc.has_triggered) {
             npc.wander_timer += dt;
             if (npc.wander_timer >= npc.wander_interval) {
                 npc.wander_timer = 0.0f;
@@ -1657,23 +1767,43 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
             float wy = npc.wander_target.y - npc.position.y;
             float wd = std::sqrt(wx*wx + wy*wy);
             if (wd > 3.0f) {
-                npc.position.x += (wx/wd) * npc.move_speed * dt;
-                npc.position.y += (wy/wd) * npc.move_speed * dt;
+                float new_x = npc.position.x + (wx/wd) * npc.move_speed * dt;
+                float new_y = npc.position.y + (wy/wd) * npc.move_speed * dt;
+                // Collision check before moving
+                if (!game.tile_map.is_solid_world(new_x, new_y))
+                    { npc.position.x = new_x; npc.position.y = new_y; }
                 npc.moving = true;
-                if (std::abs(wx) > std::abs(wy))
-                    npc.dir = (wx > 0) ? 3 : 2;
-                else
-                    npc.dir = (wy > 0) ? 0 : 1;
+                if (std::abs(wx) > std::abs(wy)) npc.dir = (wx > 0) ? 3 : 2;
+                else npc.dir = (wy > 0) ? 0 : 1;
             } else {
                 npc.moving = false;
             }
         }
-        // NPC walk animation
+        // Animation
         if (npc.moving) {
             npc.anim_timer += dt;
             if (npc.anim_timer >= 0.2f) { npc.anim_timer -= 0.2f; npc.frame = 1 - npc.frame; }
         } else {
             npc.frame = 0; npc.anim_timer = 0.0f;
+        }
+    }
+
+    // ── NPC-to-NPC meet triggers ──
+    for (auto& trigger : game.npc_meet_triggers) {
+        if (trigger.fired && !trigger.repeatable) continue;
+        NPC* a = nullptr; NPC* b = nullptr;
+        for (auto& n : game.npcs) {
+            if (n.name == trigger.npc1_name) a = &n;
+            if (n.name == trigger.npc2_name) b = &n;
+        }
+        if (!a || !b) continue;
+        if (!a->schedule.currently_visible || !b->schedule.currently_visible) continue;
+        float mdx = b->position.x - a->position.x, mdy = b->position.y - a->position.y;
+        float mdist = std::sqrt(mdx*mdx + mdy*mdy);
+        if (mdist < trigger.trigger_radius) {
+            trigger.fired = true;
+            if (game.script_engine && game.script_engine->has_function(trigger.callback_func))
+                game.script_engine->call_function(trigger.callback_func);
         }
     }
 
@@ -2033,8 +2163,9 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     // Leaf overlay
     render_leaf_overlay(game, batch, game.game_time);
 
-    // NPCs
+    // NPCs (skip scheduled-out NPCs)
     for (const auto& npc : game.npcs) {
+        if (!npc.schedule.currently_visible) continue;
         if (npc.sprite_atlas_id >= 0 && npc.sprite_atlas_id < (int)game.npc_atlases.size()) {
             auto& atlas = *game.npc_atlases[npc.sprite_atlas_id];
             auto desc = game.npc_descs[npc.sprite_atlas_id];
@@ -2080,8 +2211,16 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
                     eb::Mat4 screen_proj, float sw, float sh) {
     batch.set_projection(screen_proj);
 
-    // NPC labels
+    // Day-night tint overlay (drawn first, under HUD)
+    auto& tint = game.day_night.current_tint;
+    if (tint.w > 0.01f) {
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, tint);
+    }
+
+    // NPC labels (skip hidden NPCs)
     for (const auto& npc : game.npcs) {
+        if (!npc.schedule.currently_visible) continue;
         float dx = game.player_pos.x - npc.position.x;
         float dy = game.player_pos.y - npc.position.y;
         float dist = std::sqrt(dx*dx + dy*dy);
@@ -2127,5 +2266,35 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     // Merchant UI
     if (game.merchant_ui.is_open()) {
         game.merchant_ui.render(batch, text, game, sw, sh);
+    }
+
+    // ── Script-driven UI elements ──
+    // Labels
+    for (auto& label : game.script_ui.labels) {
+        text.draw_text(batch, game.font_desc, label.text,
+                       label.position, label.color, label.scale);
+    }
+    // Bars
+    for (auto& bar : game.script_ui.bars) {
+        batch.set_texture(game.white_desc);
+        batch.draw_quad(bar.position, {bar.width, bar.height},
+                        {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.8f});
+        float pct = bar.max_value > 0 ? bar.value / bar.max_value : 0;
+        batch.draw_quad(bar.position, {bar.width * pct, bar.height},
+                        {0,0}, {1,1}, bar.color);
+    }
+    // Notifications (centered at top)
+    for (auto& n : game.script_ui.notifications) {
+        float alpha = std::min(1.0f, n.duration - n.timer);
+        if (alpha <= 0) continue;
+        float ns = 0.8f;
+        auto sz = text.measure_text(n.text, ns);
+        float nx = (sw - sz.x) * 0.5f;
+        float ny = 60.0f;
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({nx - 12, ny - 4}, {sz.x + 24, sz.y + 8},
+                        {0,0}, {1,1}, {0, 0, 0, 0.7f * alpha});
+        text.draw_text(batch, game.font_desc, n.text,
+                       {nx, ny}, {1, 1, 1, alpha}, ns);
     }
 }

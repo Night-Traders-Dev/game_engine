@@ -76,6 +76,87 @@ struct ObjectDef {
     eb::Vec2 src_pos, src_size, render_size;
 };
 
+// ─── Pathfinding ───
+struct PathNode { int x, y; };
+
+// ─── NPC Route ───
+enum class RouteMode { Patrol, Once, PingPong };
+
+struct NPCRoute {
+    std::vector<eb::Vec2> waypoints;
+    RouteMode mode = RouteMode::Patrol;
+    int current_waypoint = 0;
+    bool active = false;
+    bool forward = true;  // for pingpong direction
+};
+
+// ─── NPC Schedule ───
+struct NPCSchedule {
+    float start_hour = 0.0f;
+    float end_hour = 24.0f;
+    eb::Vec2 spawn_point = {0, 0};
+    bool has_schedule = false;
+    bool currently_visible = true;
+};
+
+// ─── NPC Meet Trigger ───
+struct NPCMeetTrigger {
+    std::string npc1_name, npc2_name;
+    std::string callback_func;
+    float trigger_radius = 40.0f;
+    bool fired = false;
+    bool repeatable = false;
+};
+
+// ─── Day-Night Cycle ───
+struct DayNightCycle {
+    float day_speed = 1.0f;           // 1.0 = 1 real second per game minute
+    float game_hours = 8.0f;          // 0.0 - 24.0 (starts at 8 AM)
+    eb::Vec4 current_tint = {1,1,1,1};
+};
+
+// ─── Spawn Loop ───
+struct SpawnLoop {
+    std::string npc_template_name;
+    float interval = 60.0f;
+    int max_count = 5, current_count = 0;
+    float timer = 0.0f;
+    bool active = false;
+    eb::Vec2 area_min = {0,0}, area_max = {0,0};
+    bool has_area = false;
+};
+
+// ─── Survival Stats ───
+struct SurvivalStats {
+    float hunger = 100.0f, thirst = 100.0f, energy = 100.0f; // 0-100
+    float hunger_rate = 1.0f, thirst_rate = 1.5f, energy_rate = 0.8f; // per game-minute
+    bool enabled = false;
+};
+
+// ─── Script UI ───
+struct ScriptUILabel {
+    std::string id, text;
+    eb::Vec2 position;
+    eb::Vec4 color = {1,1,1,1};
+    float scale = 0.7f;
+};
+struct ScriptUIBar {
+    std::string id;
+    float value = 0, max_value = 100;
+    eb::Vec2 position;
+    float width = 100, height = 12;
+    eb::Vec4 color = {0.2f, 0.8f, 0.2f, 1.0f};
+};
+struct ScriptUINotification {
+    std::string text;
+    float duration = 3.0f, timer = 0.0f;
+};
+struct ScriptUI {
+    std::vector<ScriptUILabel> labels;
+    std::vector<ScriptUIBar> bars;
+    std::vector<ScriptUINotification> notifications;
+};
+
 // ─── NPC ───
 struct NPC {
     std::string name;
@@ -96,6 +177,17 @@ struct NPC {
     eb::Vec2 wander_target;
     float move_speed = 50.0f;
     bool aggro_active = false, has_triggered = false;
+
+    // Pathfinding
+    std::vector<PathNode> current_path;
+    int path_index = 0;
+    bool path_active = false;
+
+    // Route / patrol
+    NPCRoute route;
+
+    // Time-based schedule
+    NPCSchedule schedule;
 };
 
 // ─── Battle state ───
@@ -267,9 +359,16 @@ struct GameState {
     std::mt19937 rng{std::random_device{}()};
 
     Inventory inventory;
-    int gold = 200;  // Player's currency
+    int gold = 200;
     eb::MerchantUI merchant_ui;
     eb::ScriptEngine* script_engine = nullptr;
+
+    // World systems
+    DayNightCycle day_night;
+    std::vector<NPCMeetTrigger> npc_meet_triggers;
+    std::vector<SpawnLoop> spawn_loops;
+    SurvivalStats survival;
+    ScriptUI script_ui;
 
     VkDescriptorSet tileset_desc = VK_NULL_HANDLE;
     VkDescriptorSet dean_desc = VK_NULL_HANDLE;

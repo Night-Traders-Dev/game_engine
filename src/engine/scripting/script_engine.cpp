@@ -3,6 +3,8 @@
 #include "engine/core/debug_log.h"
 #include "game/game.h"
 #include "game/ui/merchant_ui.h"
+#include "game/ai/pathfinding.h"
+#include "game/systems/day_night.h"
 
 extern "C" {
 #include <setjmp.h>
@@ -51,6 +53,7 @@ char* realpath(const char* path, char* resolved) {
 #endif
 }
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -363,6 +366,334 @@ static Value native_get_gold(int argc, Value* /*args*/) {
     return val_number(s_active_engine->game_state_->gold);
 }
 
+// ═══════════════ Helper ═══════════════
+
+static NPC* find_npc_by_name(const std::string& name) {
+    if (!s_active_engine || !s_active_engine->game_state_) return nullptr;
+    for (auto& npc : s_active_engine->game_state_->npcs)
+        if (npc.name == name) return &npc;
+    return nullptr;
+}
+
+// ═══════════════ Day-Night API ═══════════════
+
+// get_hour() -> number (0-23)
+static Value native_get_hour(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number((int)s_active_engine->game_state_->day_night.game_hours);
+}
+
+// get_minute() -> number (0-59)
+static Value native_get_minute(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    float h = s_active_engine->game_state_->day_night.game_hours;
+    return val_number((int)((h - (int)h) * 60.0f));
+}
+
+// set_time(hour, minute)
+static Value native_set_time(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    float h = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float m = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    s_active_engine->game_state_->day_night.game_hours = h + m / 60.0f;
+    return val_nil();
+}
+
+// set_day_speed(multiplier)
+static Value native_set_day_speed(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER)
+        s_active_engine->game_state_->day_night.day_speed = (float)args[0].as.number;
+    return val_nil();
+}
+
+// is_day() -> bool (6-18)
+static Value native_is_day(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_bool(0);
+    float h = s_active_engine->game_state_->day_night.game_hours;
+    return val_bool(h >= 6.0f && h < 18.0f);
+}
+
+// is_night() -> bool
+static Value native_is_night(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_bool(0);
+    float h = s_active_engine->game_state_->day_night.game_hours;
+    return val_bool(h >= 18.0f || h < 6.0f);
+}
+
+// ═══════════════ UI API ═══════════════
+
+// ui_label(id, text, x, y, r, g, b, a)
+static Value native_ui_label(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    std::string text = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    float x = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    float y = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 0;
+    float r=1,g=1,b=1,a=1;
+    if (argc > 4 && args[4].type == VAL_NUMBER) r = (float)args[4].as.number;
+    if (argc > 5 && args[5].type == VAL_NUMBER) g = (float)args[5].as.number;
+    if (argc > 6 && args[6].type == VAL_NUMBER) b = (float)args[6].as.number;
+    if (argc > 7 && args[7].type == VAL_NUMBER) a = (float)args[7].as.number;
+    for (auto& l : gs->script_ui.labels) {
+        if (l.id == id) { l.text = text; l.position = {x,y}; l.color = {r,g,b,a}; return val_nil(); }
+    }
+    gs->script_ui.labels.push_back({id, text, {x,y}, {r,g,b,a}});
+    return val_nil();
+}
+
+// ui_bar(id, value, max, x, y, w, h, r, g, b, a)
+static Value native_ui_bar(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 5) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float val = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float mx = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 100;
+    float x = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 0;
+    float y = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 0;
+    float w = (argc > 5 && args[5].type == VAL_NUMBER) ? (float)args[5].as.number : 100;
+    float h = (argc > 6 && args[6].type == VAL_NUMBER) ? (float)args[6].as.number : 12;
+    float r=0.2f,g=0.8f,b=0.2f,a=1;
+    if (argc > 7 && args[7].type == VAL_NUMBER) r = (float)args[7].as.number;
+    if (argc > 8 && args[8].type == VAL_NUMBER) g = (float)args[8].as.number;
+    if (argc > 9 && args[9].type == VAL_NUMBER) b = (float)args[9].as.number;
+    if (argc > 10 && args[10].type == VAL_NUMBER) a = (float)args[10].as.number;
+    for (auto& bar : gs->script_ui.bars) {
+        if (bar.id == id) { bar.value=val; bar.max_value=mx; bar.position={x,y}; bar.width=w; bar.height=h; bar.color={r,g,b,a}; return val_nil(); }
+    }
+    gs->script_ui.bars.push_back({id, val, mx, {x,y}, w, h, {r,g,b,a}});
+    return val_nil();
+}
+
+// ui_remove(id)
+static Value native_ui_remove(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    auto& labels = gs->script_ui.labels;
+    labels.erase(std::remove_if(labels.begin(), labels.end(), [&](auto& l){return l.id==id;}), labels.end());
+    auto& bars = gs->script_ui.bars;
+    bars.erase(std::remove_if(bars.begin(), bars.end(), [&](auto& b){return b.id==id;}), bars.end());
+    return val_nil();
+}
+
+// ui_notify(text, duration)
+static Value native_ui_notify(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    std::string text = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float dur = (argc > 1 && args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 3.0f;
+    s_active_engine->game_state_->script_ui.notifications.push_back({text, dur, 0.0f});
+    return val_nil();
+}
+
+// ═══════════════ Survival API ═══════════════
+
+// enable_survival(bool)
+static Value native_enable_survival(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    bool en = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    s_active_engine->game_state_->survival.enabled = en;
+    return val_nil();
+}
+
+// get/set hunger, thirst, energy — all follow same pattern
+static Value native_get_hunger(int, Value*) { if (!s_active_engine||!s_active_engine->game_state_) return val_number(0); return val_number(s_active_engine->game_state_->survival.hunger); }
+static Value native_set_hunger(int argc, Value* args) { if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil(); if(args[0].type==VAL_NUMBER) s_active_engine->game_state_->survival.hunger=(float)args[0].as.number; return val_nil(); }
+static Value native_get_thirst(int, Value*) { if (!s_active_engine||!s_active_engine->game_state_) return val_number(0); return val_number(s_active_engine->game_state_->survival.thirst); }
+static Value native_set_thirst(int argc, Value* args) { if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil(); if(args[0].type==VAL_NUMBER) s_active_engine->game_state_->survival.thirst=(float)args[0].as.number; return val_nil(); }
+static Value native_get_energy(int, Value*) { if (!s_active_engine||!s_active_engine->game_state_) return val_number(0); return val_number(s_active_engine->game_state_->survival.energy); }
+static Value native_set_energy(int argc, Value* args) { if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil(); if(args[0].type==VAL_NUMBER) s_active_engine->game_state_->survival.energy=(float)args[0].as.number; return val_nil(); }
+
+// set_survival_rate(stat, rate) — stat: "hunger", "thirst", "energy"
+static Value native_set_survival_rate(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<2) return val_nil();
+    const char* stat = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float rate = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1.0f;
+    auto& s = s_active_engine->game_state_->survival;
+    if (std::strcmp(stat, "hunger") == 0) s.hunger_rate = rate;
+    else if (std::strcmp(stat, "thirst") == 0) s.thirst_rate = rate;
+    else if (std::strcmp(stat, "energy") == 0) s.energy_rate = rate;
+    return val_nil();
+}
+
+// ═══════════════ Pathfinding API ═══════════════
+
+// npc_move_to(name, tile_x, tile_y)
+static Value native_npc_move_to(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    const char* name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    NPC* npc = find_npc_by_name(name);
+    if (!npc) return val_nil();
+    auto& map = s_active_engine->game_state_->tile_map;
+    int ts = map.tile_size();
+    int sx = (int)(npc->position.x / ts);
+    int sy = (int)(npc->position.y / ts);
+    npc->current_path = eb::find_path(map, sx, sy, tx, ty);
+    npc->path_index = 0;
+    npc->path_active = !npc->current_path.empty();
+    return val_bool(npc->path_active);
+}
+
+// ═══════════════ Route API ═══════════════
+
+// npc_add_waypoint(name, x, y)
+static Value native_npc_add_waypoint(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (!npc) return val_nil();
+    float x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    npc->route.waypoints.push_back({x, y});
+    return val_nil();
+}
+
+// npc_set_route(name, mode) — "patrol", "once", "pingpong"
+static Value native_npc_set_route(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<2) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (!npc) return val_nil();
+    const char* mode = (args[1].type == VAL_STRING) ? args[1].as.string : "patrol";
+    if (std::strcmp(mode, "once") == 0) npc->route.mode = RouteMode::Once;
+    else if (std::strcmp(mode, "pingpong") == 0) npc->route.mode = RouteMode::PingPong;
+    else npc->route.mode = RouteMode::Patrol;
+    return val_nil();
+}
+
+// npc_start_route(name)
+static Value native_npc_start_route(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (npc && !npc->route.waypoints.empty()) { npc->route.active = true; npc->route.current_waypoint = 0; }
+    return val_nil();
+}
+
+// npc_stop_route(name)
+static Value native_npc_stop_route(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (npc) npc->route.active = false;
+    return val_nil();
+}
+
+// npc_clear_route(name)
+static Value native_npc_clear_route(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (npc) { npc->route.waypoints.clear(); npc->route.active = false; npc->route.current_waypoint = 0; }
+    return val_nil();
+}
+
+// ═══════════════ Schedule API ═══════════════
+
+// npc_set_schedule(name, start_hour, end_hour)
+static Value native_npc_set_schedule(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (!npc) return val_nil();
+    npc->schedule.start_hour = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    npc->schedule.end_hour = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 24;
+    npc->schedule.has_schedule = true;
+    return val_nil();
+}
+
+// npc_set_spawn_point(name, x, y)
+static Value native_npc_set_spawn_point(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (!npc) return val_nil();
+    npc->schedule.spawn_point.x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    npc->schedule.spawn_point.y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    return val_nil();
+}
+
+// npc_clear_schedule(name)
+static Value native_npc_clear_schedule(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil();
+    NPC* npc = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    if (npc) { npc->schedule.has_schedule = false; npc->schedule.currently_visible = true; }
+    return val_nil();
+}
+
+// ═══════════════ NPC Interact API ═══════════════
+
+// npc_on_meet(npc1, npc2, callback_func)
+static Value native_npc_on_meet(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    NPCMeetTrigger t;
+    t.npc1_name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    t.npc2_name = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    t.callback_func = (args[2].type == VAL_STRING) ? args[2].as.string : "";
+    s_active_engine->game_state_->npc_meet_triggers.push_back(t);
+    return val_nil();
+}
+
+// npc_set_meet_radius(npc1, npc2, radius)
+static Value native_npc_set_meet_radius(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    std::string n1 = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    std::string n2 = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    float r = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 40;
+    for (auto& t : s_active_engine->game_state_->npc_meet_triggers)
+        if (t.npc1_name == n1 && t.npc2_name == n2) { t.trigger_radius = r; break; }
+    return val_nil();
+}
+
+// npc_face_each_other(npc1, npc2)
+static Value native_npc_face_each_other(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<2) return val_nil();
+    NPC* a = find_npc_by_name((args[0].type == VAL_STRING) ? args[0].as.string : "");
+    NPC* b = find_npc_by_name((args[1].type == VAL_STRING) ? args[1].as.string : "");
+    if (!a || !b) return val_nil();
+    float dx = b->position.x - a->position.x;
+    float dy = b->position.y - a->position.y;
+    if (std::abs(dx) > std::abs(dy)) { a->dir = (dx > 0) ? 3 : 2; b->dir = (dx > 0) ? 2 : 3; }
+    else { a->dir = (dy > 0) ? 0 : 1; b->dir = (dy > 0) ? 1 : 0; }
+    return val_nil();
+}
+
+// ═══════════════ Spawn API ═══════════════
+
+// spawn_loop(npc_name, interval, max_count)
+static Value native_spawn_loop(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<3) return val_nil();
+    SpawnLoop loop;
+    loop.npc_template_name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    loop.interval = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 60;
+    loop.max_count = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 5;
+    loop.active = true;
+    s_active_engine->game_state_->spawn_loops.push_back(loop);
+    return val_nil();
+}
+
+// stop_spawn_loop(npc_name)
+static Value native_stop_spawn_loop(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<1) return val_nil();
+    std::string name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    for (auto& l : s_active_engine->game_state_->spawn_loops)
+        if (l.npc_template_name == name) l.active = false;
+    return val_nil();
+}
+
+// set_spawn_area(name, x1, y1, x2, y2)
+static Value native_set_spawn_area(int argc, Value* args) {
+    if (!s_active_engine||!s_active_engine->game_state_||argc<5) return val_nil();
+    std::string name = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    for (auto& l : s_active_engine->game_state_->spawn_loops) {
+        if (l.npc_template_name == name) {
+            l.area_min.x = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+            l.area_min.y = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+            l.area_max.x = (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 0;
+            l.area_max.y = (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 0;
+            l.has_area = true;
+            break;
+        }
+    }
+    return val_nil();
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -377,6 +708,14 @@ ScriptEngine::ScriptEngine() {
         register_skills_api();
         register_debug_api();
         register_shop_api();
+        register_daynight_api();
+        register_ui_api();
+        register_survival_api();
+        register_pathfinding_api();
+        register_route_api();
+        register_schedule_api();
+        register_npc_interact_api();
+        register_spawn_api();
         s_active_engine = this;
     }
 }
@@ -447,6 +786,79 @@ void ScriptEngine::register_shop_api() {
     env_define(env_, "set_gold", 8, val_native(native_set_gold));
     env_define(env_, "get_gold", 8, val_native(native_get_gold));
     std::printf("[ScriptEngine] Shop API registered\n");
+}
+
+void ScriptEngine::register_daynight_api() {
+    if (!env_) return;
+    env_define(env_, "get_hour", 8, val_native(native_get_hour));
+    env_define(env_, "get_minute", 10, val_native(native_get_minute));
+    env_define(env_, "set_time", 8, val_native(native_set_time));
+    env_define(env_, "set_day_speed", 13, val_native(native_set_day_speed));
+    env_define(env_, "is_day", 6, val_native(native_is_day));
+    env_define(env_, "is_night", 8, val_native(native_is_night));
+    std::printf("[ScriptEngine] Day-Night API registered\n");
+}
+
+void ScriptEngine::register_ui_api() {
+    if (!env_) return;
+    env_define(env_, "ui_label", 8, val_native(native_ui_label));
+    env_define(env_, "ui_bar", 6, val_native(native_ui_bar));
+    env_define(env_, "ui_remove", 9, val_native(native_ui_remove));
+    env_define(env_, "ui_notify", 9, val_native(native_ui_notify));
+    std::printf("[ScriptEngine] UI API registered\n");
+}
+
+void ScriptEngine::register_survival_api() {
+    if (!env_) return;
+    env_define(env_, "enable_survival", 15, val_native(native_enable_survival));
+    env_define(env_, "get_hunger", 10, val_native(native_get_hunger));
+    env_define(env_, "set_hunger", 10, val_native(native_set_hunger));
+    env_define(env_, "get_thirst", 10, val_native(native_get_thirst));
+    env_define(env_, "set_thirst", 10, val_native(native_set_thirst));
+    env_define(env_, "get_energy", 10, val_native(native_get_energy));
+    env_define(env_, "set_energy", 10, val_native(native_set_energy));
+    env_define(env_, "set_survival_rate", 17, val_native(native_set_survival_rate));
+    std::printf("[ScriptEngine] Survival API registered\n");
+}
+
+void ScriptEngine::register_pathfinding_api() {
+    if (!env_) return;
+    env_define(env_, "npc_move_to", 11, val_native(native_npc_move_to));
+    std::printf("[ScriptEngine] Pathfinding API registered\n");
+}
+
+void ScriptEngine::register_route_api() {
+    if (!env_) return;
+    env_define(env_, "npc_add_waypoint", 16, val_native(native_npc_add_waypoint));
+    env_define(env_, "npc_set_route", 13, val_native(native_npc_set_route));
+    env_define(env_, "npc_start_route", 15, val_native(native_npc_start_route));
+    env_define(env_, "npc_stop_route", 14, val_native(native_npc_stop_route));
+    env_define(env_, "npc_clear_route", 15, val_native(native_npc_clear_route));
+    std::printf("[ScriptEngine] Route API registered\n");
+}
+
+void ScriptEngine::register_schedule_api() {
+    if (!env_) return;
+    env_define(env_, "npc_set_schedule", 16, val_native(native_npc_set_schedule));
+    env_define(env_, "npc_set_spawn_point", 19, val_native(native_npc_set_spawn_point));
+    env_define(env_, "npc_clear_schedule", 18, val_native(native_npc_clear_schedule));
+    std::printf("[ScriptEngine] Schedule API registered\n");
+}
+
+void ScriptEngine::register_npc_interact_api() {
+    if (!env_) return;
+    env_define(env_, "npc_on_meet", 11, val_native(native_npc_on_meet));
+    env_define(env_, "npc_set_meet_radius", 19, val_native(native_npc_set_meet_radius));
+    env_define(env_, "npc_face_each_other", 19, val_native(native_npc_face_each_other));
+    std::printf("[ScriptEngine] NPC Interact API registered\n");
+}
+
+void ScriptEngine::register_spawn_api() {
+    if (!env_) return;
+    env_define(env_, "spawn_loop", 10, val_native(native_spawn_loop));
+    env_define(env_, "stop_spawn_loop", 15, val_native(native_stop_spawn_loop));
+    env_define(env_, "set_spawn_area", 14, val_native(native_set_spawn_area));
+    std::printf("[ScriptEngine] Spawn API registered\n");
 }
 
 void ScriptEngine::sync_item_to_script(const std::string& item_id) {
