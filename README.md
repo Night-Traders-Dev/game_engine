@@ -287,7 +287,12 @@ src/
     scripting/
       script_engine.cpp      #   Core + original API modules (2,815 lines)
       script_api_new.cpp     #   Phase 1-4 APIs: tween, particle, save, quest, equipment, etc. (644 lines)
-  game/                      # Generic RPG framework (battle, inventory, shop, stats, dialogue)
+  game/                      # Generic RPG framework — modularized across 5 files:
+    game.cpp                 #   Core update loop (966 lines)
+    game_io.cpp              #   Map/dialogue file I/O, JSON parser (537 lines)
+    game_init.cpp            #   Game init, tileset setup, NPC setup (891 lines)
+    game_battle.cpp          #   Battle logic + battle rendering (516 lines)
+    game_render.cpp          #   World rendering, HUD, UI overlay, sync (1,211 lines)
     ai/                      # A* pathfinding
     systems/                 # Day-night cycle, survival stats, spawn system
     ui/                      # Game UI systems (merchant store)
@@ -364,4 +369,4 @@ MIT
 
 ---
 
-Twilight Engine v2.4.0 — 20,503 lines C++ (72 source files), 231 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms
+Twilight Engine v2.4.0 — 20,600 lines C++ (76 source files), 231 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms

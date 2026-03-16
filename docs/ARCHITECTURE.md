@@ -165,8 +165,9 @@ game.json (manifest)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 20,313 lines (72 files) | Engine + game framework + 4 system headers |
-| Script Engine | 2 files | script_engine.cpp (core + original APIs, 2,815 lines) + script_api_new.cpp (Phase 1-4 APIs, 644 lines) |
+| C++ Source | 20,600 lines (76 files) | Engine + game framework + 4 system headers |
+| Game Logic | 5 files | game.cpp (update, 966), game_io.cpp (save/load, 537), game_init.cpp (init, 891), game_battle.cpp (battle, 516), game_render.cpp (render+HUD, 1211) |
+| Script Engine | 2 files | script_engine.cpp (core + original APIs, 2,815) + script_api_new.cpp (Phase 1-4 APIs, 644) |
 | Script API | 231 functions | 40 modules across 2 files |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |

@@ -91,6 +91,10 @@ add_library(tw_engine STATIC
     src/game/overworld/camera.cpp
     src/game/overworld/tile_map.cpp
     src/game/game.cpp
+    src/game/game_io.cpp
+    src/game/game_init.cpp
+    src/game/game_battle.cpp
+    src/game/game_render.cpp
     src/engine/scripting/script_engine.cpp
     src/engine/scripting/script_api_new.cpp
     src/engine/graphics/text_renderer.cpp
