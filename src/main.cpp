@@ -214,6 +214,7 @@ int main(int argc, char* argv[]) {
             // Tab toggles editor
             if (input.key_pressed(GLFW_KEY_TAB) && !imgui.wants_keyboard()) {
                 editor.toggle();
+                game.editor_active = editor.is_active();
                 if (editor.is_active()) {
                     game.camera.clear_bounds();
                 } else {
@@ -232,6 +233,7 @@ int main(int argc, char* argv[]) {
             // ESC in editor mode → close editor (pause menu handles ESC in game mode)
             if (input.is_pressed(eb::InputAction::Menu) && editor.is_active()) {
                 editor.toggle();
+                game.editor_active = editor.is_active();
                 float gw = (float)config.width;
                 float gh = (float)config.height;
                 game.camera.set_viewport(gw, gh);

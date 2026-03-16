@@ -678,6 +678,9 @@ struct GameState {
     eb::GameFlags flags;
     float playtime_seconds = 0;
 
+    // Editor state (set by main.cpp when editor is active)
+    bool editor_active = false;
+
     // Input lock (for cutscenes)
     bool input_locked = false;
 
