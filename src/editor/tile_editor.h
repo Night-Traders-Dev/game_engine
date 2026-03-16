@@ -255,6 +255,10 @@ private:
     // Brush size (1=1x1, 2=2x2, 3=3x3)
     int brush_size_ = 1;
 
+    // Asset tab selection (0=Tiles, 1=Buildings, 2=Furniture, 3=Characters, 4=Trees, 5=Vehicles, 6=Misc)
+    int asset_tab_index_ = -1;  // -1 = no forced tab, 0-6 = force select that tab
+    static constexpr int ASSET_TAB_COUNT = 7;
+
     // Window visibility toggles
     bool show_tools_window_ = true;
     bool show_assets_window_ = true;

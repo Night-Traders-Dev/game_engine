@@ -34,22 +34,28 @@ try:
         print(f"  [{name}] {img.size[0]}x{img.size[1]}")
         return img
 
-    # Helper: click at window-relative coords using X11 warp_pointer + XTest click
-    from Xlib import X
-    from Xlib.ext import xtest as _xtest
+    # Helper: click at window-relative coords using ydotool (Wayland-native mouse)
+    import subprocess
+    _last_mouse = [0, 0]  # track cursor position for relative moves
 
     def click(x, y, delay=0.2):
-        """Move the real X11 cursor to window-relative (x,y) and click."""
-        # warp_pointer moves the actual cursor, which triggers GLFW's cursor_pos_callback
-        gw.window.warp_pointer(x, y)
-        gw.display.sync()
+        """Move the Wayland cursor to window-relative (x,y) and left-click."""
+        ax, ay = geo[0] + x, geo[1] + y
+        # ydotool 0.1.x only supports relative moves, so calculate delta
+        dx = ax - _last_mouse[0]
+        dy = ay - _last_mouse[1]
+        subprocess.run(["ydotool", "mousemove", "--delay", "0", str(dx), str(dy)],
+                       capture_output=True)
+        _last_mouse[0] = ax
+        _last_mouse[1] = ay
         time.sleep(0.05)
-        _xtest.fake_input(gw.display, X.ButtonPress, 1)
-        gw.display.sync()
-        time.sleep(0.05)
-        _xtest.fake_input(gw.display, X.ButtonRelease, 1)
-        gw.display.sync()
+        subprocess.run(["ydotool", "click", "--delay", "0", "1"],
+                       capture_output=True)
         time.sleep(delay)
+
+    # Initialize cursor to window center (where launch click placed it)
+    _last_mouse[0] = geo[0] + W // 2
+    _last_mouse[1] = geo[1] + H // 2
 
     # ──── PART 1: Game world & HUD ────
     snap("01_initial_state", delay=2.0)
@@ -106,47 +112,18 @@ try:
 
     snap("12_editor_tiles")
 
-    # Click each tab using window-relative XTest clicks
-    # Tab positions based on ImGui layout (y ~= 68 for tab row)
-    # Tabs: Tiles(~165), Buildings(~215), Furniture(~280), Characters(~345), Trees(~400), Vehicles(~448), Misc(~495)
-    tab_y = 68
+    # Cycle through all asset tabs using E key (next tab) via uinput hold
+    tab_names = ["buildings", "furniture", "characters", "trees", "vehicles", "misc"]
+    for name in tab_names:
+        inp.key_hold(keys.ASSET_TAB_NEXT, 0.3)
+        time.sleep(0.3)
+        snap(f"13_editor_{name}", delay=0.3)
 
-    click(215, tab_y)
-    snap("13_editor_buildings", delay=0.3)
-
-    click(280, tab_y)
-    snap("14_editor_furniture", delay=0.3)
-
-    click(345, tab_y)
-    snap("15_editor_characters", delay=0.3)
-
-    click(400, tab_y)
-    snap("16_editor_trees", delay=0.3)
-
-    click(448, tab_y)
-    snap("17_editor_vehicles", delay=0.3)
-
-    click(495, tab_y)
-    snap("18_editor_misc", delay=0.3)
-
-    # Back to Tiles
-    click(165, tab_y)
+    # Back to Tiles with Q key (prev tab)
+    for _ in range(6):
+        inp.key_hold(keys.ASSET_TAB_PREV, 0.3)
+        time.sleep(0.3)
     snap("19_editor_tiles_again", delay=0.3)
-
-    # Scroll down in tile palette to see more tiles
-    gw.window.warp_pointer(400, 150)
-    gw.display.sync()
-    time.sleep(0.1)
-    for _ in range(10):
-        _xtest.fake_input(gw.display, X.ButtonPress, 5)
-        _xtest.fake_input(gw.display, X.ButtonRelease, 5)
-        gw.display.sync()
-        time.sleep(0.05)
-    snap("20_tiles_scrolled", delay=0.3)
-
-    # Show collision overlay
-    click(120, 195)  # Collision checkbox area
-    snap("21_collision_view", delay=0.3)
 
     # Close editor with ESC
     inp.key_tap(keys.MENU, duration=0.1)

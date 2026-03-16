@@ -137,4 +137,66 @@ Rows 4-8 contain sprite objects (houses, fences, trees, rocks, animals) with tra
 - **Borders**: Tiles 313-315 (stone frame corners)
 
 ### Key Principle
+
 Transition tiles (grass-to-water, grass-to-sand, etc.) go at BORDERS between two terrain types. Never place them randomly in the middle of a terrain area. Solid fills go in the center, transitions go at edges.
+
+## Procedural Tilesets
+
+The engine includes a procedural tileset generator (`tools/generate_tileset.py`) that creates complete tilesets for 10 biome types.
+
+### Generated Tileset Format
+
+Each generated tileset follows the same format as cf_tileset.png:
+
+- **PNG**: 640px wide, 32x32 tile grid (20 columns)
+- **Stamps file**: `{biome}_stamps.txt` (pipe-delimited, same format as cf_stamps.txt)
+- **Manifest**: `{biome}_manifest.json` with tile ID ranges
+
+### Tile Layout Per Biome
+
+```text
+Tiles 1-4:    Primary terrain variants (e.g., grass, sand, snow)
+Tiles 5-8:    Secondary terrain variants (e.g., dirt, sandstone, ice)
+Tiles 9-24:   16 autotile transitions (4-bit corner bitmask)
+Tiles 25-32:  Decoration tiles (flowers, pebbles, cracks)
+Tiles 33-36:  Water animation frames (contiguous for set_animated_tiles)
+Below grid:   Object stamps packed in shelf rows
+```
+
+### Stamp Categories
+
+| Category | Examples |
+|----------|----------|
+| tree | Oak Tree, Pine, Palm, Cactus, Willow |
+| building | House, Cabin, Ruins, Igloo, Shop |
+| furniture | Chest, Torch, Bench, Table |
+| character | Skeleton, Chicken |
+| misc | Rock, Barrel, Sign, Fence, Pumpkin |
+| vehicle | Cart |
+
+### Usage
+
+```bash
+# Generate a single biome
+python tools/generate_tileset.py --biome desert --output assets/textures/ --seed 42
+
+# Generate all 10 biomes
+python tools/generate_tileset.py --biome all --output /tmp/tilesets/
+
+# List available biomes
+python tools/generate_tileset.py --list-biomes
+```
+
+### Autotile Bitmask (Generated Transitions)
+
+The generator uses a 4-bit corner bitmask for 16 transition variants:
+
+```text
+Bit 3: Top-Left     Bit 2: Top-Right
+Bit 1: Bottom-Left  Bit 0: Bottom-Right
+
+0b0000 = all terrain B    0b1111 = all terrain A
+0b1100 = top A, bottom B  0b0011 = top B, bottom A
+```
+
+Edges are feathered using noise for organic-looking transitions between terrain types.

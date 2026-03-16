@@ -1,0 +1,6 @@
+Charred Tree|0|64|40|80|tree
+Lava Rock|42|64|56|48|misc
+Obsidian Shard|100|64|28|48|misc
+Fire Pit|130|64|40|36|misc
+Ruined Altar|172|64|80|64|building
+Skull Pile|254|64|36|28|misc

@@ -26,8 +26,10 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
 - **Weather System** — Rain, snow, lightning, procedural cloud shadows, god rays, fog, wind. All script-controllable with presets (`set_weather("storm")`) and per-parameter control. Dynamic time-based weather changes
 - **Multi-Grid Sprites** — Per-NPC sprite grid dimensions (16x16, 32x32, 32x48, 64x64, etc.). Same texture can be loaded with different grids. No conversion needed — just specify the grid size
-- **SageLang Scripting** — 185 API functions across 27 modules driving all game systems with hot reload. See [SCRIPTING.md](SCRIPTING.md) for the full API reference
-- **Asset Pipeline** — Multi-resolution asset generator (`tools/scale_assets.py`); 1,080 tiles, 88 stamps, 432 fantasy icons, 3 UI spritesheets
+- **Procedural Tileset Generator** — `tools/generate_tileset.py` creates complete pixel-art tilesets for 10 biome types with noise-based terrain, autotile transitions, decorations, water animations, and object stamps
+- **SageLang Scripting** — 185 API functions across 28 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
+- **Asset Pipeline** — Multi-resolution asset generator (`tools/scale_assets.py`); procedural tileset generator; 1,080 base tiles, 88 stamps, 432 fantasy icons, 3 UI spritesheets
+- **Test Automation Tool** — `tools/tw_test/` Python package for automated game testing via XTest keyboard injection and X11 screenshot capture
 - **String-Keyed Atlas Cache** — Shared texture atlas cache keyed by path+grid-size; runtime sprite loading from scripts
 - **Test Suite** — `--test` CLI flag runs 101 assertions across 33 test categories; also callable from the F4 debug console via `run_all_tests()`
 - **Security Hardened** — Path traversal protection, input clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup, thread-safe Android platform
@@ -41,7 +43,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Menu Bar** — File (Save/Load/Import), Edit (Undo/Redo), View (toggle windows), Tools
 - **Tools** — Paint, Erase, Fill, Eyedrop, Select, Collision, Line, Rectangle, Portal
 - **Brush Sizes** — 1x1, 2x2, 3x3
-- **Assets Panel** — Tabbed tileset browser (Tiles, Buildings, Trees, Misc) with image previews
+- **Assets Panel** — Tabbed tileset browser (Tiles, Buildings, Furniture, Characters, Trees, Vehicles, Misc) with image previews and keyboard shortcuts (Q/E to cycle, [ ] brackets, F5-F11 direct jump)
 - **Minimap** — Color-coded map overview with player/NPC markers, click to teleport
 - **NPC Spawner** (F2) — Spawn NPCs with presets (animals, enemies, villagers), click-to-place on map
 - **Script IDE** (F3) — Built-in SageLang editor with syntax highlighting, asset click-to-highlight, menu bar (File/Help), integrated API manual, and a **Map Script** panel (gold "MAP SCRIPT" header) for editing the current map's companion script
@@ -157,7 +159,20 @@ set_hunger(get_hunger() + 40)
 
 | Game     | Description |
 |----------|-------------|
-| **demo** | "Crystal Quest" — FF-style demo with pixel art tileset, Mage/Black Mage party, merchant shop, day-night cycle |
+| **demo** | "Crystal Quest" — FF-style RPG with 6 maps across 5 biomes, Mage/Black Mage party, merchant shop, day-night cycle, procedural tilesets |
+
+### Demo Levels
+
+| Map | Biome | Tileset | Description |
+|-----|-------|---------|-------------|
+| Enchanted Forest | Forest | cf_tileset.png | Starting area with house, Elder NPC, merchant, wolves at night |
+| House Inside | Interior | cf_tileset.png | Interior of the forest house |
+| Desert | Desert | desert_tileset.png | Sand dunes, cacti, palm trees, ruins, tent |
+| Snow | Tundra | snow_tileset.png | Snow fields, ice, pine trees, igloo, snowman |
+| Cave | Dungeon | cave_tileset.png | Dark stone, crystals, stalagmites, skeleton |
+| Volcanic | Volcanic | volcanic_tileset.png | Obsidian, lava pools, charred trees, ruined altar |
+
+All biome maps are connected via portals in the forest (corners of the map).
 
 ## Build
 
@@ -241,26 +256,55 @@ games/
   demo/                      # "Crystal Quest" FF-style demo
     game.json                # Game manifest (player, party, NPCs, scripts, audio)
     assets/
+      maps/                  # Map JSON files (forest, desert, snow, cave, volcanic, house_inside)
       scripts/               # SageLang game logic (.sage)
-        lib/                 # Reusable script libraries (imported via `import`)
-        maps/                # Auto-generated map scripts (companion to .json maps)
+        maps/                # Per-map init/enter scripts
         battle/              # Battle scripts
         inventory/           # Item usage scripts
       dialogue/              # NPC dialogue files
-      textures/              # Sprite sheets, tilesets, UI elements
+      textures/              # Sprite sheets, tilesets (cf_tileset + 4 procedural biome tilesets)
       fonts/                 # TTF fonts
       audio/                 # Music and sound effects
+tools/
+  generate_tileset.py        # Procedural tileset generator (10 biomes)
+  wire_biome_levels.py       # Generate + wire biome maps into a game
+  tw_test/                   # Automated test tool (screenshot, input injection, smoke tests)
+  scale_assets.py            # Multi-resolution asset scaler
+  extract_tileset.py         # Tileset background removal
+docs/                        # Engine documentation
 shaders/                     # GLSL vertex/fragment shaders (compiled to SPIR-V)
 android/                     # Android build (Gradle, manifest, native glue)
 ```
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `tools/generate_tileset.py` | Procedural pixel-art tileset generator for 10 biome types (grasslands, forest, desert, snow, swamp, volcanic, beach, cave, urban, farmland). Outputs engine-compatible PNG + stamps.txt |
+| `tools/wire_biome_levels.py` | Generates tilesets + maps + scripts and wires them into the demo with portals |
+| `tools/tw_test/` | Automated test tool: launches game, sends keyboard input via XTest, captures screenshots via X11, runs smoke tests |
+| `tools/scale_assets.py` | Multi-resolution asset scaler (2x, 3x, 4x) with nearest-neighbor for pixel art |
+| `tools/extract_tileset.py` | Removes background color from tileset PNGs |
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Engine Guide](docs/Twilight_Engine_Guide.md) | Comprehensive engine guide with all systems |
+| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (185 functions, 28 modules) |
+| [Architecture](docs/ARCHITECTURE.md) | Engine architecture and module breakdown |
+| [Map Design Guide](docs/MAP_DESIGN_GUIDE.md) | Map creation with biome portals and scripting |
+| [Tile Reference](docs/TILE_REFERENCE.md) | Tileset format, procedural generator, stamp system |
+| [Battle System](docs/Battle_System_Comparison.md) | Battle system design comparison |
 
 ## Tech Stack
 
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 185 API functions, multi-grid atlas cache)
+- SageLang (scripting — 185 API functions, 28 modules, multi-grid atlas cache)
 - tinyfiledialogs (native file dialogs, desktop only)
+- Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
 ## License
 
@@ -268,4 +312,4 @@ MIT
 
 ---
 
-Twilight Engine v1.5.0 — 17,353 lines C++, 185 API functions, 1,080 tiles, 88 stamps, 432 icons, 4 platforms
+Twilight Engine v1.6.0 — 17,426 lines C++, 185 API functions, 28 script modules, 6 maps, 5 tilesets, 88 stamps, 432 icons, 20 scripts, 4 platforms

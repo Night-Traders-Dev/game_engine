@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v1.5                       |
+|                        TWILIGHT ENGINE v1.6                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -161,18 +161,21 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v1.5.0)
+## File Counts (v1.6.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 17,353 lines | Engine + game framework |
-| Script API | 185 functions | 27 modules |
-| Test Assertions | 101 | 33 test categories |
-| Tileset Tiles | 1,080 | 20x54 grid at 32x32 |
+| C++ Source | 17,426 lines | Engine + game framework |
+| Script API | 185 functions | 28 modules |
+| Test Assertions | 806 | Across all test files |
+| Maps | 6 | Forest, House Inside, Desert, Snow, Cave, Volcanic |
+| Tilesets | 5 | cf_tileset (1,080 tiles) + 4 procedural biome tilesets |
 | Object Stamps | 88 | 6 categories (9 buildings, 17 trees, 12 furniture, 13 characters, 37 misc) |
 | Fantasy Icons | 432 | 16x27 grid at 32x32 (weapons, armor, potions, food, tools, elements) |
 | UI Sheets | 3 | Original spritesheet (704x2160), Fantasy icons (512x867), Flat UI (736x288) |
-| Sage Scripts | 16 | Game logic, weather, tests, map scripts |
+| Sage Scripts | 20 | Game logic, weather, tests, map scripts (7 map scripts) |
+| Biome Presets | 10 | Grasslands, Forest, Desert, Snow, Swamp, Volcanic, Beach, Cave, Urban, Farmland |
+| Python Tools | 5 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 | Asset Scale Levels | 3 | 1x, 2x, 3x (auto-generated) |
 | Maps | 2 | Forest (30x22) + House Interior (9x9) with portal transitions |
@@ -194,17 +197,25 @@ game.json (manifest)
 ## Asset Pipeline
 
 ```text
-Source Assets (1x)              Build Tool                 Output
+Source Assets (1x)              Build Tools                Output
 +------------------+     +-------------------+     +------------------+
 | mage_player.png  |     | scale_assets.py   |     | 2x/mage_player   |
 | (48x60)          |---->| nearest-neighbor  |---->| (96x120)         |
 | cf_tileset.png   |     | + stamps scaling  |     | 3x/mage_player   |
-| (640x608)        |     +-------------------+     | (144x180)        |
+| (640x1728)       |     +-------------------+     | (144x180)        |
 +------------------+                                +------------------+
                          +-------------------+
                          | cf_stamps.txt     |
-                         | 40 object stamps  |
+                         | 88 object stamps  |
                          | Auto-scaled per   |
                          |   resolution      |
                          +-------------------+
+
+Procedural Pipeline:
++-------------------+     +-------------------+     +------------------+
+| generate_tileset  |     | wire_biome_levels |     | desert_tileset   |
+|   --biome desert  |---->|   Generates maps  |---->| desert_stamps    |
+|   --seed 42       |     |   + scripts +     |     | desert.json      |
+| 10 biome presets  |     |   portals         |     | desert.sage      |
++-------------------+     +-------------------+     +------------------+
 ```

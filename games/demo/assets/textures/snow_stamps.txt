@@ -1,0 +1,7 @@
+Snow Pine|0|64|64|116|tree
+Bare Tree|66|64|48|96|tree
+Ice Rock|116|64|72|64|misc
+Snowman|190|64|32|48|misc
+Igloo|224|64|80|64|building
+Frozen Bush|306|64|40|32|tree
+Log Pile|348|64|48|28|misc

@@ -1,0 +1,94 @@
+{
+  "biome": "desert",
+  "seed": 42,
+  "terrains": {
+    "sand": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "sandstone": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "transitions": {
+    "sand_to_sandstone": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ]
+  },
+  "decorations": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+  ],
+  "water": {
+    "first": 33,
+    "last": 36
+  },
+  "stamps": [
+    {
+      "name": "Cactus Tall",
+      "category": "tree",
+      "size": "32x96"
+    },
+    {
+      "name": "Cactus Short",
+      "category": "tree",
+      "size": "36x64"
+    },
+    {
+      "name": "Sand Rock",
+      "category": "misc",
+      "size": "64x48"
+    },
+    {
+      "name": "Desert Ruins",
+      "category": "building",
+      "size": "96x80"
+    },
+    {
+      "name": "Palm Tree",
+      "category": "tree",
+      "size": "64x96"
+    },
+    {
+      "name": "Skull",
+      "category": "misc",
+      "size": "24x20"
+    },
+    {
+      "name": "Tent",
+      "category": "building",
+      "size": "80x64"
+    },
+    {
+      "name": "Barrel",
+      "category": "misc",
+      "size": "28x32"
+    }
+  ]
+}

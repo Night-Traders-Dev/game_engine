@@ -12,6 +12,7 @@
 #include "engine/graphics/renderer.h"
 #include "engine/platform/input.h"
 #include "engine/core/debug_log.h"
+#include <chrono>
 #include "engine/resource/file_io.h"
 #include "engine/scripting/script_engine.h"
 #include "game/overworld/camera.h"
@@ -551,6 +552,38 @@ void TileEditor::handle_shortcuts(const InputState& input) {
             int layer = k - GLFW_KEY_1;
             if (!input.mods.shift && layer < map_->layer_count()) { active_layer_ = layer; set_status("Layer " + std::to_string(layer+1)); }
             if (input.mods.shift && layer < MAX_LAYERS) { layer_visible_[layer] = !layer_visible_[layer]; }
+        }
+    }
+    // Asset tab shortcuts: [ / ] to cycle prev/next, F5-F11 to jump directly
+    // Uses key held state with cooldown (key_pressed can miss short virtual keypresses on XWayland)
+    {
+        static auto last_tab_time = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        float elapsed = std::chrono::duration<float>(now - last_tab_time).count();
+        auto tab_key = [&](int glfw_key) { return input.keys[glfw_key] && elapsed > 0.25f; };
+
+        // Q = previous tab, E = next tab (also [ and ] as alternatives)
+        if (tab_key(GLFW_KEY_Q) || tab_key(GLFW_KEY_LEFT_BRACKET)) {
+            int current = (asset_tab_index_ >= 0) ? asset_tab_index_ : 0;
+            asset_tab_index_ = (current - 1 + ASSET_TAB_COUNT) % ASSET_TAB_COUNT;
+            static const char* tab_names[] = {"Tiles","Buildings","Furniture","Characters","Trees","Vehicles","Misc"};
+            set_status(tab_names[asset_tab_index_]);
+            last_tab_time = now;
+        }
+        if (tab_key(GLFW_KEY_E) || tab_key(GLFW_KEY_RIGHT_BRACKET)) {
+            int current = (asset_tab_index_ >= 0) ? asset_tab_index_ : 0;
+            asset_tab_index_ = (current + 1) % ASSET_TAB_COUNT;
+            static const char* tab_names[] = {"Tiles","Buildings","Furniture","Characters","Trees","Vehicles","Misc"};
+            set_status(tab_names[asset_tab_index_]);
+            last_tab_time = now;
+        }
+        for (int k = GLFW_KEY_F5; k <= GLFW_KEY_F11; k++) {
+            if (tab_key(k)) {
+                asset_tab_index_ = k - GLFW_KEY_F5;
+                static const char* tab_names[] = {"Tiles","Buildings","Furniture","Characters","Trees","Vehicles","Misc"};
+                set_status(tab_names[asset_tab_index_]);
+                last_tab_time = now;
+            }
         }
     }
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_Z)) { if (input.mods.shift) redo(); else undo(); }
@@ -1477,8 +1510,13 @@ void TileEditor::render_imgui(GameState& game) {
     if (ImGui::Begin("Assets##editor", &show_assets_window_)) {
         if (ImGui::BeginTabBar("AssetTabs")) {
 
+            // Tab selection flags — only set for one frame per keyboard shortcut
+            auto tab_flag = [&](int idx) -> ImGuiTabItemFlags {
+                return (asset_tab_index_ == idx) ? ImGuiTabItemFlags_SetSelected : 0;
+            };
+
             // ── Ground Tiles ──
-            if (ImGui::BeginTabItem("Tiles")) {
+            if (ImGui::BeginTabItem("Tiles", nullptr, tab_flag(0))) {
                 int tile_count = std::min(tileset_->region_count(), (int)TILE_COUNT - 1);
                 float avail = ImGui::GetContentRegionAvail().x;
                 float btn_sz = 40.0f;
@@ -1501,8 +1539,8 @@ void TileEditor::render_imgui(GameState& game) {
             }
 
             // ── Category tabs with image previews ──
-            auto stamp_tab = [&](const char* name, const char* cat) {
-                if (ImGui::BeginTabItem(name)) {
+            auto stamp_tab = [&](const char* name, const char* cat, int tab_idx) {
+                if (ImGui::BeginTabItem(name, nullptr, tab_flag(tab_idx))) {
                     for (int i = 0; i < (int)game.object_stamps.size(); i++) {
                         auto& s = game.object_stamps[i];
                         if (s.category != std::string(cat)) continue;
@@ -1540,14 +1578,17 @@ void TileEditor::render_imgui(GameState& game) {
                 }
             };
 
-            stamp_tab("Buildings", "building");
-            stamp_tab("Furniture", "furniture");
-            stamp_tab("Characters", "character");
-            stamp_tab("Trees", "tree");
-            stamp_tab("Vehicles", "vehicle");
-            stamp_tab("Misc", "misc");
+            stamp_tab("Buildings", "building", 1);
+            stamp_tab("Furniture", "furniture", 2);
+            stamp_tab("Characters", "character", 3);
+            stamp_tab("Trees", "tree", 4);
+            stamp_tab("Vehicles", "vehicle", 5);
+            stamp_tab("Misc", "misc", 6);
 
             ImGui::EndTabBar();
+
+            // Clear the selection flag after the tab bar has rendered (one-frame trigger)
+            asset_tab_index_ = -1;
         }
 
         // Selected item preview at bottom

@@ -1,0 +1,84 @@
+{
+  "biome": "volcanic",
+  "seed": 42,
+  "terrains": {
+    "obsidian": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "lava": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "transitions": {
+    "obsidian_to_lava": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ]
+  },
+  "decorations": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+  ],
+  "water": {
+    "first": 33,
+    "last": 36
+  },
+  "stamps": [
+    {
+      "name": "Charred Tree",
+      "category": "tree",
+      "size": "40x80"
+    },
+    {
+      "name": "Lava Rock",
+      "category": "misc",
+      "size": "56x48"
+    },
+    {
+      "name": "Obsidian Shard",
+      "category": "misc",
+      "size": "28x48"
+    },
+    {
+      "name": "Fire Pit",
+      "category": "misc",
+      "size": "40x36"
+    },
+    {
+      "name": "Ruined Altar",
+      "category": "building",
+      "size": "80x64"
+    },
+    {
+      "name": "Skull Pile",
+      "category": "misc",
+      "size": "36x28"
+    }
+  ]
+}

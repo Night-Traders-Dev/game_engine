@@ -5,86 +5,137 @@
     "window_width": 960,
     "window_height": 720
   },
-
   "player": {
     "name": "Mage",
     "sprite": "assets/textures/mage_player.png",
-    "sprite_grid": [32, 48],
-    "hp": 120, "hp_max": 120,
-    "atk": 18, "def": 8,
-    "level": 1, "xp": 0,
-    "start_x": 480, "start_y": 320,
+    "sprite_grid": [
+      32,
+      48
+    ],
+    "hp": 120,
+    "hp_max": 120,
+    "atk": 18,
+    "def": 8,
+    "level": 1,
+    "xp": 0,
+    "start_x": 480,
+    "start_y": 320,
     "skills": {
-      "hardiness": 5, "unholiness": 2, "nerve": 6,
-      "tactics": 5, "exorcism": 3, "riflery": 6
+      "hardiness": 5,
+      "unholiness": 2,
+      "nerve": 6,
+      "tactics": 5,
+      "exorcism": 3,
+      "riflery": 6
     }
   },
-
   "party": [
     {
       "name": "Black Mage",
       "sprite": "assets/textures/mage_sprites.png",
-      "sprite_grid": [32, 48],
-      "hp": 75, "hp_max": 75, "atk": 8,
+      "sprite_grid": [
+        32,
+        48
+      ],
+      "hp": 75,
+      "hp_max": 75,
+      "atk": 8,
       "skills": {
-        "hardiness": 4, "unholiness": 4, "nerve": 4,
-        "tactics": 6, "exorcism": 6, "riflery": 3
+        "hardiness": 4,
+        "unholiness": 4,
+        "nerve": 4,
+        "tactics": 6,
+        "exorcism": 6,
+        "riflery": 3
       }
     }
   ],
-
   "tileset": "assets/textures/cf_tileset.png",
   "default_font": "assets/fonts/default.ttf",
-
   "npcs": [
     {
       "name": "Elder",
-      "x": 320, "y": 256, "dir": 0,
+      "x": 320,
+      "y": 256,
+      "dir": 0,
       "sprite": "assets/textures/elder_sprites.png",
-      "sprite_grid": [32, 32],
-      "interact_radius": 40, "hostile": false,
-      "aggro_range": 150, "attack_range": 32,
-      "move_speed": 20, "wander_interval": 5,
+      "sprite_grid": [
+        32,
+        32
+      ],
+      "interact_radius": 40,
+      "hostile": false,
+      "aggro_range": 150,
+      "attack_range": 32,
+      "move_speed": 20,
+      "wander_interval": 5,
       "has_battle": false,
       "dialogue_file": "assets/dialogue/elder.dialogue"
     },
     {
       "name": "Merchant",
-      "x": 512, "y": 256, "dir": 0,
+      "x": 512,
+      "y": 256,
+      "dir": 0,
       "sprite": "assets/textures/merchant_sprites.png",
-      "sprite_grid": [32, 32],
-      "interact_radius": 40, "hostile": false,
-      "aggro_range": 150, "attack_range": 32,
-      "move_speed": 15, "wander_interval": 6,
+      "sprite_grid": [
+        32,
+        32
+      ],
+      "interact_radius": 40,
+      "hostile": false,
+      "aggro_range": 150,
+      "attack_range": 32,
+      "move_speed": 15,
+      "wander_interval": 6,
       "has_battle": false,
       "dialogue_file": "assets/dialogue/merchant.dialogue"
     },
     {
       "name": "Skeleton",
-      "x": 640, "y": 384, "dir": 0,
+      "x": 640,
+      "y": 384,
+      "dir": 0,
       "sprite": "assets/textures/cf_skeleton.png",
-      "sprite_grid": [32, 32],
-      "interact_radius": 40, "hostile": true,
-      "aggro_range": 140, "attack_range": 32,
-      "move_speed": 45, "wander_interval": 3,
+      "sprite_grid": [
+        32,
+        32
+      ],
+      "interact_radius": 40,
+      "hostile": true,
+      "aggro_range": 140,
+      "attack_range": 32,
+      "move_speed": 45,
+      "wander_interval": 3,
       "has_battle": true,
-      "battle_enemy": "Skeleton", "battle_hp": 50, "battle_atk": 12,
+      "battle_enemy": "Skeleton",
+      "battle_hp": 50,
+      "battle_atk": 12,
       "dialogue_file": "assets/dialogue/elder.dialogue"
     },
     {
       "name": "Slime",
-      "x": 400, "y": 450, "dir": 0,
+      "x": 400,
+      "y": 450,
+      "dir": 0,
       "sprite": "assets/textures/cf_slime.png",
-      "sprite_grid": [32, 32],
-      "interact_radius": 40, "hostile": true,
-      "aggro_range": 100, "attack_range": 32,
-      "move_speed": 30, "wander_interval": 4,
+      "sprite_grid": [
+        32,
+        32
+      ],
+      "interact_radius": 40,
+      "hostile": true,
+      "aggro_range": 100,
+      "attack_range": 32,
+      "move_speed": 30,
+      "wander_interval": 4,
       "has_battle": true,
-      "battle_enemy": "Slime", "battle_hp": 30, "battle_atk": 6,
+      "battle_enemy": "Slime",
+      "battle_hp": 30,
+      "battle_atk": 6,
       "dialogue_file": "assets/dialogue/elder.dialogue"
     }
   ],
-
   "scripts": [
     "assets/scripts/battle/battle_core.sage",
     "assets/scripts/battle/slime_battle.sage",
@@ -96,9 +147,12 @@
     "assets/scripts/day.sage",
     "assets/scripts/patrol.sage",
     "assets/scripts/maps/default.sage",
-    "assets/scripts/tests/test_all.sage"
+    "assets/scripts/tests/test_all.sage",
+    "assets/scripts/maps/desert.sage",
+    "assets/scripts/maps/snow.sage",
+    "assets/scripts/maps/cave.sage",
+    "assets/scripts/maps/volcanic.sage"
   ],
-
   "init_scripts": [
     "give_starter_items",
     "init_player_stats",
@@ -106,11 +160,9 @@
     "init_day_night",
     "init_patrols"
   ],
-
   "audio": {
     "overworld": "assets/audio/overworld.mp3",
     "battle": "assets/audio/battle.wav"
   },
-
   "default_map": "assets/maps/forest.json"
 }

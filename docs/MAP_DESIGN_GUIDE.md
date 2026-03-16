@@ -254,6 +254,52 @@ Players' eyes naturally follow a Z across the screen:
 - **Close button** or ESC hint visible
 - **Consistent style** across all windows (same border, same font)
 
+## Procedural Biome Levels
+
+The engine includes a procedural tileset generator (`tools/generate_tileset.py`) and a level wiring tool (`tools/wire_biome_levels.py`) that create complete biome maps.
+
+### Available Biomes
+
+| Biome | Ground Terrains | Key Stamps | Atmosphere |
+|-------|----------------|------------|------------|
+| Grasslands | grass, dirt | Oak Tree, Bush, Farmhouse, Hay Bale | Bright, light clouds |
+| Forest | dark grass, moss, leaf litter | Big Oak, Pine, Log Cabin, Mushroom | Dense clouds, god rays |
+| Desert | sand, sandstone | Cactus, Palm Tree, Ruins, Tent | Hazy, warm wind |
+| Snow | snow, ice | Snow Pine, Igloo, Ice Rock, Snowman | Heavy clouds, cold wind |
+| Swamp | bog, mud | Swamp Tree, Willow, Wooden Hut | Murky, still |
+| Volcanic | obsidian, lava | Charred Tree, Lava Rock, Ruined Altar | Red haze, ash clouds |
+| Beach | sand, wet sand | Palm Tree, Beach Hut, Driftwood | Clear, gentle breeze |
+| Cave | stone, dark floor | Crystal, Stalagmite, Chest, Torch | Dark, no sky |
+| Urban | cobblestone, brick | Town House, Shop, Lamp Post, Cart | Neutral, calm |
+| Farmland | soil, crop green | Windmill, Barn, Apple Tree, Fence | Bright, light wind |
+
+### Generating a New Biome Level
+
+```bash
+# Generate tileset
+python tools/generate_tileset.py --biome desert --output games/demo/assets/textures/ --seed 42
+
+# Wire all biomes into the demo with portals
+python tools/wire_biome_levels.py
+```
+
+Each generated map includes:
+- Noise-based terrain tile placement (base + transitions + decorations + water)
+- Object stamps placed via companion `.sage` map script
+- Biome-specific atmosphere (clear color, clouds, wind, god rays)
+- Return portal back to the forest hub
+
+### Portal Layout (Forest Hub)
+
+```text
+    NW(Snow)────────────────NE(Desert)
+    |                               |
+    |        [Forest Map]           |
+    |       House in center         |
+    |                               |
+    SW(Volcanic)────────SE(Cave)
+```
+
 ## References
 
 - [Tile Bitmasking Auto-Tile Tutorial](https://code.tutsplus.com/how-to-use-tile-bitmasking-to-auto-tile-your-level-layouts--cms-25673t)

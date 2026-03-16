@@ -1,0 +1,94 @@
+{
+  "biome": "cave",
+  "seed": 42,
+  "terrains": {
+    "stone": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "dark_floor": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "transitions": {
+    "stone_to_dark_floor": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ]
+  },
+  "decorations": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+  ],
+  "water": {
+    "first": 33,
+    "last": 36
+  },
+  "stamps": [
+    {
+      "name": "Stalagmite",
+      "category": "misc",
+      "size": "28x56"
+    },
+    {
+      "name": "Crystal",
+      "category": "misc",
+      "size": "32x48"
+    },
+    {
+      "name": "Boulder",
+      "category": "misc",
+      "size": "56x48"
+    },
+    {
+      "name": "Chest",
+      "category": "furniture",
+      "size": "40x32"
+    },
+    {
+      "name": "Torch",
+      "category": "furniture",
+      "size": "20x44"
+    },
+    {
+      "name": "Cobweb",
+      "category": "misc",
+      "size": "32x32"
+    },
+    {
+      "name": "Stone Pillar",
+      "category": "building",
+      "size": "32x64"
+    },
+    {
+      "name": "Skeleton",
+      "category": "character",
+      "size": "24x32"
+    }
+  ]
+}

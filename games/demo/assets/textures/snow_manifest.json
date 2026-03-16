@@ -1,0 +1,89 @@
+{
+  "biome": "snow",
+  "seed": 42,
+  "terrains": {
+    "snow": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "ice": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "transitions": {
+    "snow_to_ice": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ]
+  },
+  "decorations": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+  ],
+  "water": {
+    "first": 33,
+    "last": 36
+  },
+  "stamps": [
+    {
+      "name": "Snow Pine",
+      "category": "tree",
+      "size": "64x116"
+    },
+    {
+      "name": "Bare Tree",
+      "category": "tree",
+      "size": "48x96"
+    },
+    {
+      "name": "Ice Rock",
+      "category": "misc",
+      "size": "72x64"
+    },
+    {
+      "name": "Snowman",
+      "category": "misc",
+      "size": "32x48"
+    },
+    {
+      "name": "Igloo",
+      "category": "building",
+      "size": "80x64"
+    },
+    {
+      "name": "Frozen Bush",
+      "category": "tree",
+      "size": "40x32"
+    },
+    {
+      "name": "Log Pile",
+      "category": "misc",
+      "size": "48x28"
+    }
+  ]
+}

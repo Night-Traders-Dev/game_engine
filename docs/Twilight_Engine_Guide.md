@@ -1221,6 +1221,38 @@ scaled = img.resize((img.width * 2, img.height * 2), Image.NEAREST)
 scaled.save("tileset_32.png")
 ```
 
+### Procedural Tileset Generator
+
+The engine includes `tools/generate_tileset.py` which procedurally generates pixel-art tilesets for 10 biome types using simplex noise, ordered dithering, and curated color palettes.
+
+```bash
+python tools/generate_tileset.py --biome desert --output assets/textures/ --seed 42
+python tools/generate_tileset.py --biome all    # all 10 biomes
+python tools/generate_tileset.py --list-biomes  # show available biomes
+```
+
+Available biomes: grasslands, forest, desert, snow, swamp, volcanic, beach, cave, urban, farmland.
+
+Each biome generates: base terrain variants, 16 autotile transitions, decoration overlays, water animation frames, and 6-10 object stamps (trees, rocks, buildings, props).
+
+### Biome Level Wiring Tool
+
+`tools/wire_biome_levels.py` generates tilesets, creates map JSON files with noise-based terrain placement, writes companion `.sage` scripts, and adds portals connecting each biome to the forest hub.
+
+### Test Automation Tool
+
+`tools/tw_test/` is a Python package for automated game testing:
+
+```bash
+cd tools
+python -m tw_test screenshot              # launch, capture, exit
+python -m tw_test smoke                   # movement + menu smoke test
+python -m tw_test interactive             # REPL with inp/cap/harness objects
+python -m tw_test --no-launch interactive # attach to running game
+```
+
+Uses XTest for keyboard injection and X11 GetImage for screenshots. The game runs windowed on XWayland via `TW_FORCE_X11=1 --windowed`.
+
 ### Included Sample Assets
 
 | Asset | Source | Format | Tiles/Sprites |
@@ -2563,4 +2595,4 @@ All NPC sprites rebuilt from Cute Fantasy Free source sheets with proper 4-direc
 
 ---
 
-Twilight Engine v1.5.0 — 17,353 lines C++, 185 API functions, 27 modules, 4 platforms
+Twilight Engine v1.6.0 — 17,426 lines C++, 185 API functions, 28 modules, 6 maps, 5 tilesets, 20 scripts, 4 platforms

@@ -1347,6 +1347,38 @@
       "target_x": 4,
       "target_y": 7,
       "label": "Enter House"
+    },
+    {
+      "x": 25,
+      "y": 5,
+      "target_map": "desert.json",
+      "target_x": 15,
+      "target_y": 11,
+      "label": "Enter Desert"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "target_map": "snow.json",
+      "target_x": 15,
+      "target_y": 11,
+      "label": "Enter Snow"
+    },
+    {
+      "x": 25,
+      "y": 18,
+      "target_map": "cave.json",
+      "target_x": 15,
+      "target_y": 11,
+      "label": "Enter Cave"
+    },
+    {
+      "x": 5,
+      "y": 18,
+      "target_map": "volcanic.json",
+      "target_x": 15,
+      "target_y": 11,
+      "label": "Enter Volcanic"
     }
   ],
   "objects": [],

@@ -1,0 +1,8 @@
+Cactus Tall|0|64|32|96|tree
+Cactus Short|34|64|36|64|tree
+Sand Rock|72|64|64|48|misc
+Desert Ruins|138|64|96|80|building
+Palm Tree|236|64|64|96|tree
+Skull|302|64|24|20|misc
+Tent|328|64|80|64|building
+Barrel|410|64|28|32|misc
