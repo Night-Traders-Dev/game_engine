@@ -2445,6 +2445,15 @@ void TileEditor::render_imgui(GameState& game) {
                     }
                 }
 
+                if (ImGui::CollapsingHeader("Visual FX", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::Checkbox("Water Reflections", &game.water_reflections);
+                    ImGui::SliderFloat("Reflection Alpha", &game.reflection_alpha, 0.0f, 1.0f);
+                    ImGui::Separator();
+                    ImGui::Checkbox("Bloom / Glow", &game.bloom_enabled);
+                    ImGui::SliderFloat("Bloom Intensity", &game.bloom_intensity, 0.0f, 1.0f);
+                    ImGui::SliderFloat("Bloom Threshold", &game.bloom_threshold, 0.0f, 1.0f);
+                }
+
                 if (ImGui::CollapsingHeader("Lighting")) {
                     ImGui::Checkbox("Enable Lighting", &game.lighting_enabled);
                     ImGui::SliderFloat("Ambient", &game.ambient_light, 0.0f, 1.0f);

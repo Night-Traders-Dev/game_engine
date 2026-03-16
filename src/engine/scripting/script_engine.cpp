@@ -1996,6 +1996,7 @@ ScriptEngine::ScriptEngine() {
         register_achievement_api();
         register_lighting_api();
         register_anim_api();
+        register_visual_fx_api();
         s_active_engine = this;
     }
 }
@@ -3398,6 +3399,32 @@ void ScriptEngine::register_anim_api() {
     env_define(env_, "anim_stop", 9, val_native(native_anim_stop));
     env_define(env_, "anim_define", 11, val_native(native_anim_define));
     std::printf("[ScriptEngine] Animation API registered\n");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Visual Effects API (water reflections, bloom)
+// ═══════════════════════════════════════════════════════════════
+
+static Value native_set_water_reflections(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    s_active_engine->game_state_->water_reflections = (args[0].type == VAL_BOOL) ? args[0].as.boolean : true;
+    return val_nil();
+}
+
+static Value native_set_bloom(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    gs->bloom_enabled = (args[0].type == VAL_BOOL) ? args[0].as.boolean : true;
+    if (argc > 1 && args[1].type == VAL_NUMBER) gs->bloom_intensity = (float)args[1].as.number;
+    if (argc > 2 && args[2].type == VAL_NUMBER) gs->bloom_threshold = (float)args[2].as.number;
+    return val_nil();
+}
+
+void ScriptEngine::register_visual_fx_api() {
+    if (!env_) return;
+    env_define(env_, "set_water_reflections", 21, val_native(native_set_water_reflections));
+    env_define(env_, "set_bloom", 9, val_native(native_set_bloom));
+    std::printf("[ScriptEngine] Visual FX API registered\n");
 }
 
 } // namespace eb

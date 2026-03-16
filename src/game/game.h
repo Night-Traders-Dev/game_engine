@@ -752,6 +752,15 @@ struct GameState {
     struct Achievement { std::string id, title, desc; bool unlocked = false; float unlock_time = 0; };
     std::vector<Achievement> achievements;
 
+    // Water reflections
+    bool water_reflections = true;  // Draw flipped sprites below characters
+    float reflection_alpha = 0.35f;
+
+    // Bloom / glow
+    bool bloom_enabled = false;
+    float bloom_threshold = 0.7f;  // Brightness threshold for bloom
+    float bloom_intensity = 0.5f;  // Glow strength
+
     // 2D Lighting
     struct Light2D {
         float x, y;               // World position

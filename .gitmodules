@@ -1,3 +1,4 @@
 [submodule "src/third_party/sagelang"]
 	path = src/third_party/sagelang
 	url = https://github.com/Night-Traders-Dev/SageLang.git
+	branch = main

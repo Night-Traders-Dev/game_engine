@@ -3374,6 +3374,67 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
 
     batch.flush_sorted();
 
+    // ── Water Reflections ──
+    // Draw vertically flipped copies of player/NPCs below water with blue tint
+    if (game.water_reflections) {
+        float reflect_alpha = 0.35f;
+        eb::Vec4 water_tint = {0.5f, 0.6f, 0.9f, reflect_alpha};
+        int ts = game.tile_map.tile_size();
+
+        // Player reflection
+        if (game.dean_atlas) {
+            auto sr = get_character_sprite(*game.dean_atlas, game.player_dir, game.player_moving, game.player_frame);
+            float rw = 48.0f * game.player_sprite_scale;
+            float rh = 64.0f * game.player_sprite_scale;
+            // Check if tile below player is water-like
+            int check_y = (int)((game.player_pos.y + rh * 0.5f) / ts);
+            int check_x = (int)(game.player_pos.x / ts);
+            if (check_y >= 0 && check_y < game.tile_map.height() && check_x >= 0 && check_x < game.tile_map.width()) {
+                // Draw reflection below player position (flipped V via swapped UVs)
+                eb::Vec2 dp = {game.player_pos.x - rw * 0.5f, game.player_pos.y + 4};
+                // Flip vertically by swapping uv_min.y and uv_max.y
+                batch.set_texture(game.dean_desc);
+                batch.draw_quad(dp, {rw, rh * 0.7f},
+                    {sr.uv_min.x, sr.uv_max.y}, {sr.uv_max.x, sr.uv_min.y}, water_tint);
+            }
+        }
+
+        // NPC reflections
+        for (const auto& npc : game.npcs) {
+            if (!npc.schedule.currently_visible) continue;
+            eb::TextureAtlas* atlas_ptr = nullptr;
+            VkDescriptorSet desc = VK_NULL_HANDLE;
+            if (!npc.sprite_atlas_key.empty()) {
+                std::string cache_key = npc.sprite_atlas_key;
+                if (npc.sprite_grid_w > 0 && npc.sprite_grid_h > 0) {
+                    char buf[32]; std::snprintf(buf, sizeof(buf), "@%dx%d", npc.sprite_grid_w, npc.sprite_grid_h);
+                    cache_key += buf;
+                }
+                auto it = game.atlas_cache.find(cache_key);
+                if (it != game.atlas_cache.end()) {
+                    atlas_ptr = it->second.get();
+                    auto dit = game.atlas_descs.find(cache_key);
+                    if (dit != game.atlas_descs.end()) desc = dit->second;
+                }
+            }
+            if (!atlas_ptr && npc.sprite_atlas_id >= 0 && npc.sprite_atlas_id < (int)game.npc_atlases.size()) {
+                atlas_ptr = game.npc_atlases[npc.sprite_atlas_id].get();
+                desc = game.npc_descs[npc.sprite_atlas_id];
+            }
+            if (atlas_ptr && desc) {
+                auto sr = get_character_sprite(*atlas_ptr, npc.dir, npc.moving, npc.frame);
+                float base_w = (npc.sprite_grid_w > 0) ? (float)npc.sprite_grid_w : 32.0f;
+                float base_h = (npc.sprite_grid_h > 0) ? (float)npc.sprite_grid_h : 32.0f;
+                float rw = base_w * 1.5f * npc.sprite_scale;
+                float rh = base_h * 1.5f * npc.sprite_scale;
+                eb::Vec2 dp = {npc.position.x - rw * 0.5f, npc.position.y + 4};
+                batch.set_texture(desc);
+                batch.draw_quad(dp, {rw, rh * 0.7f},
+                    {sr.uv_min.x, sr.uv_max.y}, {sr.uv_max.x, sr.uv_min.y}, water_tint);
+            }
+        }
+    }
+
     // ── Particles (rendered on top of world, before UI) ──
     // Use default white texture for colored quads
     batch.set_texture(game.white_desc);
@@ -3389,6 +3450,40 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
                 p.color.w + (p.color_end.w - p.color.w) * t,
             };
             batch.draw_quad({p.pos.x - sz*0.5f, p.pos.y - sz*0.5f}, {sz, sz}, col);
+        }
+    }
+
+    // ── Bloom / Glow (cheap: re-draw lights and bright particles larger + transparent) ──
+    if (game.bloom_enabled) {
+        batch.set_texture(game.white_desc);
+        float bi = game.bloom_intensity;
+        // Glow around point lights
+        for (auto& light : game.lights) {
+            if (!light.active) continue;
+            float r = light.radius * 1.5f;
+            batch.draw_quad(
+                {light.x - r, light.y - r}, {r * 2, r * 2},
+                {0,0}, {1,1},
+                {light.color.x, light.color.y, light.color.z, bi * light.intensity * 0.15f}
+            );
+        }
+        // Glow around bright particles (fire, magic, explosion)
+        for (auto& emitter : game.emitters) {
+            for (auto& p : emitter.particles) {
+                if (!p.alive) continue;
+                float t = p.progress();
+                float brightness = p.color.x + p.color.y + p.color.z;
+                if (brightness < game.bloom_threshold * 3.0f) continue;
+                float sz = (p.size + (p.size_end - p.size) * t) * 2.5f;
+                float alpha = (p.color.w + (p.color_end.w - p.color.w) * t) * bi * 0.2f;
+                eb::Vec4 col = {
+                    p.color.x + (p.color_end.x - p.color.x) * t,
+                    p.color.y + (p.color_end.y - p.color.y) * t,
+                    p.color.z + (p.color_end.z - p.color.z) * t,
+                    alpha
+                };
+                batch.draw_quad({p.pos.x - sz*0.5f, p.pos.y - sz*0.5f}, {sz, sz}, col);
+            }
         }
     }
 
