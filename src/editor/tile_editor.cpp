@@ -1218,7 +1218,7 @@ void TileEditor::render_object_panel(SpriteBatch& batch, VkDescriptorSet tileset
 
     for (int i = 0; i < (int)object_stamps_->size(); i++) {
         const auto& stamp = (*object_stamps_)[i];
-        if (std::string(stamp.category) != std::string(category)) continue;
+        if (stamp.category != category) continue;
 
         float ty = start_y + drawn * (item_h + 4);
         if (ty + item_h > panel_bottom) break;

@@ -163,7 +163,8 @@ static double mnum(const std::string& s, size_t& i) {
     size_t start = i;
     if (i<s.size() && s[i]=='-') i++;
     while (i<s.size() && ((s[i]>='0'&&s[i]<='9')||s[i]=='.')) i++;
-    return std::stod(s.substr(start, i-start));
+    try { return std::stod(s.substr(start, i-start)); }
+    catch (...) { return 0.0; }
 }
 static bool mbool(const std::string& s, size_t& i) {
     if (s.substr(i, 4) == "true") { i+=4; return true; }
@@ -1804,7 +1805,11 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
     auto tween_callbacks = game.tween_system.update(dt);
 
     // ── Particle system ──
-    for (auto& emitter : game.emitters) emitter.update(dt, game.rng);
+    game.debug_particle_count = 0;
+    for (auto& emitter : game.emitters) {
+        emitter.update(dt, game.rng);
+        for (auto& p : emitter.particles) if (p.alive) game.debug_particle_count++;
+    }
     game.emitters.erase(std::remove_if(game.emitters.begin(), game.emitters.end(),
         [](const eb::ParticleEmitter& e) { return e.all_dead(); }), game.emitters.end());
 
@@ -1827,9 +1832,7 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         fps_timer = 0;
         fps_frames = 0;
     }
-    game.debug_particle_count = 0;
-    for (auto& e : game.emitters)
-        for (auto& p : e.particles) if (p.alive) game.debug_particle_count++;
+    // particle count already cached during update above
 
     // ── World systems (always tick, even during menus) ──
     eb::update_day_night(game.day_night, dt);
@@ -2098,7 +2101,8 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
             input.is_pressed(eb::InputAction::Confirm),
             input.is_pressed(eb::InputAction::MoveUp),
             input.is_pressed(eb::InputAction::MoveDown));
-        if (result >= 0 && game.pending_battle_npc >= 0) {
+        if (result >= 0 && game.pending_battle_npc >= 0 &&
+            game.pending_battle_npc < (int)game.npcs.size()) {
             auto& npc = game.npcs[game.pending_battle_npc];
             game.battle.enemy_sprite_key = npc.sprite_atlas_key;
             start_battle(game, npc.battle_enemy_name,
@@ -2157,7 +2161,8 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         return;
     }
 
-    // Player movement
+    // Player movement (blocked during cutscenes via input_locked)
+    if (game.input_locked) return;
     eb::Vec2 move = {0.0f, 0.0f};
     if (input.is_held(eb::InputAction::MoveUp))    move.y -= 1.0f;
     if (input.is_held(eb::InputAction::MoveDown))  move.y += 1.0f;
@@ -2770,7 +2775,7 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
     batch.set_texture(game.white_desc);
     batch.draw_quad({ebx,eby},{240,45},{0,0},{1,1},{0.1f,0.08f,0.15f,0.8f});
     text.draw_text(batch, game.font_desc, b.enemy_name, {ebx+8,eby+4}, {1,0.4f,0.4f,1}, 0.9f);
-    float hp_pct = std::max(0.0f,(float)b.enemy_hp_actual/b.enemy_hp_max);
+    float hp_pct = b.enemy_hp_max > 0 ? std::max(0.0f,(float)b.enemy_hp_actual/b.enemy_hp_max) : 0.0f;
     batch.set_texture(game.white_desc);
     batch.draw_quad({ebx+8,eby+24},{170,12},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
     eb::Vec4 ehc = hp_pct>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:hp_pct>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
@@ -2831,7 +2836,7 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
         ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{1,1,1,1};
     text.draw_text(batch,game.font_desc,"Hero",{pbx+8,pby+4},player_name_col,0.7f);
     float dhp = b.player_hp_display;
-    float dp = std::max(0.0f,dhp/b.player_hp_max);
+    float dp = b.player_hp_max > 0 ? std::max(0.0f,dhp/b.player_hp_max) : 0.0f;
     batch.set_texture(game.white_desc);
     batch.draw_quad({pbx+60,pby+8},{120,10},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
     eb::Vec4 dc=dp>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:dp>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
@@ -2844,7 +2849,7 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
         ? eb::Vec4{1,1,0.3f,1} : eb::Vec4{1,1,1,1};
     text.draw_text(batch,game.font_desc,"Ally",{pbx+8,pby+24},ally_name_col,0.7f);
     float shp = b.sam_hp_display;
-    float sp = std::max(0.0f,shp/b.sam_hp_max);
+    float sp = b.sam_hp_max > 0 ? std::max(0.0f,shp/b.sam_hp_max) : 0.0f;
     batch.set_texture(game.white_desc);
     batch.draw_quad({pbx+60,pby+28},{120,10},{0,0},{1,1},{0.2f,0.2f,0.2f,1});
     eb::Vec4 sc2=sp>0.5f?eb::Vec4{0.2f,0.8f,0.2f,1}:sp>0.25f?eb::Vec4{0.9f,0.7f,0.1f,1}:eb::Vec4{0.9f,0.2f,0.2f,1};
@@ -2995,7 +3000,7 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         // HP bar with heart icon
         float icon_sz = 18 * S;
         draw_ui_icon(batch, game, "icon_heart_red", hx + 12*S, hy + 34*S, icon_sz);
-        float hp_pct = std::max(0.0f, (float)game.player_hp / game.player_hp_max);
+        float hp_pct = game.player_hp_max > 0 ? std::max(0.0f, (float)game.player_hp / game.player_hp_max) : 0.0f;
         float bx = hx + 14*S + icon_sz + 4*S, by = hy + 36*S;
         float bw = H.hp_bar_w * S, bh = H.hp_bar_h * S;
         batch.set_texture(game.white_desc);

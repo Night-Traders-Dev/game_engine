@@ -681,8 +681,7 @@ struct GameState {
     // Input lock (for cutscenes)
     bool input_locked = false;
 
-    // Gamepad
-    bool gamepad_connected = false;
+    // (gamepad_connected removed — check input.gamepad.connected instead)
 
     // ─── Phase 2 Systems ───
 

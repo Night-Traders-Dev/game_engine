@@ -88,6 +88,9 @@ struct ParticleEmitter {
         } else if (shape == EmitShape::Rect) {
             p.pos.x += (d01(rng) - 0.5f) * shape_size.x;
             p.pos.y += (d01(rng) - 0.5f) * shape_size.y;
+        } else if (shape == EmitShape::Line) {
+            float t = d01(rng);
+            p.pos.x += (t - 0.5f) * shape_size.x;
         }
 
         // Velocity (within spread angle from base angle)
