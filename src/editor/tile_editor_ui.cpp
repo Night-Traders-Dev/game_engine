@@ -21,6 +21,123 @@
 namespace eb {
 
 // ═══════════════════════════════════════════════════════════════
+// Helper: Write UI element changes back to HUDConfig so sync_hud_values
+// uses updated values when the editor closes.
+// ═══════════════════════════════════════════════════════════════
+
+// Map child HUD elements to their parent group
+static std::string hud_parent_group(const std::string& id) {
+    // Player group
+    if (id == "hud_player_bg" || id == "hud_name" || id == "hud_heart" ||
+        id == "hud_hp" || id == "hud_hp_text" || id == "hud_coin" || id == "hud_gold")
+        return "player";
+    // Time group
+    if (id == "hud_time_bg" || id == "hud_sun" || id == "hud_time" || id == "hud_period")
+        return "time";
+    // Survival group
+    if (id == "hud_hunger" || id == "hud_thirst" || id == "hud_energy")
+        return "survival";
+    return "";  // Not a managed HUD element
+}
+
+static void sync_to_hud_config(GameState& game, const std::string& id) {
+    auto& h = game.hud;
+    float S = h.scale;
+    if (S < 0.01f) S = 1.0f;
+
+    auto find_panel = [&](const std::string& pid) -> ScriptUIPanel* {
+        for (auto& p : game.script_ui.panels) if (p.id == pid) return &p;
+        return nullptr;
+    };
+    auto find_bar = [&](const std::string& bid) -> ScriptUIBar* {
+        for (auto& b : game.script_ui.bars) if (b.id == bid) return &b;
+        return nullptr;
+    };
+
+    std::string group = hud_parent_group(id);
+
+    // Player panel group — reverse the transform: HUD value = screen value / S
+    if (group == "player") {
+        if (auto* p = find_panel("hud_player_bg")) {
+            h.player_x = p->position.x / S;
+            h.player_y = p->position.y / S;
+            h.player_w = p->width / S;
+            h.player_h = p->height / S;
+        }
+        if (auto* b = find_bar("hud_hp")) {
+            h.hp_bar_w = b->width / S;
+            h.hp_bar_h = b->height / S;
+        }
+    }
+    // Time panel — position is: tx = sw - h.time_x_offset * S
+    else if (group == "time") {
+        if (auto* p = find_panel("hud_time_bg")) {
+            h.time_x_offset = (h.screen_w - p->position.x) / S;
+            h.time_w = p->width / S;
+            h.time_h = p->height / S;
+        }
+    }
+}
+
+// Redirect drags on HUD child elements to move the parent panel instead
+static bool apply_hud_drag(GameState& game, const std::string& id, float dx, float dy) {
+    std::string group = hud_parent_group(id);
+    if (group.empty()) return false;  // Not a HUD element, use normal drag
+
+    auto& h = game.hud;
+    float S = h.scale;
+    if (S < 0.01f) S = 1.0f;
+
+    if (group == "player") {
+        // Move the parent panel position in HUDConfig
+        h.player_x += dx / S;
+        h.player_y += dy / S;
+        // Immediately reposition the parent and all children
+        auto set_panel_pos = [&](const std::string& pid, float x, float y) {
+            for (auto& p : game.script_ui.panels) if (p.id == pid) { p.position = {x, y}; return; }
+        };
+        auto set_label_pos = [&](const std::string& lid, float x, float y) {
+            for (auto& l : game.script_ui.labels) if (l.id == lid) { l.position = {x, y}; return; }
+        };
+        auto set_image_pos = [&](const std::string& iid, float x, float y, float w = -1, float ih = -1) {
+            for (auto& img : game.script_ui.images) if (img.id == iid) { img.position = {x, y}; if (w > 0) { img.width = w; img.height = ih; } return; }
+        };
+        auto set_bar_pos = [&](const std::string& bid, float x, float y) {
+            for (auto& b : game.script_ui.bars) if (b.id == bid) { b.position = {x, y}; return; }
+        };
+        set_panel_pos("hud_player_bg", h.player_x * S, h.player_y * S);
+        set_label_pos("hud_name", (h.player_x + 10) * S, (h.player_y + 6) * S);
+        set_image_pos("hud_heart", (h.player_x + 8) * S, (h.player_y + 32) * S, 16 * S, 16 * S);
+        set_bar_pos("hud_hp", (h.player_x + 28) * S, (h.player_y + 34) * S);
+        set_label_pos("hud_hp_text", (h.player_x + 28 + h.hp_bar_w + 6) * S, (h.player_y + 32) * S);
+        set_image_pos("hud_coin", (h.player_x + 28 + h.hp_bar_w + 6) * S, (h.player_y + 6) * S, 14 * S, 14 * S);
+        set_label_pos("hud_gold", (h.player_x + 28 + h.hp_bar_w + 24) * S, (h.player_y + 6) * S);
+        return true;
+    }
+    else if (group == "time") {
+        // Move time panel offset
+        h.time_x_offset -= dx / S;  // negative because offset is from right edge
+        // Reposition
+        float tx = h.screen_w - h.time_x_offset * S;
+        auto set_panel_pos = [&](const std::string& pid, float x, float y) {
+            for (auto& p : game.script_ui.panels) if (p.id == pid) { p.position = {x, y}; return; }
+        };
+        auto set_label_pos = [&](const std::string& lid, float x, float y) {
+            for (auto& l : game.script_ui.labels) if (l.id == lid) { l.position = {x, y}; return; }
+        };
+        auto set_image_pos = [&](const std::string& iid, float x, float y, float w, float ih) {
+            for (auto& img : game.script_ui.images) if (img.id == iid) { img.position = {x, y}; img.width = w; img.height = ih; return; }
+        };
+        set_panel_pos("hud_time_bg", tx, h.player_y * S);
+        set_image_pos("hud_sun", tx + 8 * S, (h.player_y + 4) * S, 20 * S, 20 * S);
+        set_label_pos("hud_time", tx + 32 * S, (h.player_y + 6) * S);
+        set_label_pos("hud_period", tx + 32 * S, (h.player_y + 28) * S);
+        return true;
+    }
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Helper: Find UI element under mouse in screen space
 // ═══════════════════════════════════════════════════════════════
 
@@ -144,6 +261,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
         }
 
         // Click to select
+        static float prev_drag_x = 0, prev_drag_y = 0;
         if (!mouse_over_imgui && ImGui::IsMouseClicked(0) && !ui_drag_active_) {
             auto hit = hit_test_ui(game, mx, my);
             if (!hit.id.empty()) {
@@ -152,6 +270,8 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 ui_drag_active_ = true;
                 ui_drag_ox_ = mx - hit.x;
                 ui_drag_oy_ = my - hit.y;
+                prev_drag_x = hit.x;
+                prev_drag_y = hit.y;
             } else {
                 ui_selected_id_.clear();
                 ui_editor_type_.clear();
@@ -164,22 +284,31 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             if (ImGui::IsMouseDown(0)) {
                 float nx = mx - ui_drag_ox_;
                 float ny = my - ui_drag_oy_;
-                // Apply to selected element
-                for (auto& p : game.script_ui.panels) {
-                    if (p.id == ui_selected_id_) { p.position = {nx, ny}; break; }
+                // For HUD child elements, move the whole group via HUDConfig
+                float dx = nx - prev_drag_x;
+                float dy = ny - prev_drag_y;
+                if (!apply_hud_drag(game, ui_selected_id_, dx, dy)) {
+                    // Non-HUD element: move directly
+                    for (auto& p : game.script_ui.panels) {
+                        if (p.id == ui_selected_id_) { p.position = {nx, ny}; break; }
+                    }
+                    for (auto& b : game.script_ui.bars) {
+                        if (b.id == ui_selected_id_) { b.position = {nx, ny}; break; }
+                    }
+                    for (auto& l : game.script_ui.labels) {
+                        if (l.id == ui_selected_id_) { l.position = {nx, ny}; break; }
+                    }
+                    for (auto& img : game.script_ui.images) {
+                        if (img.id == ui_selected_id_) { img.position = {nx, ny}; break; }
+                    }
                 }
-                for (auto& b : game.script_ui.bars) {
-                    if (b.id == ui_selected_id_) { b.position = {nx, ny}; break; }
-                }
-                for (auto& l : game.script_ui.labels) {
-                    if (l.id == ui_selected_id_) { l.position = {nx, ny}; break; }
-                }
-                for (auto& img : game.script_ui.images) {
-                    if (img.id == ui_selected_id_) { img.position = {nx, ny}; break; }
-                }
+                prev_drag_x = nx;
+                prev_drag_y = ny;
             } else {
                 // Mouse released — end drag, generate script
                 ui_drag_active_ = false;
+                // Write back to HUDConfig so sync_hud_values uses updated positions
+                sync_to_hud_config(game, ui_selected_id_);
                 // Find final position and generate SageLang
                 for (auto& p : game.script_ui.panels) {
                     if (p.id == ui_selected_id_) {
@@ -256,6 +385,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
         }
         if (resizing && !ImGui::IsMouseDown(1)) {
             resizing = false;
+            sync_to_hud_config(game, ui_selected_id_);
             set_status("Resized: " + ui_selected_id_);
         }
 
@@ -358,11 +488,12 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             // Panel properties
             for (auto& p : game.script_ui.panels) {
                 if (p.id != ui_selected_id_) continue;
-                ImGui::DragFloat2("Position", &p.position.x, 1, 0, 2000);
-                ImGui::DragFloat("Width", &p.width, 1, 20, 1000);
-                ImGui::DragFloat("Height", &p.height, 1, 20, 800);
+                if (ImGui::DragFloat2("Position", &p.position.x, 1, 0, 2000)) sync_to_hud_config(game, p.id);
+                if (ImGui::DragFloat("Width", &p.width, 1, 20, 1000)) sync_to_hud_config(game, p.id);
+                if (ImGui::DragFloat("Height", &p.height, 1, 20, 800)) sync_to_hud_config(game, p.id);
                 char region[64] = {}; std::strncpy(region, p.sprite_region.c_str(), sizeof(region)-1);
                 if (ImGui::InputText("Sprite Region", region, sizeof(region))) p.sprite_region = region;
+                ImGui::SliderFloat("Rotation", &p.rotation, 0, 360);
                 ImGui::SliderFloat("Opacity", &p.opacity, 0, 1);
                 ImGui::SliderFloat("Scale", &p.scale, 0.1f, 4.0f);
                 ImGui::ColorEdit4("Tint", &p.color.x);
@@ -383,9 +514,10 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (b.id != ui_selected_id_) continue;
                 ImGui::DragFloat("Value", &b.value, 1, 0, b.max_value);
                 ImGui::DragFloat("Max", &b.max_value, 1, 1, 10000);
-                ImGui::DragFloat2("Position", &b.position.x, 1, 0, 2000);
-                ImGui::DragFloat("Width", &b.width, 1, 10, 500);
-                ImGui::DragFloat("Height", &b.height, 1, 4, 40);
+                if (ImGui::DragFloat2("Position", &b.position.x, 1, 0, 2000)) sync_to_hud_config(game, b.id);
+                if (ImGui::DragFloat("Width", &b.width, 1, 10, 500)) sync_to_hud_config(game, b.id);
+                if (ImGui::DragFloat("Height", &b.height, 1, 4, 40)) sync_to_hud_config(game, b.id);
+                ImGui::SliderFloat("Rotation", &b.rotation, 0, 360);
                 ImGui::ColorEdit4("Bar Color", &b.color.x);
                 ImGui::ColorEdit4("BG Color", &b.bg_color.x);
                 ImGui::SliderFloat("Opacity", &b.opacity, 0, 1);

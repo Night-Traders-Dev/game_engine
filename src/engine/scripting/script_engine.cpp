@@ -601,6 +601,7 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "g") == 0) b.color.y = nv;
         else if (std::strcmp(prop, "b") == 0) b.color.z = nv;
         else if (std::strcmp(prop, "a") == 0) b.color.w = nv;
+        else if (std::strcmp(prop, "rotation") == 0) b.rotation = nv;
         else if (std::strcmp(prop, "opacity") == 0) b.opacity = nv;
         else if (std::strcmp(prop, "layer") == 0) b.layer = (int)nv;
         else if (std::strcmp(prop, "show_text") == 0) b.show_text = bv;
@@ -619,6 +620,7 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "h") == 0) p.height = nv;
         else if (std::strcmp(prop, "sprite") == 0) p.sprite_region = sv;
         else if (std::strcmp(prop, "visible") == 0) p.visible = bv;
+        else if (std::strcmp(prop, "rotation") == 0) p.rotation = nv;
         else if (std::strcmp(prop, "opacity") == 0) p.opacity = nv;
         else if (std::strcmp(prop, "scale") == 0) p.scale = nv;
         else if (std::strcmp(prop, "layer") == 0) p.layer = (int)nv;
@@ -680,6 +682,7 @@ static Value native_ui_get(int argc, Value* args) {
         if (std::strcmp(prop, "max") == 0) return val_number(b.max_value);
         if (std::strcmp(prop, "w") == 0) return val_number(b.width);
         if (std::strcmp(prop, "h") == 0) return val_number(b.height);
+        if (std::strcmp(prop, "rotation") == 0) return val_number(b.rotation);
         if (std::strcmp(prop, "visible") == 0) return val_bool(b.visible);
         return val_nil();
     }
@@ -689,6 +692,7 @@ static Value native_ui_get(int argc, Value* args) {
         if (std::strcmp(prop, "y") == 0) return val_number(p.position.y);
         if (std::strcmp(prop, "w") == 0) return val_number(p.width);
         if (std::strcmp(prop, "h") == 0) return val_number(p.height);
+        if (std::strcmp(prop, "rotation") == 0) return val_number(p.rotation);
         if (std::strcmp(prop, "visible") == 0) return val_bool(p.visible);
         if (std::strcmp(prop, "scale") == 0) return val_number(p.scale);
         return val_nil();

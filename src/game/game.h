@@ -215,6 +215,7 @@ struct ScriptUIBar {
     eb::Vec4 color = {0.2f, 0.8f, 0.2f, 1.0f};
     eb::Vec4 bg_color = {0.15f, 0.15f, 0.15f, 0.8f};
     float border_radius = 0.0f;    // Rounded corners (visual hint)
+    float rotation = 0.0f;         // Rotation in degrees
     float opacity = 1.0f;
     int layer = 0;
     bool show_text = false;        // Show "value/max" text overlay
@@ -226,6 +227,7 @@ struct ScriptUIPanel {
     float width = 100, height = 60;
     std::string sprite_region;  // UI atlas region name (e.g. "panel_hud_wide")
     eb::Vec4 color = {1,1,1,1}; // Tint / fallback color
+    float rotation = 0.0f;         // Rotation in degrees
     float opacity = 1.0f;
     float scale = 1.0f;           // Panel scale (for animations)
     int layer = 0;

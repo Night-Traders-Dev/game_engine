@@ -15,8 +15,8 @@
 
 
 // Forward declarations for helpers defined in this file
-static void draw_ui_region(eb::SpriteBatch& batch, GameState& game, const char* name, float x, float y, float w, float h);
-static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game, const char* icon, float x, float y, float sz);
+static void draw_ui_region(eb::SpriteBatch& batch, GameState& game, const char* name, float x, float y, float w, float h, float rotation = 0.0f);
+static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game, const char* icon, float x, float y, float sz, float rotation = 0.0f);
 static void render_grass_overlay(const GameState& game, eb::SpriteBatch& batch, float time);
 static void render_leaf_overlay(const GameState& game, eb::SpriteBatch& batch, float time);
 static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text, float screen_w, float screen_h);
@@ -104,13 +104,13 @@ static void render_leaf_overlay(const GameState& game, eb::SpriteBatch& batch, f
 // ─── Render HUD ───
 
 static void draw_ui_region(eb::SpriteBatch& batch, GameState& game,
-                            const char* name, float x, float y, float w, float h) {
+                            const char* name, float x, float y, float w, float h, float rotation) {
     // Check flat UI pack first for flat_ prefixed names
     if (name[0] == 'f' && name[1] == 'l' && game.ui_flat_atlas) {
         auto* r = game.ui_flat_atlas->find_region(name);
         if (r) {
             batch.set_texture(game.ui_flat_desc);
-            batch.draw_quad({x, y}, {w, h}, r->uv_min, r->uv_max);
+            batch.draw_quad_rotated({x, y}, {w, h}, r->uv_min, r->uv_max, rotation);
             return;
         }
     }
@@ -119,24 +119,24 @@ static void draw_ui_region(eb::SpriteBatch& batch, GameState& game,
         auto* r = game.ui_atlas->find_region(name);
         if (r) {
             batch.set_texture(game.ui_desc);
-            batch.draw_quad({x, y}, {w, h}, r->uv_min, r->uv_max);
+            batch.draw_quad_rotated({x, y}, {w, h}, r->uv_min, r->uv_max, rotation);
             return;
         }
     }
     // Fallback: solid dark panel
     batch.set_texture(game.white_desc);
-    batch.draw_quad({x, y}, {w, h}, {0,0}, {1,1}, {0.05f, 0.05f, 0.12f, 0.88f});
+    batch.draw_quad_rotated({x, y}, {w, h}, {0,0}, {1,1}, rotation, {0.05f, 0.05f, 0.12f, 0.88f});
 }
 
 static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game,
-                          const char* name, float x, float y, float sz) {
+                          const char* name, float x, float y, float sz, float rotation) {
     // Fantasy icon by index: "fi_42" = fantasy icon #42
     if (name[0] == 'f' && name[1] == 'i' && name[2] == '_') {
         int idx = std::atoi(name + 3);
         if (game.fantasy_icons_atlas && idx >= 0 && idx < game.fantasy_icons_atlas->region_count()) {
             auto r = game.fantasy_icons_atlas->region(idx);
             batch.set_texture(game.fantasy_icons_desc);
-            batch.draw_quad({x, y}, {sz, sz}, r.uv_min, r.uv_max);
+            batch.draw_quad_rotated({x, y}, {sz, sz}, r.uv_min, r.uv_max, rotation);
             return;
         }
     }
@@ -145,7 +145,7 @@ static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game,
         auto* r = game.ui_atlas->find_region(name);
         if (r) {
             batch.set_texture(game.ui_desc);
-            batch.draw_quad({x, y}, {sz, sz}, r->uv_min, r->uv_max);
+            batch.draw_quad_rotated({x, y}, {sz, sz}, r->uv_min, r->uv_max, rotation);
             return;
         }
     }
@@ -154,7 +154,7 @@ static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game,
         auto* r = game.fantasy_icons_atlas->find_region(name);
         if (r) {
             batch.set_texture(game.fantasy_icons_desc);
-            batch.draw_quad({x, y}, {sz, sz}, r->uv_min, r->uv_max);
+            batch.draw_quad_rotated({x, y}, {sz, sz}, r->uv_min, r->uv_max, rotation);
         }
     }
 }
@@ -1001,17 +1001,18 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     for (auto& panel : game.script_ui.panels) {
         if (!panel.visible) continue;
         draw_ui_region(batch, game, panel.sprite_region.c_str(),
-                       panel.position.x, panel.position.y, panel.width, panel.height);
+                       panel.position.x, panel.position.y, panel.width, panel.height, panel.rotation);
     }
     // Images
     for (auto& img : game.script_ui.images) {
         if (!img.visible) continue;
         draw_ui_icon(batch, game, img.icon_name.c_str(),
-                     img.position.x, img.position.y, img.width);
+                     img.position.x, img.position.y, img.width, img.rotation);
     }
     // Labels
     for (auto& label : game.script_ui.labels) {
         if (!label.visible) continue;
+        // TODO: TextRenderer rotation support would need glyph-level transforms
         text.draw_text(batch, game.font_desc, label.text,
                        label.position, label.color, label.scale);
     }
@@ -1019,11 +1020,11 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     for (auto& bar : game.script_ui.bars) {
         if (!bar.visible) continue;
         batch.set_texture(game.white_desc);
-        batch.draw_quad(bar.position, {bar.width, bar.height},
-                        {0,0}, {1,1}, bar.bg_color);
+        batch.draw_quad_rotated(bar.position, {bar.width, bar.height},
+                        {0,0}, {1,1}, bar.rotation, bar.bg_color);
         float pct = bar.max_value > 0 ? bar.value / bar.max_value : 0;
-        batch.draw_quad(bar.position, {bar.width * pct, bar.height},
-                        {0,0}, {1,1}, bar.color);
+        batch.draw_quad_rotated(bar.position, {bar.width * pct, bar.height},
+                        {0,0}, {1,1}, bar.rotation, bar.color);
     }
     // Notifications (centered at top)
     for (auto& n : game.script_ui.notifications) {

@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
 
 namespace eb {
@@ -155,6 +156,39 @@ void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max, 
     // Bottom-left
     vertex_data_[base + 3] = {{position.x, position.y + size.y}, {uv_min.x, uv_max.y}, color};
 
+    quad_count_++;
+}
+
+void SpriteBatch::draw_quad_rotated(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max,
+                                     float rotation_deg, Vec4 color) {
+    if (rotation_deg == 0.0f) {
+        draw_quad(position, size, uv_min, uv_max, color);
+        return;
+    }
+    if (quad_count_ >= MAX_QUADS || (vertex_offset_ + quad_count_ + 1) > MAX_QUADS) {
+        flush();
+    }
+
+    float cx = position.x + size.x * 0.5f;
+    float cy = position.y + size.y * 0.5f;
+    float rad = rotation_deg * 3.14159265f / 180.0f;
+    float cos_r = std::cos(rad);
+    float sin_r = std::sin(rad);
+
+    auto rotate = [&](float px, float py) -> glm::vec2 {
+        float dx = px - cx, dy = py - cy;
+        return {cx + dx * cos_r - dy * sin_r, cy + dx * sin_r + dy * cos_r};
+    };
+
+    uint32_t base = (vertex_offset_ + quad_count_) * 4;
+    vertex_data_[base + 0] = {rotate(position.x, position.y),
+                              {uv_min.x, uv_min.y}, color};
+    vertex_data_[base + 1] = {rotate(position.x + size.x, position.y),
+                              {uv_max.x, uv_min.y}, color};
+    vertex_data_[base + 2] = {rotate(position.x + size.x, position.y + size.y),
+                              {uv_max.x, uv_max.y}, color};
+    vertex_data_[base + 3] = {rotate(position.x, position.y + size.y),
+                              {uv_min.x, uv_max.y}, color};
     quad_count_++;
 }
 
