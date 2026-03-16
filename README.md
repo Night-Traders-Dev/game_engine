@@ -1,6 +1,6 @@
 # Twilight Engine
 
-A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixel art games. Ships with an integrated tile editor, SageLang scripting, a data-driven game manifest, and a built-in debug console.
+A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixel art games. Ships with a tween engine, particle system, save/load, quests, equipment, 2D lighting, screen transitions, gamepad support, an integrated tile editor, SageLang scripting (229 API functions across 39 modules), and procedural tileset generation for 10 biome types.
 
 ## Features
 
@@ -9,6 +9,19 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Engine / Game Separation** — Games live in `games/<name>/` with a `game.json` manifest; engine is standalone
 - **Tile Map System** — Multi-layer maps, collision, portals, animated water/grass overlays, per-tile rotation (0°/90°/180°/270°) and flip
 - **Level System** — Multi-level manager with load/cache/switch, portal auto-transitions, background ticking, per-level zoom, per-level map scripts, level selector in pause menu
+- **Tween/Easing Engine** — 19 easing types (sine, quad, cubic, back, bounce, elastic), tween any UI/camera/player/NPC property, loop/yoyo, delayed callbacks, script-driven cutscene sequencing
+- **Particle System** — Emitters with color/size interpolation, gravity, spread angles, shapes (point/circle/rect). 9 presets: fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash
+- **Save/Load System** — JSON save slots, persistent key-value flags, playtime tracking, full player state serialization
+- **2D Lighting** — Ambient light level + point lights with radius/intensity/color, multiplicative darkening with light circles
+- **Screen Transitions** — Fade, iris (circle wipe), directional wipe, pixelate, slide. Script-driven with callbacks
+- **Quest System** — Start/complete/fail quests with objectives, HUD tracker, saved via flag system
+- **Equipment System** — Weapon/armor/accessory/shield slots with stat bonuses (ATK/DEF/HP)
+- **Gamepad Support** — Full GLFW gamepad with deadzone, stick/dpad/buttons mapped to actions, real-time state in editor
+- **Rebindable Controls** — `KeyBindings` struct with primary/secondary keys per action, runtime rebinding
+- **Input Buffering** — 150ms input buffer for lenient timing on confirmations and interactions
+- **Event System** — Register listeners and emit named events from scripts, decoupled game logic
+- **Achievement System** — Unlock/check achievements persisted via save flag system
+- **Localization** — String key lookup with locale fallback (`loc("key")` returns translated text)
 - **Battle System** — Turn-based combat with rolling HP, party members, attack animations
 - **Inventory & Shop System** — SageLang-driven items with battle submenu, elemental weaknesses, stacking; merchant store UI with buy/sell and scalable pixel art panels
 - **Character Stats** — Fallout S.P.E.C.I.A.L.-style stats: Vitality, Arcana, Agility, Tactics, Spirit, Strength
@@ -27,8 +40,14 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Weather System** — Rain, snow, lightning, procedural cloud shadows, god rays, fog, wind. All script-controllable with presets (`set_weather("storm")`) and per-parameter control. Dynamic time-based weather changes
 - **Multi-Grid Sprites** — Per-NPC sprite grid dimensions (16x16, 32x32, 32x48, 64x64, etc.). Same texture can be loaded with different grids. No conversion needed — just specify the grid size
 - **Procedural Tileset Generator** — `tools/generate_tileset.py` creates complete pixel-art tilesets for 10 biome types with noise-based terrain, autotile transitions, decorations, water animations, and object stamps
-- **SageLang Scripting** — 185 API functions across 28 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
-- **Asset Pipeline** — Multi-resolution asset generator (`tools/scale_assets.py`); procedural tileset generator; 1,080 base tiles, 88 stamps, 432 fantasy icons, 3 UI spritesheets
+- **Sprite Animation** — Multi-frame animation player per NPC with define/play/stop, loop and one-shot modes
+- **Dialogue History** — Track conversations, remember who player has talked to, branch on past choices
+- **Parallax Backgrounds** — Multi-layer scrolling with configurable scroll speed per layer
+- **Spatial Audio** — Distance-based SFX volume falloff from camera center
+- **Settings System** — Master/music/SFX volume, text speed, fullscreen; ready for UI menu
+- **Debug Overlay** — F1 toggle shows FPS, particle count, NPC count, tween count
+- **SageLang Scripting** — 229 API functions across 39 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
+- **Asset Pipeline** — Multi-resolution asset generator; procedural tileset generator (10 biomes); auto-discovery of biome stamps; 1,080 base tiles, 88+ stamps, 432 fantasy icons, 3 UI spritesheets
 - **Test Automation Tool** — `tools/tw_test/` Python package for automated game testing via XTest keyboard injection and X11 screenshot capture
 - **String-Keyed Atlas Cache** — Shared texture atlas cache keyed by path+grid-size; runtime sprite loading from scripts
 - **Test Suite** — `--test` CLI flag runs 101 assertions across 33 test categories; also callable from the F4 debug console via `run_all_tests()`
@@ -48,6 +67,11 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **NPC Spawner** (F2) — Spawn NPCs with presets (animals, enemies, villagers), click-to-place on map
 - **Script IDE** (F3) — Built-in SageLang editor with syntax highlighting, asset click-to-highlight, menu bar (File/Help), integrated API manual, and a **Map Script** panel (gold "MAP SCRIPT" header) for editing the current map's companion script
 - **Debug Console** (F4) — Color-coded log stream, filter by level, live SageLang command input
+- **Game Systems Panel** (F5) — Tweens, particles, lighting, quests, equipment, save/load, settings, achievements, transitions, map resize, auto-tiling config, gamepad state, dialogue history, events — all with live controls
+- **Object Inspector** (View menu) — Edit world object position, scale per-object
+- **Prefab System** (View menu) — Save tile selections as reusable prefabs, click-to-paste
+- **Map Resize** — Resize maps from the Systems panel (4x4 to 200x200)
+- **Auto-Tile Config** — Configure terrain pairs and transition tile ranges for auto-placement
 - **Map Script Generation** — Every editor action auto-appends SageLang to the map's companion `.sage` script
 
 #### Android (Menu button toggles editor)
@@ -215,10 +239,24 @@ All biome maps are connected via portals in the forest (corners of the map).
 | Left/Right    | Browse inventory items                          |
 | Z             | Use selected item                               |
 | Tab           | Toggle Editor                                   |
+| F1            | Debug Overlay (FPS, particles, NPCs, tweens)    |
 | F2            | NPC Spawner                                     |
 | F3            | Script IDE                                      |
 | F4            | Debug Console                                   |
+| F5            | Game Systems Panel (editor only)                |
+| Q / E         | Cycle asset tabs (editor only)                  |
 | ESC           | Pause Menu (in game) / Exit Editor (in editor)  |
+
+### Gamepad (Desktop — any standard gamepad)
+
+| Input            | Action                                |
+|------------------|---------------------------------------|
+| Left stick       | Move (with deadzone)                  |
+| D-pad            | Move                                  |
+| A                | Confirm                               |
+| B                | Cancel                                |
+| Start            | Pause Menu                            |
+| RB               | Run                                   |
 
 ### Android
 
@@ -302,7 +340,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 185 API functions, 28 modules, multi-grid atlas cache)
+- SageLang (scripting — 229 API functions, 39 modules, multi-grid atlas cache)
 - tinyfiledialogs (native file dialogs, desktop only)
 - Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
@@ -312,4 +350,4 @@ MIT
 
 ---
 
-Twilight Engine v1.6.0 — 17,426 lines C++, 185 API functions, 28 script modules, 6 maps, 5 tilesets, 88 stamps, 432 icons, 20 scripts, 4 platforms
+Twilight Engine v2.0.0 — 19,752 lines C++, 229 API functions, 39 script modules, 6 maps, 8 tilesets, 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 4 platforms

@@ -1213,4 +1213,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v1.6.0 — 185 API Functions, 28 Modules, 6 Maps, 10 Biome Presets, Multi-Grid Sprites
+Twilight Engine v2.0.0 — 229 API Functions, 39 Modules, 19 Easing Types, 9 Particle Presets, 6 Maps, 4 Platforms

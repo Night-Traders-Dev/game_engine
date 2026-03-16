@@ -400,5 +400,103 @@ proc run_all_tests():
     set_rain_color(0.5, 0.6, 1.0, 0.3)
     set_weather("clear")
 
+    # ── Tween Engine ──
+    log("Testing: Tween Engine")
+    let tw_id = tween("player", "x", 500, 1.0, "linear")
+    assert_true(tw_id > 0, "tween returns id")
+    tween_stop(tw_id)
+    let tw2 = tween("camera", "y", 300, 0.5, "ease_out")
+    assert_true(tw2 > tw_id, "tween id increments")
+    tween_stop_all("camera")
+    tween_delay(0.01, "")
+    wait(0.01, "")
+    set_input_locked(true)
+    set_input_locked(false)
+
+    # ── Particle System ──
+    log("Testing: Particle System")
+    emit_preset("fire", 100, 100)
+    emit_preset("smoke", 200, 200)
+    emit_preset("sparkle", 300, 300)
+    emit_preset("explosion", 400, 400)
+    emit_preset("heal", 500, 500)
+    emit_burst(250, 250, 10)
+    emit_clear()
+
+    # ── Save/Load System ──
+    log("Testing: Save/Load System")
+    set_flag("test_save_flag", 42)
+    assert_true(has_flag("test_save_flag"), "has_flag after set")
+    assert_true(get_flag("test_save_flag") == 42, "get_flag value")
+    let pt = get_playtime()
+    assert_true(pt >= 0, "playtime non-negative")
+    # save_game(99)  # Skip actual file I/O in tests
+    # assert_true(has_save(99), "has_save after save")
+    # delete_save(99)
+
+    # ── Screen Transitions ──
+    log("Testing: Screen Transitions")
+    transition("fade", 0.01, "")
+    transition("iris", 0.01, "")
+    transition("wipe", 0.01, "", 0)
+    transition_out("fade", 0.01, "")
+
+    # ── Quest System ──
+    log("Testing: Quest System")
+    quest_start("test_q", "Test Quest", "A test quest")
+    assert_true(quest_is_active("test_q"), "quest is active")
+    assert_true(quest_is_complete("test_q") == false, "quest not complete")
+    quest_add_objective("test_q", "Find the thing")
+    quest_complete_objective("test_q", 0)
+    quest_complete("test_q")
+    assert_true(quest_is_complete("test_q"), "quest complete")
+    quest_set_tracker("test_q")
+
+    # ── Equipment System ──
+    log("Testing: Equipment System")
+    equip("weapon", "t_sword")
+    assert_true(get_equipped("weapon") == "t_sword", "equip weapon")
+    equip("armor", "")
+    assert_true(get_equipped("armor") == "", "equip empty armor")
+    unequip("weapon")
+    assert_true(get_equipped("weapon") == "", "unequip weapon")
+
+    # ── Dialogue History ──
+    log("Testing: Dialogue History")
+    assert_true(has_talked_to("NonExistent") == false, "not talked to stranger")
+
+    # ── Event System ──
+    log("Testing: Event System")
+    on_event("test_event", "")
+    emit_event("test_event")
+
+    # ── Localization ──
+    log("Testing: Localization")
+    let fallback = loc("unknown_key")
+    assert_true(fallback == "unknown_key", "loc fallback to key")
+    set_locale("en")
+
+    # ── Achievement System ──
+    log("Testing: Achievement System")
+    assert_true(has_achievement("test_ach") == false, "no achievement yet")
+    unlock_achievement("test_ach", "Test Achievement", "For testing")
+    assert_true(has_achievement("test_ach"), "achievement unlocked")
+
+    # ── Lighting System ──
+    log("Testing: Lighting System")
+    enable_lighting(true)
+    set_ambient_light(0.5)
+    let light_id = add_light(100, 100, 128, 1.0)
+    assert_true(light_id >= 0, "add_light returns index")
+    remove_light(light_id)
+    enable_lighting(false)
+    set_ambient_light(1.0)
+
+    # ── Animation API ──
+    log("Testing: Animation API")
+    anim_define("Elder", "idle", 2, 0.2, true)
+    anim_play("Elder", "idle")
+    anim_stop("Elder")
+
     log("═══ All API Tests Complete ═══")
     info("TEST SUITE PASSED")

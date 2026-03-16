@@ -6,8 +6,15 @@
 #include <cstdio>
 #include <fstream>
 #include <sstream>
-#include <filesystem>
 #include "engine/core/types.h"
+
+// Platform-safe filesystem operations
+#if defined(__ANDROID__) || defined(EB_ANDROID)
+  #include <sys/stat.h>
+  #include <unistd.h>
+#else
+  #include <filesystem>
+#endif
 
 namespace eb {
 
@@ -85,12 +92,21 @@ inline std::string slot_path(int slot) {
 }
 
 inline bool has_save(int slot) {
+#if defined(__ANDROID__) || defined(EB_ANDROID)
+    struct stat st;
+    return stat(slot_path(slot).c_str(), &st) == 0;
+#else
     return std::filesystem::exists(slot_path(slot));
+#endif
 }
 
 inline bool delete_save(int slot) {
     if (!has_save(slot)) return false;
+#if defined(__ANDROID__) || defined(EB_ANDROID)
+    return unlink(slot_path(slot).c_str()) == 0;
+#else
     return std::filesystem::remove(slot_path(slot));
+#endif
 }
 
 // Escape a string for JSON output
@@ -106,7 +122,11 @@ inline std::string json_escape(const std::string& s) {
 }
 
 inline bool save(int slot, const SaveData& data) {
+#if defined(__ANDROID__) || defined(EB_ANDROID)
+    mkdir(saves_dir().c_str(), 0755);
+#else
     std::filesystem::create_directories(saves_dir());
+#endif
 
     std::ofstream f(slot_path(slot));
     if (!f.is_open()) return false;

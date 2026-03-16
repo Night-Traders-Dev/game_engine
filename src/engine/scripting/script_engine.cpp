@@ -2975,9 +2975,13 @@ static Value native_delete_save(int argc, Value* args) {
 }
 
 static Value native_has_flag(int argc, Value* args) {
-    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_bool(false);
-    const char* key = (args[0].type == VAL_STRING) ? args[0].as.string : "";
-    return val_bool(s_active_engine->game_state_->flags.has(key));
+    if (argc < 1 || args[0].type != VAL_STRING) return val_bool(false);
+    const char* key = args[0].as.string;
+    // Check both the script flags store and the GameState flags
+    if (s_flags.find(key) != s_flags.end()) return val_bool(true);
+    if (s_active_engine && s_active_engine->game_state_)
+        return val_bool(s_active_engine->game_state_->flags.has(key));
+    return val_bool(false);
 }
 
 static Value native_get_playtime(int argc, Value* args) {
@@ -3113,7 +3117,7 @@ void ScriptEngine::register_quest_api() {
     env_define(env_, "quest_start", 11, val_native(native_quest_start));
     env_define(env_, "quest_complete", 14, val_native(native_quest_complete));
     env_define(env_, "quest_add_objective", 19, val_native(native_quest_add_objective));
-    env_define(env_, "quest_complete_objective", 23, val_native(native_quest_complete_objective));
+    env_define(env_, "quest_complete_objective", 24, val_native(native_quest_complete_objective));
     env_define(env_, "quest_is_active", 15, val_native(native_quest_is_active));
     env_define(env_, "quest_is_complete", 17, val_native(native_quest_is_complete));
     env_define(env_, "quest_set_tracker", 17, val_native(native_quest_set_tracker));

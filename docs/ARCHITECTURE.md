@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v1.6                       |
+|                        TWILIGHT ENGINE v2.0                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -161,24 +161,24 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v1.6.0)
+## File Counts (v2.0.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 17,426 lines | Engine + game framework |
-| Script API | 185 functions | 28 modules |
-| Test Assertions | 806 | Across all test files |
+| C++ Source | 19,752 lines | Engine + game framework + 4 new system headers |
+| Script API | 229 functions | 39 modules (13 new: Tween, Particle, Save, Transition, Quest, Equipment, Dialogue History, Event, Locale, Achievement, Lighting, Animation, + existing) |
+| Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
+| Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
 | Maps | 6 | Forest, House Inside, Desert, Snow, Cave, Volcanic |
-| Tilesets | 5 | cf_tileset (1,080 tiles) + 4 procedural biome tilesets |
-| Object Stamps | 88 | 6 categories (9 buildings, 17 trees, 12 furniture, 13 characters, 37 misc) |
-| Fantasy Icons | 432 | 16x27 grid at 32x32 (weapons, armor, potions, food, tools, elements) |
+| Tilesets | 8 | cf_tileset (1,080 tiles) + 4 procedural biome tilesets + 3 legacy |
+| Object Stamps | 88+ | 6 categories + auto-discovered biome stamps (29 additional) |
+| Fantasy Icons | 432 | 16x27 grid at 32x32 |
 | UI Sheets | 3 | Original spritesheet (704x2160), Fantasy icons (512x867), Flat UI (736x288) |
-| Sage Scripts | 20 | Game logic, weather, tests, map scripts (7 map scripts) |
+| Sage Scripts | 20 | Game logic, weather, tests, map scripts |
 | Biome Presets | 10 | Grasslands, Forest, Desert, Snow, Swamp, Volcanic, Beach, Cave, Urban, Farmland |
 | Python Tools | 5 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor |
+| Editor Panels | 24 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (14 sections), Object Inspector, Prefabs |
 | Platforms | 4 | Linux, Windows, Android, Quest |
-| Asset Scale Levels | 3 | 1x, 2x, 3x (auto-generated) |
-| Maps | 2 | Forest (30x22) + House Interior (9x9) with portal transitions |
 
 ## Platform Support
 
