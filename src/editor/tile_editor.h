@@ -305,6 +305,13 @@ private:
     int selected_prefab_ = -1;
     bool show_prefab_panel_ = false;
 
+    // UI/HUD/Window Editor
+    bool show_ui_editor_ = false;
+    std::string ui_selected_id_;       // Currently selected UI element ID
+    std::string ui_editor_type_;       // "label", "bar", "panel", "image"
+    bool ui_drag_active_ = false;      // Dragging a UI element in the viewport
+    float ui_drag_ox_ = 0, ui_drag_oy_ = 0;
+
     // Map resize pending
     bool pending_resize_ = false;
     int resize_new_w_ = 0;
