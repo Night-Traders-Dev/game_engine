@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v2.2                       |
+|                        TWILIGHT ENGINE v2.3                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -161,12 +161,13 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v2.2.0)
+## File Counts (v2.3.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 20,284 lines | Engine + game framework + 4 new system headers |
-| Script API | 231 functions | 40 modules (13 new: Tween, Particle, Save, Transition, Quest, Equipment, Dialogue History, Event, Locale, Achievement, Lighting, Animation, + existing) |
+| C++ Source | 20,313 lines (72 files) | Engine + game framework + 4 system headers |
+| Script Engine | 2 files | script_engine.cpp (core + original APIs, 2,815 lines) + script_api_new.cpp (Phase 1-4 APIs, 644 lines) |
+| Script API | 231 functions | 40 modules across 2 files |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
 | Maps | 6 | Forest, House Inside, Desert, Snow, Cave, Volcanic |

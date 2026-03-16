@@ -284,6 +284,9 @@ All biome maps are connected via portals in the forest (corners of the map).
 ```text
 src/
   engine/                    # Standalone engine (graphics, audio, scripting, debug, platform)
+    scripting/
+      script_engine.cpp      #   Core + original API modules (2,815 lines)
+      script_api_new.cpp     #   Phase 1-4 APIs: tween, particle, save, quest, equipment, etc. (644 lines)
   game/                      # Generic RPG framework (battle, inventory, shop, stats, dialogue)
     ai/                      # A* pathfinding
     systems/                 # Day-night cycle, survival stats, spawn system
@@ -361,4 +364,4 @@ MIT
 
 ---
 
-Twilight Engine v2.2.0 — 20,284 lines C++, 231 API functions, 40 script modules, 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms
+Twilight Engine v2.3.0 — 20,313 lines C++ (72 source files), 231 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms

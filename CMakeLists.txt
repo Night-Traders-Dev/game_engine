@@ -92,6 +92,7 @@ add_library(tw_engine STATIC
     src/game/overworld/tile_map.cpp
     src/game/game.cpp
     src/engine/scripting/script_engine.cpp
+    src/engine/scripting/script_api_new.cpp
     src/engine/graphics/text_renderer.cpp
     src/engine/audio/audio_engine.cpp
     src/third_party/miniaudio_impl.cpp

@@ -2595,4 +2595,4 @@ All NPC sprites rebuilt from Cute Fantasy Free source sheets with proper 4-direc
 
 ---
 
-Twilight Engine v2.2.0 — 20,284 lines C++, 231 API functions, 40 modules, 7 editor files, 4 UI themes, 6 maps, 8 tilesets, 4 platforms
+Twilight Engine v2.3.0 — 20,313 lines C++ (72 files), 231 API functions, 40 modules, 7 editor files, 2 script files, 4 UI themes, 6 maps, 4 platforms
