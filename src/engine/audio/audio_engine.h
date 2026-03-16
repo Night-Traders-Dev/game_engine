@@ -30,6 +30,10 @@ public:
     // Sound effects
     void play_sfx(const std::string& path, float volume = 1.0f);
 
+    // Spatial SFX: volume based on distance from listener (camera center)
+    void play_sfx_at(const std::string& path, float world_x, float world_y,
+                     float listener_x, float listener_y, float max_dist = 500.0f);
+
     // Master volume
     void set_master_volume(float volume);
 

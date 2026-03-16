@@ -63,7 +63,63 @@ PlatformDesktop::~PlatformDesktop() {
 
 void PlatformDesktop::poll_events() {
     input_.clear_frame();
+    input_.input_time += 0.016f; // Approximate frame time for buffer timestamps
     glfwPollEvents();
+
+    // ── Gamepad input ──
+    if (glfwJoystickPresent(GLFW_JOYSTICK_1) && glfwJoystickIsGamepad(GLFW_JOYSTICK_1)) {
+        GLFWgamepadstate gp;
+        if (glfwGetGamepadState(GLFW_JOYSTICK_1, &gp)) {
+            auto& pad = input_.gamepad;
+            pad.connected = true;
+
+            // Axes
+            for (int i = 0; i < 6 && i < 6; i++) pad.axes[i] = gp.axes[i];
+
+            // Buttons (detect press transitions)
+            for (int i = 0; i < 15; i++) {
+                bool was = pad.buttons[i];
+                pad.buttons[i] = gp.buttons[i] == GLFW_PRESS;
+                if (pad.buttons[i] && !was) pad.buttons_pressed[i] = true;
+            }
+
+            // Map gamepad to game actions
+            float lx = pad.axes[0], ly = pad.axes[1];
+            float dz = InputState::GamepadState::DEADZONE;
+            if (ly < -dz) { input_.actions[static_cast<int>(InputAction::MoveUp)] = true; }
+            if (ly > dz)  { input_.actions[static_cast<int>(InputAction::MoveDown)] = true; }
+            if (lx < -dz) { input_.actions[static_cast<int>(InputAction::MoveLeft)] = true; }
+            if (lx > dz)  { input_.actions[static_cast<int>(InputAction::MoveRight)] = true; }
+
+            // D-pad
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_DPAD_UP])    input_.actions[static_cast<int>(InputAction::MoveUp)] = true;
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_DPAD_DOWN])  input_.actions[static_cast<int>(InputAction::MoveDown)] = true;
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT])  input_.actions[static_cast<int>(InputAction::MoveLeft)] = true;
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_DPAD_RIGHT]) input_.actions[static_cast<int>(InputAction::MoveRight)] = true;
+
+            // Face buttons
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_A]) {
+                input_.actions[static_cast<int>(InputAction::Confirm)] = true;
+                if (pad.buttons_pressed[GLFW_GAMEPAD_BUTTON_A])
+                    input_.actions_pressed[static_cast<int>(InputAction::Confirm)] = true;
+            }
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_B]) {
+                input_.actions[static_cast<int>(InputAction::Cancel)] = true;
+                if (pad.buttons_pressed[GLFW_GAMEPAD_BUTTON_B])
+                    input_.actions_pressed[static_cast<int>(InputAction::Cancel)] = true;
+            }
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_START]) {
+                input_.actions[static_cast<int>(InputAction::Menu)] = true;
+                if (pad.buttons_pressed[GLFW_GAMEPAD_BUTTON_START])
+                    input_.actions_pressed[static_cast<int>(InputAction::Menu)] = true;
+            }
+            // RB = Run
+            if (gp.buttons[GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER])
+                input_.actions[static_cast<int>(InputAction::Run)] = true;
+        }
+    } else {
+        input_.gamepad.connected = false;
+    }
 }
 
 bool PlatformDesktop::should_close() const {
@@ -151,28 +207,25 @@ void PlatformDesktop::update_key(int key, int action, int mods) {
         }
     }
 
-    // Game action mapping
+    // Game action mapping (rebindable via key_bindings_)
     auto set_action = [&](InputAction ia) {
         int idx = static_cast<int>(ia);
         if (action == GLFW_PRESS) {
             input_.actions[idx] = true;
             input_.actions_pressed[idx] = true;
+            input_.buffer_press(ia);
         } else if (action == GLFW_RELEASE) {
             input_.actions[idx] = false;
             input_.actions_released[idx] = true;
         }
     };
 
-    switch (key) {
-        case GLFW_KEY_W: case GLFW_KEY_UP:    set_action(InputAction::MoveUp);    break;
-        case GLFW_KEY_S: case GLFW_KEY_DOWN:   set_action(InputAction::MoveDown);  break;
-        case GLFW_KEY_A: case GLFW_KEY_LEFT:   set_action(InputAction::MoveLeft);  break;
-        case GLFW_KEY_D: case GLFW_KEY_RIGHT:  set_action(InputAction::MoveRight); break;
-        case GLFW_KEY_Z: case GLFW_KEY_ENTER:  set_action(InputAction::Confirm);   break;
-        case GLFW_KEY_X: case GLFW_KEY_BACKSPACE: set_action(InputAction::Cancel); break;
-        case GLFW_KEY_ESCAPE:                  set_action(InputAction::Menu);      break;
-        case GLFW_KEY_LEFT_SHIFT:              set_action(InputAction::Run);       break;
-        default: break;
+    // Check rebindable bindings
+    for (int i = 0; i < KeyBindings::ACTION_COUNT; i++) {
+        if (key_bindings_.matches(static_cast<InputAction>(i), key)) {
+            set_action(static_cast<InputAction>(i));
+            break;
+        }
     }
 }
 

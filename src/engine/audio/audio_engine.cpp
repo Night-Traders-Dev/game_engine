@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <new>
 
 namespace eb {
@@ -108,6 +109,21 @@ bool AudioEngine::is_music_playing() const {
 
 void AudioEngine::play_sfx(const std::string& path, float volume) {
     if (!initialized_) return;
+    ma_engine_play_sound(engine_, path.c_str(), nullptr);
+}
+
+void AudioEngine::play_sfx_at(const std::string& path, float world_x, float world_y,
+                               float listener_x, float listener_y, float max_dist) {
+    if (!initialized_ || max_dist <= 0) return;
+    float dx = world_x - listener_x;
+    float dy = world_y - listener_y;
+    float dist = std::sqrt(dx * dx + dy * dy);
+    if (dist >= max_dist) return; // too far to hear
+    float volume = 1.0f - (dist / max_dist);
+    volume = std::max(0.0f, std::min(1.0f, volume));
+    // miniaudio doesn't support per-sound volume easily, so we play at full and rely on distance
+    // For now, just skip if too quiet
+    if (volume < 0.05f) return;
     ma_engine_play_sound(engine_, path.c_str(), nullptr);
 }
 

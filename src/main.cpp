@@ -208,6 +208,9 @@ int main(int argc, char* argv[]) {
             eb::DebugLog::instance().set_time(game.game_time);
 
 #ifndef EB_ANDROID
+            // F1 toggles debug overlay
+            if (input.key_pressed(GLFW_KEY_F1)) game.show_debug_overlay = !game.show_debug_overlay;
+
             // Tab toggles editor
             if (input.key_pressed(GLFW_KEY_TAB) && !imgui.wants_keyboard()) {
                 editor.toggle();

@@ -82,6 +82,18 @@ private:
     void register_renderer_api();
     void register_weather_api();
     void register_level_api();
+    void register_tween_api();
+    void register_particle_api();
+    void register_save_api();
+    void register_transition_api();
+    void register_quest_api();
+    void register_equipment_api();
+    void register_dialogue_history_api();
+    void register_event_api();
+    void register_locale_api();
+    void register_achievement_api();
+    void register_lighting_api();
+    void register_anim_api();
 
     Env* env_ = nullptr;
 

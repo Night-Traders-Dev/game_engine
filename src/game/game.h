@@ -13,6 +13,10 @@
 #include "game/overworld/tile_map.h"
 #include "game/dialogue/dialogue_box.h"
 #include "game/ui/merchant_ui.h"
+#include "game/systems/tween.h"
+#include "game/systems/particles.h"
+#include "game/systems/save_system.h"
+#include "game/systems/sprite_anim.h"
 
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -415,6 +419,9 @@ struct NPC {
 
     // Time-based schedule
     NPCSchedule schedule;
+
+    // Sprite animation player (multi-frame)
+    eb::AnimPlayer anim_player;
 };
 
 // ─── Battle state ───
@@ -658,6 +665,105 @@ struct GameState {
 
     // Level system
     std::unique_ptr<eb::LevelManager> level_manager;
+
+    // ─── New Systems (Phase 1) ───
+
+    // Tween engine (smooth animations for UI, camera, NPCs)
+    eb::TweenSystem tween_system;
+
+    // Particle system
+    std::vector<eb::ParticleEmitter> emitters;
+
+    // Save/load flags (persistent key-value store)
+    eb::GameFlags flags;
+    float playtime_seconds = 0;
+
+    // Input lock (for cutscenes)
+    bool input_locked = false;
+
+    // Gamepad
+    bool gamepad_connected = false;
+
+    // ─── Phase 2 Systems ───
+
+    // Screen transitions (iris, wipe, pixelate, etc.)
+    eb::ScreenTransition transition;
+
+    // Parallax background layers
+    std::vector<eb::ParallaxLayer> parallax_layers;
+
+    // Debug overlay
+    bool show_debug_overlay = false;
+    float debug_fps = 0;
+    int debug_draw_calls = 0;
+    int debug_particle_count = 0;
+
+    // ─── Phase 3 Systems ───
+
+    // Quest system
+    struct Quest {
+        std::string id, title, description;
+        enum class State { NotStarted, Active, Complete, Failed } state = State::NotStarted;
+        struct Objective { std::string desc; bool complete = false; };
+        std::vector<Objective> objectives;
+        std::string on_complete;
+    };
+    std::vector<Quest> quests;
+    std::string active_quest_tracker;  // Quest ID pinned to HUD
+
+    // Equipment system
+    struct Equipment {
+        std::string weapon, armor, accessory, shield;
+        int atk_bonus = 0, def_bonus = 0, hp_bonus = 0;
+        void recalc(const Inventory& inv) {
+            atk_bonus = def_bonus = hp_bonus = 0;
+            // Look up item stats from inventory for equipped items
+            for (auto& item : inv.items) {
+                if (item.id == weapon) atk_bonus += item.damage;
+                if (item.id == armor) def_bonus += item.heal_hp; // reuse heal_hp as def for armor
+            }
+        }
+    };
+    Equipment equipment;
+
+    // Settings
+    struct GameSettings {
+        float master_volume = 1.0f;
+        float music_volume = 0.8f;
+        float sfx_volume = 1.0f;
+        bool fullscreen = true;
+        int text_speed = 2; // 1=slow 2=normal 3=fast
+    };
+    GameSettings settings;
+
+    // Dialogue history
+    struct DialogueEntry { std::string speaker, text; };
+    std::vector<DialogueEntry> dialogue_history;
+    std::unordered_map<std::string, bool> talked_to;  // NPC name -> has talked
+
+    // Event system
+    struct EventListener { std::string event_name, callback; };
+    std::vector<EventListener> event_listeners;
+
+    // Localization
+    std::string locale = "en";
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> locale_strings;
+
+    // Achievements
+    struct Achievement { std::string id, title, desc; bool unlocked = false; float unlock_time = 0; };
+    std::vector<Achievement> achievements;
+
+    // 2D Lighting
+    struct Light2D {
+        float x, y;               // World position
+        float radius = 128.0f;    // Light radius in pixels
+        float intensity = 1.0f;   // 0-1
+        eb::Vec4 color = {1, 0.9f, 0.7f, 1}; // Warm light default
+        bool active = true;
+    };
+    std::vector<Light2D> lights;
+    float ambient_light = 1.0f;   // 0 = pitch black, 1 = full bright
+    bool lighting_enabled = false;
 };
 
 // ─── Map file I/O ───

@@ -39,6 +39,10 @@ private:
     int height_;
     bool resized_ = false;
     InputState input_;
+    KeyBindings key_bindings_;
+public:
+    KeyBindings& key_bindings() { return key_bindings_; }
+    const KeyBindings& key_bindings() const { return key_bindings_; }
 };
 
 } // namespace eb

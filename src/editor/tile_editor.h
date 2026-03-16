@@ -279,11 +279,53 @@ private:
     void append_map_script(const std::string& line);
     void save_map_script();
 
+    // Auto-tiling configuration
+    bool auto_tile_enabled_ = false;
+    // Stores which tile IDs are "terrain A" vs "terrain B" for auto-transitions
+    struct AutoTileConfig {
+        int terrain_a_tile = 1;     // Primary terrain (e.g., grass)
+        int terrain_b_tile = 2;     // Secondary terrain (e.g., dirt)
+        int transition_start = 0;   // First transition tile ID (16 tiles in sequence)
+        bool configured = false;
+    };
+    AutoTileConfig auto_tile_config_;
+
+    // Object inspector
+    bool show_object_inspector_ = false;
+    int selected_world_object_ = -1;  // Index into game's world objects
+
+    // Prefab system
+    struct Prefab {
+        std::string name;
+        std::vector<int> tiles;
+        std::vector<CollisionType> collision;
+        int width = 0, height = 0;
+    };
+    std::vector<Prefab> prefabs_;
+    int selected_prefab_ = -1;
+    bool show_prefab_panel_ = false;
+
+    // Map resize pending
+    bool pending_resize_ = false;
+    int resize_new_w_ = 0;
+    int resize_new_h_ = 0;
+
     // Deferred file dialog (must not run during Vulkan rendering)
     enum class PendingDialog { None, Save, Load, ImportAsset };
     PendingDialog pending_dialog_ = PendingDialog::None;
 public:
     void process_pending_dialog();
+
+    // Auto-tiling
+    void set_auto_tile(bool enabled) { auto_tile_enabled_ = enabled; }
+    bool auto_tile_enabled() const { return auto_tile_enabled_; }
+
+    // Map resize
+    void resize_map(int new_w, int new_h);
+
+    // Prefab
+    void save_selection_as_prefab(const std::string& name);
+    void paste_prefab(int tx, int ty, int prefab_index);
 private:
 };
 
