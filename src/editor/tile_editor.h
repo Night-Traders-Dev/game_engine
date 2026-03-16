@@ -333,6 +333,13 @@ public:
     // Prefab
     void save_selection_as_prefab(const std::string& name);
     void paste_prefab(int tx, int ty, int prefab_index);
+
+    // Modular ImGui panel renderers (split into separate .cpp files)
+    void render_imgui_npc_spawner(GameState& game);
+    void render_imgui_script_ide(GameState& game);
+    void render_imgui_debug_console(GameState& game);
+    void render_imgui_game_systems(GameState& game);
+    void render_imgui_ui_editor(GameState& game);
 private:
 };
 

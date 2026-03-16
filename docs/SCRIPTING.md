@@ -1213,4 +1213,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v2.0.0 — 229 API Functions, 39 Modules, 19 Easing Types, 9 Particle Presets, 6 Maps, 4 Platforms
+Twilight Engine v2.1.0 — 20,227 lines C++, 231 API functions, 40 modules, 6 editor files, 6 maps, 8 tilesets, 4 platforms

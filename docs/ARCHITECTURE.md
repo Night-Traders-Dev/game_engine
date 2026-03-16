@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v2.0                       |
+|                        TWILIGHT ENGINE v2.1                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -161,12 +161,12 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v2.0.0)
+## File Counts (v2.1.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 19,787 lines | Engine + game framework + 4 new system headers |
-| Script API | 229 functions | 39 modules (13 new: Tween, Particle, Save, Transition, Quest, Equipment, Dialogue History, Event, Locale, Achievement, Lighting, Animation, + existing) |
+| C++ Source | 20,227 lines | Engine + game framework + 4 new system headers |
+| Script API | 231 functions | 40 modules (13 new: Tween, Particle, Save, Transition, Quest, Equipment, Dialogue History, Event, Locale, Achievement, Lighting, Animation, + existing) |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
 | Maps | 6 | Forest, House Inside, Desert, Snow, Cave, Volcanic |
@@ -178,8 +178,9 @@ game.json (manifest)
 | Biome Presets | 10 | Grasslands, Forest, Desert, Snow, Swamp, Volcanic, Beach, Cave, Urban, Farmland |
 | Python Tools | 6 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor, security fuzzer |
 | Fuzz Categories | 7 | boundaries, division, strings, types, exhaustion, conflicts, rapid |
-| Test Assertions | 502 | 45 test sections across all API modules + 12 new system tests |
-| Editor Panels | 24 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (14 sections), Object Inspector, Prefabs |
+| Test Assertions | 508 | 46 test sections across all API modules |
+| Editor Source | 6 files | tile_editor.cpp (core), npc_spawner, script_ide, debug, systems, ui |
+| Editor Panels | 24 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (14 sections), Object Inspector, Prefabs, UI/HUD Editor |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 
 ## Platform Support

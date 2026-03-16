@@ -288,7 +288,14 @@ src/
     ai/                      # A* pathfinding
     systems/                 # Day-night cycle, survival stats, spawn system
     ui/                      # Game UI systems (merchant store)
-  editor/                    # Tile editor (ImGui, menu bar, tools, NPC spawner, script IDE, debug)
+  editor/                    # Tile editor — modularized across 6 files:
+    tile_editor.cpp          #   Core: update, shortcuts, tools, undo/redo, clipboard, menu bar, assets
+    tile_editor_render.cpp   #   World rendering: grid, collision overlay, cursor, panels (in core)
+    tile_editor_npc_spawner.cpp  # NPC Spawner panel (F2)
+    tile_editor_script_ide.cpp   # Script IDE with syntax highlighting (F3)
+    tile_editor_debug.cpp    #   Debug Console panel (F4)
+    tile_editor_systems.cpp  #   Game Systems panel: tweens, particles, lighting, quests, etc. (F5)
+    tile_editor_ui.cpp       #   UI/HUD/Window Editor panel (F6)
   third_party/               # miniaudio, stb_image, stb_truetype, imgui, sagelang
 games/
   demo/                      # "Crystal Quest" FF-style demo
@@ -342,7 +349,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 229 API functions, 39 modules, multi-grid atlas cache)
+- SageLang (scripting — 231 API functions, 40 modules, multi-grid atlas cache, tracks latest main)
 - tinyfiledialogs (native file dialogs, desktop only)
 - Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
@@ -352,4 +359,4 @@ MIT
 
 ---
 
-Twilight Engine v2.0.0 — 19,787 lines C++, 229 API functions, 39 script modules, 6 maps, 8 tilesets, 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 502 test assertions, 7 fuzz categories, 4 platforms
+Twilight Engine v2.1.0 — 20,227 lines C++, 231 API functions, 40 script modules, 6 editor files, 6 maps, 8 tilesets, 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 508 test assertions, 7 fuzz categories, 4 platforms

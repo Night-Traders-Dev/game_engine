@@ -146,6 +146,11 @@ if(NOT EB_ANDROID)
     target_sources(tw_engine PRIVATE
         src/engine/platform/platform_desktop.cpp
         src/editor/tile_editor.cpp
+        src/editor/tile_editor_npc_spawner.cpp
+        src/editor/tile_editor_script_ide.cpp
+        src/editor/tile_editor_debug.cpp
+        src/editor/tile_editor_systems.cpp
+        src/editor/tile_editor_ui.cpp
         src/editor/imgui_integration.cpp
         src/third_party/tinyfiledialogs.c
         # Dear ImGui (editor UI)
