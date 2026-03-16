@@ -3581,6 +3581,63 @@ static void sync_hud_values(GameState& game) {
         img->icon_name = (hour >= 6 && hour < 18) ? "fi_281" : "fi_280";
     }
 
+    // ── Apply HUD scale to script-created elements ──
+    {
+        float S = game.hud.scale;
+        float sw = game.hud.screen_w;
+
+        auto find_panel = [&](const std::string& id) -> ScriptUIPanel* {
+            for (auto& p : game.script_ui.panels) if (p.id == id) return &p;
+            return nullptr;
+        };
+
+        // Player panel: base position (6,6), base size (260, 68)
+        if (auto* p = find_panel("hud_player_bg")) {
+            p->position = {6 * S, 6 * S};
+            p->width = 260 * S; p->height = 68 * S;
+            p->scale = S;
+        }
+        if (auto* l = find_label("hud_name")) { l->position = {16 * S, 12 * S}; l->scale = 0.9f * S; }
+        if (auto* img = find_image("hud_heart")) { img->position = {14 * S, 38 * S}; img->width = 16 * S; img->height = 16 * S; }
+        if (auto* b = find_bar("hud_hp")) { b->position = {34 * S, 40 * S}; b->width = 160 * S; b->height = 12 * S; }
+        if (auto* l = find_label("hud_hp_text")) { l->position = {200 * S, 38 * S}; l->scale = 0.6f * S; }
+        if (auto* img = find_image("hud_coin")) { img->position = {200 * S, 12 * S}; img->width = 14 * S; img->height = 14 * S; }
+        if (auto* l = find_label("hud_gold")) { l->position = {218 * S, 12 * S}; l->scale = 0.7f * S; }
+
+        // Time panel: base offset 148 from right, base size (132, 56)
+        float tx = sw - game.hud.time_x_offset * S;
+        if (auto* p = find_panel("hud_time_bg")) {
+            p->position = {tx, 6 * S};
+            p->width = 132 * S; p->height = 56 * S;
+            p->scale = S;
+        }
+        if (auto* img = find_image("hud_sun")) { img->position = {tx + 8 * S, 10 * S}; img->width = 20 * S; img->height = 20 * S; }
+        if (auto* l = find_label("hud_time")) { l->position = {tx + 32 * S, 12 * S}; l->scale = 0.85f * S; }
+        if (auto* l = find_label("hud_period")) { l->position = {tx + 32 * S, 34 * S}; l->scale = 0.6f * S; }
+
+        // Pause menu: centered, base size (260, 330)
+        if (game.paused) {
+            float pw = 260 * S, ph = 330 * S;
+            float px = sw / 2 - pw / 2, py = game.hud.screen_h / 2 - ph / 2;
+            if (auto* p = find_panel("pause_bg")) { p->position = {px, py}; p->width = pw; p->height = ph; p->scale = S; }
+            if (auto* img = find_image("pause_icon")) { img->position = {px + 16*S, py + 14*S}; img->width = 22*S; img->height = 22*S; }
+            if (auto* l = find_label("pause_title")) { l->position = {px + 44*S, py + 14*S}; l->scale = 1.3f * S; }
+            if (auto* p = find_panel("pause_div")) { p->position = {px + 16*S, py + 44*S}; p->width = 228*S; p->height = 2*S; }
+            float ix = px + 56*S, icx = px + 24*S, iy = py + 58*S, gap = 38*S;
+            for (int i = 0; i < 6; i++) {
+                char iid[32], lid[32];
+                std::snprintf(iid, sizeof(iid), "pause_icon_%d", i);
+                std::snprintf(lid, sizeof(lid), "pause_item_%d", i);
+                if (auto* img = find_image(iid)) { img->position = {icx, iy + i*gap}; img->width = 20*S; img->height = 20*S; }
+                if (auto* l = find_label(lid)) { l->position = {ix, iy + i*gap + S}; l->scale = 1.0f * S; }
+            }
+            if (auto* img = find_image("pause_cursor")) {
+                img->position = {icx - 4*S, iy + game.pause_selection * gap - 2*S};
+                img->width = 24*S; img->height = 24*S;
+            }
+        }
+    }
+
     // HP bar color (green → yellow → red)
     if (auto* b = find_bar("hud_hp")) {
         float pct = b->max_value > 0 ? b->value / b->max_value : 0;

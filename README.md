@@ -317,6 +317,7 @@ tools/
   scale_assets.py            # Multi-resolution asset scaler
   extract_tileset.py         # Tileset background removal
   fuzz_engine.py             # Security fuzzer (7 categories, boundary/type/injection/exhaustion)
+  generate_ui_pack.py        # Procedural UI sprite sheet generator (4 themes, 47 components)
 docs/                        # Engine documentation
 shaders/                     # GLSL vertex/fragment shaders (compiled to SPIR-V)
 android/                     # Android build (Gradle, manifest, native glue)
@@ -332,6 +333,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 | `tools/scale_assets.py` | Multi-resolution asset scaler (2x, 3x, 4x) with nearest-neighbor for pixel art |
 | `tools/extract_tileset.py` | Removes background color from tileset PNGs |
 | `tools/fuzz_engine.py` | Security fuzzer: boundary values, type confusion, resource exhaustion, division edge cases, string injection. 7 fuzz categories |
+| `tools/generate_ui_pack.py` | Procedural UI/HUD sprite sheet generator. 4 themes (fantasy, dark, medieval, cute), 47 components each: panels, buttons, bars, checkboxes, sliders, 9-slice tiles, arrows |
 
 ## Documentation
 
@@ -349,7 +351,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 231 API functions, 40 modules, multi-grid atlas cache, tracks latest main)
+- SageLang (scripting — 231 API functions, 40 modules, multi-grid atlas cache, tracks latest main branch)
 - tinyfiledialogs (native file dialogs, desktop only)
 - Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
@@ -359,4 +361,4 @@ MIT
 
 ---
 
-Twilight Engine v2.1.0 — 20,227 lines C++, 231 API functions, 40 script modules, 6 editor files, 6 maps, 8 tilesets, 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 508 test assertions, 7 fuzz categories, 4 platforms
+Twilight Engine v2.2.0 — 20,284 lines C++, 231 API functions, 40 script modules, 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms

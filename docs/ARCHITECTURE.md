@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v2.1                       |
+|                        TWILIGHT ENGINE v2.2                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -161,11 +161,11 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v2.1.0)
+## File Counts (v2.2.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 20,227 lines | Engine + game framework + 4 new system headers |
+| C++ Source | 20,284 lines | Engine + game framework + 4 new system headers |
 | Script API | 231 functions | 40 modules (13 new: Tween, Particle, Save, Transition, Quest, Equipment, Dialogue History, Event, Locale, Achievement, Lighting, Animation, + existing) |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
@@ -173,14 +173,15 @@ game.json (manifest)
 | Tilesets | 8 | cf_tileset (1,080 tiles) + 4 procedural biome tilesets + 3 legacy |
 | Object Stamps | 88+ | 6 categories + auto-discovered biome stamps (29 additional) |
 | Fantasy Icons | 432 | 16x27 grid at 32x32 |
-| UI Sheets | 3 | Original spritesheet (704x2160), Fantasy icons (512x867), Flat UI (736x288) |
+| UI Sheets | 3 + 4 generated | Original (704x2160), Fantasy icons (512x867), Flat UI (736x288) + 4 procedural UI theme packs (47 components each) |
+| UI Themes | 4 | Fantasy RPG, Dark, Medieval Stone, Cute Fantasy — panels, buttons, bars, checkboxes, sliders, 9-slice tiles, arrows |
 | Sage Scripts | 20 | Game logic, weather, tests, map scripts |
 | Biome Presets | 10 | Grasslands, Forest, Desert, Snow, Swamp, Volcanic, Beach, Cave, Urban, Farmland |
-| Python Tools | 6 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor, security fuzzer |
+| Python Tools | 7 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor, security fuzzer, UI pack generator |
 | Fuzz Categories | 7 | boundaries, division, strings, types, exhaustion, conflicts, rapid |
-| Test Assertions | 508 | 46 test sections across all API modules |
-| Editor Source | 6 files | tile_editor.cpp (core), npc_spawner, script_ide, debug, systems, ui |
-| Editor Panels | 24 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (14 sections), Object Inspector, Prefabs, UI/HUD Editor |
+| Test Assertions | 510 | 46 test sections across all API modules |
+| Editor Source | 7 files | tile_editor.cpp (core), npc_spawner, script_ide, debug, systems, ui, imgui_integration |
+| Editor Panels | 25 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (15 sections), Object Inspector, Prefabs, UI/HUD Editor (with templates) |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 
 ## Platform Support
