@@ -128,9 +128,13 @@ set(SAGELANG_SOURCES
     ${SAGELANG_DIR}/src/c/formatter.c
     ${SAGELANG_DIR}/src/c/linter.c
     ${SAGELANG_DIR}/src/c/sage_thread.c
+    ${SAGELANG_DIR}/src/vm/vm.c
+    ${SAGELANG_DIR}/src/vm/bytecode.c
+    ${SAGELANG_DIR}/src/vm/program.c
+    ${SAGELANG_DIR}/src/vm/runtime.c
 )
 add_library(sagelang STATIC ${SAGELANG_SOURCES})
-target_include_directories(sagelang PUBLIC ${SAGELANG_DIR}/include)
+target_include_directories(sagelang PUBLIC ${SAGELANG_DIR}/include ${SAGELANG_DIR}/src/vm)
 target_compile_options(sagelang PRIVATE -w) # Suppress warnings from third-party code
 if(UNIX AND NOT APPLE AND NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(sagelang PUBLIC dl pthread m)

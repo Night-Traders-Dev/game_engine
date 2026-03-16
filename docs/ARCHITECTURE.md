@@ -165,7 +165,7 @@ game.json (manifest)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 19,752 lines | Engine + game framework + 4 new system headers |
+| C++ Source | 19,787 lines | Engine + game framework + 4 new system headers |
 | Script API | 229 functions | 39 modules (13 new: Tween, Particle, Save, Transition, Quest, Equipment, Dialogue History, Event, Locale, Achievement, Lighting, Animation, + existing) |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
@@ -176,7 +176,9 @@ game.json (manifest)
 | UI Sheets | 3 | Original spritesheet (704x2160), Fantasy icons (512x867), Flat UI (736x288) |
 | Sage Scripts | 20 | Game logic, weather, tests, map scripts |
 | Biome Presets | 10 | Grasslands, Forest, Desert, Snow, Swamp, Volcanic, Beach, Cave, Urban, Farmland |
-| Python Tools | 5 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor |
+| Python Tools | 6 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor, security fuzzer |
+| Fuzz Categories | 7 | boundaries, division, strings, types, exhaustion, conflicts, rapid |
+| Test Assertions | 502 | 45 test sections across all API modules + 12 new system tests |
 | Editor Panels | 24 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (14 sections), Object Inspector, Prefabs |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 

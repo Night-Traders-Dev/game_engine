@@ -51,7 +51,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Test Automation Tool** — `tools/tw_test/` Python package for automated game testing via XTest keyboard injection and X11 screenshot capture
 - **String-Keyed Atlas Cache** — Shared texture atlas cache keyed by path+grid-size; runtime sprite loading from scripts
 - **Test Suite** — `--test` CLI flag runs 101 assertions across 33 test categories; also callable from the F4 debug console via `run_all_tests()`
-- **Security Hardened** — Path traversal protection, input clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup, thread-safe Android platform
+- **Security Hardened** — Path traversal protection, input clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup, thread-safe Android platform, division-by-zero guards, bounds-checked array access, fuzzer-verified API safety
 - **Map Scripting** — Visual Basic-style editor: every editor action auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
@@ -309,6 +309,7 @@ tools/
   tw_test/                   # Automated test tool (screenshot, input injection, smoke tests)
   scale_assets.py            # Multi-resolution asset scaler
   extract_tileset.py         # Tileset background removal
+  fuzz_engine.py             # Security fuzzer (7 categories, boundary/type/injection/exhaustion)
 docs/                        # Engine documentation
 shaders/                     # GLSL vertex/fragment shaders (compiled to SPIR-V)
 android/                     # Android build (Gradle, manifest, native glue)
@@ -323,6 +324,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 | `tools/tw_test/` | Automated test tool: launches game, sends keyboard input via XTest, captures screenshots via X11, runs smoke tests |
 | `tools/scale_assets.py` | Multi-resolution asset scaler (2x, 3x, 4x) with nearest-neighbor for pixel art |
 | `tools/extract_tileset.py` | Removes background color from tileset PNGs |
+| `tools/fuzz_engine.py` | Security fuzzer: boundary values, type confusion, resource exhaustion, division edge cases, string injection. 7 fuzz categories |
 
 ## Documentation
 
@@ -350,4 +352,4 @@ MIT
 
 ---
 
-Twilight Engine v2.0.0 — 19,752 lines C++, 229 API functions, 39 script modules, 6 maps, 8 tilesets, 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 4 platforms
+Twilight Engine v2.0.0 — 19,787 lines C++, 229 API functions, 39 script modules, 6 maps, 8 tilesets, 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 502 test assertions, 7 fuzz categories, 4 platforms

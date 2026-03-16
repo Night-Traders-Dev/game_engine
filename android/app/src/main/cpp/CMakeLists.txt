@@ -79,6 +79,10 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/formatter.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/linter.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/sage_thread.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/vm.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/bytecode.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/program.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/runtime.c
 )
 
 # ── Build as shared library (required for Android NativeActivity) ──
@@ -91,6 +95,7 @@ target_include_directories(twilight_game_binary PRIVATE
     ${ENGINE_ROOT}/src
     ${ENGINE_ROOT}/src/third_party
     ${ENGINE_ROOT}/src/third_party/sagelang/include
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/vm
     ${ANDROID_NDK}/sources/android/native_app_glue
 )
 
