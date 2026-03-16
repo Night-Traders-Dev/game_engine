@@ -158,6 +158,19 @@ void SpriteBatch::draw_quad(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max, 
     quad_count_++;
 }
 
+void SpriteBatch::draw_quad_uvs(Vec2 position, Vec2 size, Vec2 uv_tl, Vec2 uv_tr,
+                                 Vec2 uv_br, Vec2 uv_bl, Vec4 color) {
+    if (quad_count_ >= MAX_QUADS || (vertex_offset_ + quad_count_ + 1) > MAX_QUADS) {
+        flush();
+    }
+    uint32_t base = (vertex_offset_ + quad_count_) * 4;
+    vertex_data_[base + 0] = {{position.x, position.y}, {uv_tl.x, uv_tl.y}, color};
+    vertex_data_[base + 1] = {{position.x + size.x, position.y}, {uv_tr.x, uv_tr.y}, color};
+    vertex_data_[base + 2] = {{position.x + size.x, position.y + size.y}, {uv_br.x, uv_br.y}, color};
+    vertex_data_[base + 3] = {{position.x, position.y + size.y}, {uv_bl.x, uv_bl.y}, color};
+    quad_count_++;
+}
+
 void SpriteBatch::flush() {
     if (quad_count_ == 0 || !cmd_) return;
 

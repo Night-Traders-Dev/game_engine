@@ -133,36 +133,28 @@ void TileMap::render(SpriteBatch& batch, const Camera& camera, float time) const
 
                 auto region = tileset_->region(tid - 1);
 
-                // Apply rotation/flip to UV coordinates
+                // Build per-corner UVs for rotation/flip support
                 int rot = eb::tile_rotation(raw);
                 bool fh = eb::tile_flip_h(raw);
                 bool fv = eb::tile_flip_v(raw);
-                if (rot != 0 || fh || fv) {
-                    // Get the four UV corners: TL, TR, BR, BL
-                    float u0 = region.uv_min.x, v0 = region.uv_min.y;
-                    float u1 = region.uv_max.x, v1 = region.uv_max.y;
-                    // Apply flips first
-                    if (fh) std::swap(u0, u1);
-                    if (fv) std::swap(v0, v1);
-                    // Apply rotation (by swapping UV corners)
-                    // Rotation is done by remapping which UV corner maps to which quad corner
-                    // For draw_quad(uv_min, uv_max), we swap axes for 90/270
-                    if (rot == 1) { // 90° CW: swap axes, flip new X
-                        region.uv_min = {v0, u0};
-                        region.uv_max = {v1, u1};
-                        std::swap(region.uv_min.y, region.uv_max.y);
-                    } else if (rot == 2) { // 180°: flip both
-                        region.uv_min = {u1, v1};
-                        region.uv_max = {u0, v0};
-                    } else if (rot == 3) { // 270° CW: swap axes, flip new Y
-                        region.uv_min = {v0, u0};
-                        region.uv_max = {v1, u1};
-                        std::swap(region.uv_min.x, region.uv_max.x);
-                    } else {
-                        region.uv_min = {u0, v0};
-                        region.uv_max = {u1, v1};
-                    }
+
+                // Base UV corners: TL, TR, BR, BL
+                float u0 = region.uv_min.x, v0 = region.uv_min.y;
+                float u1 = region.uv_max.x, v1 = region.uv_max.y;
+                Vec2 uv_tl = {u0, v0}, uv_tr = {u1, v0};
+                Vec2 uv_br = {u1, v1}, uv_bl = {u0, v1};
+
+                // Apply flip
+                if (fh) { std::swap(uv_tl, uv_tr); std::swap(uv_bl, uv_br); }
+                if (fv) { std::swap(uv_tl, uv_bl); std::swap(uv_tr, uv_br); }
+
+                // Apply rotation (rotate UV corners CW)
+                for (int r = 0; r < rot; r++) {
+                    Vec2 tmp = uv_tl;
+                    uv_tl = uv_bl; uv_bl = uv_br; uv_br = uv_tr; uv_tr = tmp;
                 }
+
+                bool needs_per_corner = (rot != 0 || fh || fv);
 
                 Vec2 pos = {x * ts, y * ts};
                 Vec2 size = {ts, ts};
@@ -186,6 +178,8 @@ void TileMap::render(SpriteBatch& batch, const Camera& camera, float time) const
                     float shimmer = 0.85f + 0.15f * std::sin(time * 3.0f + x * 0.9f + y * 1.1f);
                     Vec4 color = {shimmer * 0.8f, shimmer * 0.9f, shimmer, 1.0f};
                     batch.draw_quad(pos, size, region.uv_min, region.uv_max, color);
+                } else if (needs_per_corner) {
+                    batch.draw_quad_uvs(pos, size, uv_tl, uv_tr, uv_br, uv_bl);
                 } else {
                     batch.draw_quad(pos, size, region.uv_min, region.uv_max);
                 }

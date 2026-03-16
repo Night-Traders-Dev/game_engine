@@ -45,6 +45,9 @@ public:
     void draw_quad(Vec2 position, Vec2 size, Vec4 color = Vec4(1.0f));
     void draw_quad(Vec2 position, Vec2 size, Vec2 uv_min, Vec2 uv_max,
                    Vec4 color = Vec4(1.0f));
+    // Draw with per-corner UVs (for rotation): TL, TR, BR, BL
+    void draw_quad_uvs(Vec2 position, Vec2 size, Vec2 uv_tl, Vec2 uv_tr,
+                       Vec2 uv_br, Vec2 uv_bl, Vec4 color = Vec4(1.0f));
 
     // Y-sorted sprite rendering (for proper depth ordering)
     // Collects sprites, then flush_sorted() draws them back-to-front by Y

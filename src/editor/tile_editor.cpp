@@ -1541,8 +1541,9 @@ void TileEditor::render_imgui(GameState& game) {
             };
 
             stamp_tab("Buildings", "building");
-            stamp_tab("Vehicles", "vehicle");
+            stamp_tab("Furniture", "furniture");
             stamp_tab("Trees", "tree");
+            stamp_tab("Vehicles", "vehicle");
             stamp_tab("Misc", "misc");
 
             ImGui::EndTabBar();
