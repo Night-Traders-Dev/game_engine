@@ -9,28 +9,31 @@ Complete API reference for the Twilight Engine scripting system. All functions a
 3. [Engine Core](#engine-core)
 4. [Player API](#player-api)
 5. [NPC API](#npc-api)
-6. [Inventory & Items](#inventory--items)
-7. [Shop / Merchant](#shop--merchant)
-8. [Battle](#battle)
-9. [Character Stats](#character-stats)
-10. [Day-Night Cycle](#day-night-cycle)
-11. [Survival System](#survival-system)
-12. [UI Components](#ui-components)
-13. [HUD Configuration](#hud-configuration)
-14. [Camera](#camera)
-15. [Audio](#audio)
-16. [Map & World](#map--world)
-17. [Spawn System](#spawn-system)
-18. [NPC Routes & Schedules](#npc-routes--schedules)
-19. [NPC Interactions](#npc-interactions)
-20. [Screen Effects](#screen-effects)
-21. [Tile Map](#tile-map)
-22. [Input](#input)
-23. [Dialogue](#dialogue)
-24. [Renderer](#renderer)
-25. [Level System](#level-system)
-26. [Platform](#platform)
-27. [Debug & Testing](#debug--testing)
+6. [Sprite Manipulation](#sprite-manipulation)
+7. [Inventory & Items](#inventory--items)
+8. [Shop / Merchant](#shop--merchant)
+9. [Battle](#battle)
+10. [Character Stats](#character-stats)
+11. [Day-Night Cycle](#day-night-cycle)
+12. [Survival System](#survival-system)
+13. [UI Components](#ui-components)
+14. [HUD Configuration](#hud-configuration)
+15. [Camera](#camera)
+16. [Audio](#audio)
+17. [Map & World](#map--world)
+18. [Spawn System](#spawn-system)
+19. [NPC Routes & Schedules](#npc-routes--schedules)
+20. [NPC Interactions](#npc-interactions)
+21. [Screen Effects](#screen-effects)
+22. [Tile Map & Rotation](#tile-map--rotation)
+23. [Input](#input)
+24. [Dialogue](#dialogue)
+25. [Renderer](#renderer)
+26. [Level System](#level-system)
+27. [Platform](#platform)
+28. [Asset Pipeline](#asset-pipeline)
+29. [Debug & Testing](#debug--testing)
+30. [Recipes & Techniques](#recipes--techniques)
 
 ---
 
@@ -215,6 +218,59 @@ npc_set_dir("Guard", 3)
 # Check if enemy is alive
 if npc_exists("Slime"):
     log("Slime is still alive!")
+```
+
+---
+
+## Sprite Manipulation
+
+Per-sprite scaling, tinting, and flipping — independent per NPC, object, player, and ally.
+
+### NPC Sprite Control
+
+| Function | Description |
+|----------|-------------|
+| `npc_set_scale(name, scale)` | Set NPC render scale (0.1-10.0, default 1.0) |
+| `npc_get_scale(name)` | Get NPC scale |
+| `npc_set_tint(name, r, g, b, a)` | Set NPC color tint/alpha |
+| `npc_set_flip(name, flip_h)` | Flip NPC sprite horizontally |
+
+### Player & Ally Scale
+
+| Function | Description |
+|----------|-------------|
+| `set_player_scale(scale)` | Scale player sprite |
+| `get_player_scale()` | Get player scale |
+| `set_ally_scale(scale)` | Scale party follower sprites |
+
+### Object Scale & Tint
+
+| Function | Description |
+|----------|-------------|
+| `set_object_scale(x, y, scale)` | Scale nearest object to (x,y) |
+| `set_object_tint(x, y, r, g, b, a)` | Tint nearest object |
+
+```sage
+# Giant boss fight — boss is 3x size, minions are half
+spawn_npc("Dragon", 400, 300, 0, true, "assets/textures/cf_skeleton.png", 500, 40, 15, 200)
+npc_set_scale("Dragon", 3.0)
+
+spawn_npc("Imp", 500, 350, 0, true, "assets/textures/cf_slime.png", 15, 3, 60, 80)
+npc_set_scale("Imp", 0.5)
+
+# Shrink player to fit inside a house
+set_player_scale(0.7)
+set_ally_scale(0.7)
+
+# Make a house object bigger
+place_object(400, 300, "House")
+set_object_scale(400, 300, 2.0)
+
+# Tint an NPC red (damaged/angry)
+npc_set_tint("Guard", 1, 0.3, 0.3, 1)
+
+# Ghost effect — semi-transparent NPC
+npc_set_tint("Ghost", 0.6, 0.6, 1.0, 0.5)
 ```
 
 ---
@@ -586,7 +642,9 @@ screen_fade(0, 0, 0, 1, 1.0)
 
 ---
 
-## Tile Map
+## Tile Map & Rotation
+
+### Queries
 
 | Function | Description |
 |----------|-------------|
@@ -594,19 +652,44 @@ screen_fade(0, 0, 0, 1, 1.0)
 | `get_map_height()` | Map height in tiles |
 | `get_tile_size()` | Tile size in pixels |
 | `get_layer_count()` | Number of tile layers |
-| `get_tile(layer, x, y)` | Get tile ID at position |
+| `get_tile(layer, x, y)` | Get tile ID at position (without rotation) |
 | `is_solid(tx, ty)` | Check if tile is solid |
 | `is_solid_world(wx, wy)` | Check if world position is solid |
+
+### Tile Rotation & Flip
+
+| Function | Description |
+|----------|-------------|
+| `set_tile_rotation(layer, tx, ty, rot)` | Set rotation: 0=0°, 1=90°, 2=180°, 3=270° |
+| `get_tile_rotation(layer, tx, ty)` | Get tile rotation (0-3) |
+| `set_tile_flip(layer, tx, ty, flip_h, flip_v)` | Flip tile horizontally/vertically |
+| `set_tile_ex(layer, tx, ty, id, rot, flip_h, flip_v)` | Set tile with full control |
+
+Rotation is encoded in the upper bits of the tile value and persists in saved maps automatically.
 
 ```sage
 let w = get_map_width()
 let h = get_map_height()
 log("Map size: " + str(w) + "x" + str(h))
 
-# Check if player can walk somewhere
+# Check walkability
 if is_solid_world(500, 300) == false:
     set_player_pos(500, 300)
+
+# Rotate a wall tile 90 degrees
+set_tile_rotation(0, 5, 3, 1)
+
+# Place a tile with 180° rotation and horizontal flip
+set_tile_ex(0, 10, 5, 73, 2, true, false)
+
+# Build a rotated corner from the same tile
+set_tile_ex(0, 0, 0, 21, 0, false, false)  # Top-left
+set_tile_ex(0, 1, 0, 21, 1, false, false)  # Top-right (90°)
+set_tile_ex(0, 0, 1, 21, 3, false, false)  # Bottom-left (270°)
+set_tile_ex(0, 1, 1, 21, 2, false, false)  # Bottom-right (180°)
 ```
+
+**Editor hotkeys:** Press **R** to cycle rotation (0°→90°→180°→270°), **Shift+R** to toggle horizontal flip. The eyedrop tool (I) picks up rotation from existing tiles.
 
 ---
 
@@ -790,4 +873,246 @@ proc map_init():
 
 ---
 
-*Twilight Engine v1.2.0 — SageLang API Reference*
+## Asset Pipeline
+
+### Multi-Resolution Scaling
+
+Generate 2x/3x versions of all textures for different detail levels:
+
+```bash
+# Generate 2x and 3x scaled assets (nearest-neighbor, pixel-perfect)
+python3 tools/scale_assets.py games/demo 2 3
+
+# Scale a single file
+python3 tools/scale_assets.py --file games/demo/assets/textures/mage_player.png 2 3 4
+```
+
+Output: `assets/textures/2x/mage_player.png`, `assets/textures/3x/mage_player.png`
+
+### Per-Level Zoom
+
+Different levels can use different zoom levels for varying detail:
+
+```sage
+# Forest overworld — wide view
+proc forest_init():
+    set_level_zoom("forest.json", 1.0)
+
+# House interior — close-up detail
+proc house_inside_init():
+    set_level_zoom("house_inside.json", 2.0)
+
+# Dungeon — medium zoom
+proc dungeon_init():
+    set_level_zoom("dungeon.json", 1.5)
+```
+
+Zoom auto-applies when switching levels via portals.
+
+---
+
+## Recipes & Techniques
+
+### Boss Fight with Mixed Scales
+
+```sage
+proc start_boss_fight():
+    # Giant dragon boss
+    spawn_npc("Dragon", 400, 250, 0, true, "assets/textures/cf_skeleton.png", 500, 40, 10, 250)
+    npc_set_scale("Dragon", 3.5)
+    npc_set_tint("Dragon", 1.0, 0.3, 0.1, 1.0)  # Fiery red
+
+    # Tiny imp minions
+    let i = 0
+    while i < 4:
+        let ix = 300 + i * 80
+        spawn_npc("Imp_" + str(i), ix, 400, 0, true, "assets/textures/cf_slime.png", 15, 3, 70, 80)
+        npc_set_scale("Imp_" + str(i), 0.5)
+        i = i + 1
+
+    camera_set_zoom(1.5)
+    screen_shake(8, 0.5)
+    ui_notify("A dragon appears!", 3)
+```
+
+### Interior Level with Scaled Characters
+
+```sage
+proc enter_house():
+    set_level_zoom("house.json", 2.0)     # Zoom camera in
+    set_player_scale(0.6)                   # Shrink player
+    set_ally_scale(0.6)                     # Shrink party
+    set_clear_color(0.12, 0.10, 0.06)      # Warm lighting
+
+    # Place furniture
+    place_object(128, 96, "Table")
+    place_object(64, 64, "Cabinet")
+    place_object(224, 64, "Bed")
+    place_object(160, 32, "Fireplace")
+
+proc exit_house():
+    set_player_scale(1.0)
+    set_ally_scale(1.0)
+```
+
+### Day-Night Event System
+
+```sage
+proc check_time_events():
+    let h = get_hour()
+    if h == 6:
+        ui_notify("The sun rises...", 3)
+        set_clear_color(0.05, 0.08, 0.12)
+    elif h == 18:
+        ui_notify("Night falls...", 3)
+        set_clear_color(0.02, 0.02, 0.06)
+        screen_fade(0, 0, 0, 0.3, 2.0)
+    elif h == 20:
+        spawn_loop("Ghost", 30, 3)
+        set_spawn_time("Ghost", 20, 5)
+```
+
+### Quest System with Flags
+
+```sage
+proc talk_to_elder():
+    let stage = get_flag("main_quest")
+    if stage == 0:
+        say("Elder", "The crystal has been stolen!")
+        say("Elder", "Please, find it in the cave to the east.")
+        set_flag("main_quest", 1)
+        ui_notify("Quest: Find the Crystal", 4)
+    elif stage == 1:
+        say("Elder", "Have you found the crystal yet?")
+        if has_item("crystal"):
+            say("Elder", "You found it! Thank you!")
+            remove_item("crystal", 1)
+            add_player_xp(100)
+            set_gold(get_gold() + 500)
+            set_flag("main_quest", 2)
+            ui_notify("Quest Complete! +500 gold", 4)
+    elif stage == 2:
+        say("Elder", "The village is safe, thanks to you.")
+```
+
+### Dynamic Shop with Inventory Check
+
+```sage
+proc open_potion_shop():
+    add_shop_item("potion", "Health Potion", 50, "consumable", "Heals 50 HP", 50, 0, "", "use_potion")
+    add_shop_item("ether", "Ether", 80, "consumable", "Restores magic", 20, 0, "", "use_ether")
+
+    # Only sell sword if player doesn't have one
+    if has_item("iron_sword") == false:
+        add_shop_item("iron_sword", "Iron Sword", 300, "weapon", "ATK +15", 0, 15, "", "")
+
+    # Night-only items
+    if is_night():
+        add_shop_item("torch", "Torch", 20, "consumable", "Light in darkness", 0, 0, "", "use_torch")
+
+    open_shop("Potion Shop")
+```
+
+### Custom HUD with Script UI
+
+```sage
+proc setup_custom_hud():
+    let sw = hud_get("screen_w")
+    let sh = hud_get("screen_h")
+
+    # HP bar with panel background
+    ui_panel("hp_bg", 8, 8, 220, 35, "panel_mini")
+    ui_image("hp_icon", 14, 14, 20, 20, "icon_heart_red")
+    ui_bar("hp_bar", 100, 100, 40, 16, 180, 16, 0.2, 0.8, 0.2, 1)
+    ui_label("hp_text", "100/100", 150, 12, 1, 1, 1, 1)
+    ui_set("hp_text", "scale", 0.8)
+
+    # XP bar at bottom
+    ui_bar("xp_bar", 0, 100, 0, sh - 6, sw, 6, 0.3, 0.5, 0.9, 0.7)
+    ui_set("xp_bar", "layer", 10)
+
+    # Minimap-style location label
+    ui_label("location", "Enchanted Forest", sw - 200, sh - 30, 0.8, 0.8, 0.8, 0.6)
+    ui_set("location", "scale", 0.7)
+```
+
+### Animated UI Effects
+
+```sage
+# Pulse a warning label using opacity
+proc pulse_warning():
+    ui_label("warning", "LOW HP!", 400, 300, 1, 0.2, 0.2, 1)
+    ui_set("warning", "scale", 1.5)
+    ui_set("warning", "layer", 100)
+    # Engine will render with current opacity — use a timer in update loop
+
+# Screen transition effect
+proc scene_transition():
+    screen_fade(0, 0, 0, 1, 0.5)     # Fade to black
+    # After fade completes, switch level and fade back
+    # (In practice, call switch_level then screen_fade back)
+```
+
+### Rotated Tile Patterns
+
+```sage
+# Create a symmetrical floor pattern using rotation
+proc build_floor_pattern(cx, cy):
+    let tile = 73  # Stone tile
+    # Four corners with rotations
+    set_tile_ex(0, cx, cy, tile, 0, false, false)
+    set_tile_ex(0, cx+1, cy, tile, 1, false, false)
+    set_tile_ex(0, cx, cy+1, tile, 3, false, false)
+    set_tile_ex(0, cx+1, cy+1, tile, 2, false, false)
+
+# Create a border with flipped tiles
+proc build_wall_border(x1, y1, x2, y2):
+    let wall = 281  # Stone wall tile
+    let i = x1
+    while i <= x2:
+        set_tile_ex(0, i, y1, wall, 0, false, false)   # Top
+        set_tile_ex(0, i, y2, wall, 2, false, false)    # Bottom (180°)
+        i = i + 1
+    let j = y1
+    while j <= y2:
+        set_tile_ex(0, x1, j, wall, 3, false, false)    # Left (270°)
+        set_tile_ex(0, x2, j, wall, 1, false, false)    # Right (90°)
+        j = j + 1
+```
+
+### NPC Ghost Effect
+
+```sage
+proc make_ghost(name):
+    npc_set_tint(name, 0.5, 0.5, 1.0, 0.4)   # Blue, semi-transparent
+    npc_set_scale(name, 1.2)                    # Slightly larger than normal
+
+proc make_poisoned(name):
+    npc_set_tint(name, 0.3, 0.8, 0.3, 1.0)   # Green tint
+
+proc make_enraged(name):
+    npc_set_tint(name, 1.0, 0.2, 0.2, 1.0)   # Red tint
+    npc_set_scale(name, 1.3)                    # Bigger when angry
+```
+
+### Multi-Level Dungeon
+
+```sage
+proc setup_dungeon():
+    # Preload all dungeon floors
+    preload_level("dungeon_f1", "assets/maps/dungeon_f1.json")
+    preload_level("dungeon_f2", "assets/maps/dungeon_f2.json")
+    preload_level("dungeon_f3", "assets/maps/dungeon_f3.json")
+
+    # Set zoom for cramped dungeon feel
+    set_level_zoom("dungeon_f1", 1.8)
+    set_level_zoom("dungeon_f2", 1.8)
+    set_level_zoom("dungeon_f3", 2.0)  # Boss floor is more zoomed
+
+    # Each floor has portals to the next
+    # Placed in the map JSON, auto-triggered on player step
+```
+
+---
+
+Twilight Engine v1.3.0 — SageLang API Reference

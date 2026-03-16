@@ -134,10 +134,19 @@ bool LevelManager::switch_level(const std::string& id, GameState& game) {
         lvl.script_executed = true;
     }
 
+    // Apply per-level zoom
+    if (lvl.zoom > 0.1f && lvl.zoom != 1.0f) {
+        float base_w = game.hud.screen_w;
+        float base_h = game.hud.screen_h;
+        game.camera.set_viewport(base_w / lvl.zoom, base_h / lvl.zoom);
+    } else {
+        game.camera.set_viewport(game.hud.screen_w, game.hud.screen_h);
+    }
+
     // Center camera on player
     game.camera.center_on(game.player_pos);
 
-    std::printf("[LevelManager] Switched to level '%s'\n", id.c_str());
+    std::printf("[LevelManager] Switched to level '%s' (zoom=%.1f)\n", id.c_str(), lvl.zoom);
     return true;
 }
 

@@ -200,6 +200,21 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
     game.object_defs.clear();
     game.object_regions.clear();
 
+    // Re-populate object defs/regions from stamps (they persist across map loads)
+    if (game.tileset_atlas) {
+        for (auto& stamp : game.object_stamps) {
+            if (stamp.region_id >= 0 && stamp.region_id < game.tileset_atlas->region_count()) {
+                ObjectDef def;
+                auto ar = game.tileset_atlas->region(stamp.region_id);
+                def.src_pos = {(float)ar.pixel_x, (float)ar.pixel_y};
+                def.src_size = {(float)ar.pixel_w, (float)ar.pixel_h};
+                def.render_size = {stamp.place_w, stamp.place_h};
+                game.object_defs.push_back(def);
+                game.object_regions.push_back(ar);
+            }
+        }
+    }
+
     // Parse objects array
     size_t obj_pos = json.find("\"objects\"");
     if (obj_pos != std::string::npos) {
@@ -424,9 +439,14 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
         if (!script_data.empty()) {
             std::string src(script_data.begin(), script_data.end());
             game.script_engine->execute(src);
-            if (game.script_engine->has_function("map_init")) {
+            // Try level-specific init first (e.g. forest_init), then generic map_init
+            std::string level_init = name + "_init";
+            if (game.script_engine->has_function(level_init)) {
+                game.script_engine->call_function(level_init);
+                std::printf("[Map] Executed %s() from %s\n", level_init.c_str(), script_path.c_str());
+            } else if (game.script_engine->has_function("map_init")) {
                 game.script_engine->call_function("map_init");
-                std::printf("[Map] Executed map script: %s\n", script_path.c_str());
+                std::printf("[Map] Executed map_init() from %s\n", script_path.c_str());
             }
         }
     }
@@ -1633,49 +1653,77 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
     }
 
     // Pause menu input (keyboard + mouse)
+    static constexpr int PAUSE_ITEM_COUNT = 6;
+    // 0=Resume, 1=Editor, 2=Levels, 3=Reset, 4=Settings, 5=Quit
     if (game.paused) {
+        // Level selector sub-menu
+        if (game.level_select_open) {
+            if (input.is_pressed(eb::InputAction::MoveUp) && game.level_select_cursor > 0)
+                game.level_select_cursor--;
+            if (input.is_pressed(eb::InputAction::MoveDown) && game.level_select_cursor < (int)game.level_select_ids.size() - 1)
+                game.level_select_cursor++;
+            if (input.is_pressed(eb::InputAction::Confirm) && !game.level_select_ids.empty()) {
+                auto& id = game.level_select_ids[game.level_select_cursor];
+                if (game.level_manager && game.level_manager->is_loaded(id)) {
+                    game.level_manager->switch_level(id, game);
+                    game.camera.center_on(game.player_pos);
+                }
+                game.level_select_open = false;
+                game.paused = false;
+            }
+            if (input.is_pressed(eb::InputAction::Cancel)) {
+                game.level_select_open = false;
+            }
+            return;
+        }
+
         if (input.is_pressed(eb::InputAction::MoveUp) && game.pause_selection > 0)
             game.pause_selection--;
-        if (input.is_pressed(eb::InputAction::MoveDown) && game.pause_selection < 4)
+        if (input.is_pressed(eb::InputAction::MoveDown) && game.pause_selection < PAUSE_ITEM_COUNT - 1)
             game.pause_selection++;
+
+        auto execute_pause_action = [&](int i) {
+            switch (i) {
+                case 0: game.paused = false; break;
+                case 1: game.paused = false; game.pause_request_editor = true; break;
+                case 2: { // Levels
+                    game.level_select_ids.clear();
+                    if (game.level_manager) {
+                        for (auto& [lid, lvl] : game.level_manager->levels)
+                            if (lvl.loaded) game.level_select_ids.push_back(lid);
+                    }
+                    game.level_select_cursor = 0;
+                    game.level_select_open = true;
+                    break;
+                }
+                case 3: game.pause_request_reset = true; game.paused = false; break;
+                case 4: break; // Settings placeholder
+                case 5: game.pause_request_quit = true; break;
+            }
+        };
 
         // Mouse hover and click — use script UI label positions
         // Convert native touch/mouse coords to UI virtual coords
         float mx = input.mouse.x * (game.hud.screen_w / game.hud.native_w);
         float my = input.mouse.y * (game.hud.screen_h / game.hud.native_h);
-        static const char* pause_ids[5] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4"};
-        for (int i = 0; i < 5; i++) {
+        static const char* pause_ids[PAUSE_ITEM_COUNT] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4","pause_item_5"};
+        for (int i = 0; i < PAUSE_ITEM_COUNT; i++) {
             for (auto& l : game.script_ui.labels) {
                 if (l.id != pause_ids[i]) continue;
-                // Hit test: generous area around the label
-                float hit_w = 180, hit_h = 30;
+                float hit_w = 260, hit_h = 36;
                 float lx = l.position.x - 20, ly = l.position.y - 4;
                 if (mx >= lx && mx <= lx + hit_w && my >= ly && my <= ly + hit_h) {
                     game.pause_selection = i;
-                    if (input.mouse.is_pressed(eb::MouseButton::Left)) {
-                        switch (i) {
-                            case 0: game.paused = false; break;
-                            case 1: game.paused = false; game.pause_request_editor = true; break;
-                            case 2: game.pause_request_reset = true; game.paused = false; break;
-                            case 3: break;
-                            case 4: game.pause_request_quit = true; break;
-                        }
-                    }
+                    if (input.mouse.is_pressed(eb::MouseButton::Left))
+                        execute_pause_action(i);
                 }
                 break;
             }
         }
 
         // Keyboard confirm
-        if (input.is_pressed(eb::InputAction::Confirm)) {
-            switch (game.pause_selection) {
-                case 0: game.paused = false; break;
-                case 1: game.paused = false; game.pause_request_editor = true; break;
-                case 2: game.pause_request_reset = true; game.paused = false; break;
-                case 3: break;
-                case 4: game.pause_request_quit = true; break;
-            }
-        }
+        if (input.is_pressed(eb::InputAction::Confirm))
+            execute_pause_action(game.pause_selection);
         if (input.is_pressed(eb::InputAction::Cancel)) {
             game.paused = false;
         }
@@ -2313,7 +2361,7 @@ static void render_leaf_overlay(const GameState& game, eb::SpriteBatch& batch, f
     batch.set_texture(game.white_desc);
     for (int oi = 0; oi < (int)game.world_objects.size(); oi++) {
         const auto& obj = game.world_objects[oi];
-        if (obj.sprite_id > 4) continue;
+        if (obj.sprite_id > 4 || obj.sprite_id < 0 || obj.sprite_id >= (int)game.object_defs.size()) continue;
         const auto& def = game.object_defs[obj.sprite_id];
         float canopy_w = def.render_size.x * 0.8f, canopy_h = def.render_size.y * 0.5f;
         float canopy_cx = obj.position.x, canopy_cy = obj.position.y - def.render_size.y * 0.7f;
@@ -2836,13 +2884,17 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     // Grass overlay
     render_grass_overlay(game, batch, game.game_time);
 
-    // Y-sorted objects
+    // Y-sorted objects (with per-object scale and tint)
     for (const auto& obj : game.world_objects) {
+        if (obj.sprite_id < 0 || obj.sprite_id >= (int)game.object_defs.size() ||
+            obj.sprite_id >= (int)game.object_regions.size()) continue;
         const auto& def = game.object_defs[obj.sprite_id];
         const auto& region = game.object_regions[obj.sprite_id];
-        eb::Vec2 dp = {obj.position.x - def.render_size.x*0.5f, obj.position.y - def.render_size.y};
-        batch.draw_sorted(dp, def.render_size, region.uv_min, region.uv_max,
-                         obj.position.y, game.tileset_desc);
+        float sw = def.render_size.x * obj.scale;
+        float sh = def.render_size.y * obj.scale;
+        eb::Vec2 dp = {obj.position.x - sw*0.5f, obj.position.y - sh};
+        batch.draw_sorted(dp, {sw, sh}, region.uv_min, region.uv_max,
+                         obj.position.y, game.tileset_desc, obj.tint);
     }
 
     // Leaf overlay
@@ -2868,32 +2920,33 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         }
         if (atlas_ptr && desc) {
             auto sr = get_character_sprite(*atlas_ptr, npc.dir, npc.moving, npc.frame);
-            float rw=48, rh=64;
+            float rw = 48 * npc.sprite_scale, rh = 64 * npc.sprite_scale;
+            eb::Vec2 uv0 = sr.uv_min, uv1 = sr.uv_max;
+            if (npc.sprite_flip_h) std::swap(uv0.x, uv1.x);
             eb::Vec2 dp = {npc.position.x-rw*0.5f, npc.position.y-rh+4};
-            batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, npc.position.y, desc);
+            batch.draw_sorted(dp, {rw,rh}, uv0, uv1, npc.position.y, desc, npc.sprite_tint);
         }
     }
 
-    // Party followers
+    // Party followers (with ally sprite scale)
     if (game.sam_atlas) {
         for (int pi = 0; pi < (int)game.party.size(); pi++) {
             auto& pm = game.party[pi];
             auto sr = get_character_sprite(*game.sam_atlas, pm.dir, pm.moving, pm.frame);
-            float rw=48, rh=64;
+            float rw = 48 * game.ally_sprite_scale, rh = 64 * game.ally_sprite_scale;
             float bob = pm.moving ? std::sin(pm.anim_timer*15.0f)*2.0f : 0.0f;
             eb::Vec2 dp = {pm.position.x-rw*0.5f, pm.position.y-rh+4+bob};
             batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, pm.position.y, game.sam_desc);
         }
     }
 
-    // Player character
+    // Player character (with per-player sprite scale)
     if (game.dean_atlas) {
         auto sr = get_character_sprite(*game.dean_atlas, game.player_dir, game.player_moving, game.player_frame);
-        // Use sprite's native pixel size scaled for rendering
-        float sprite_scale = (sr.pixel_w <= 24) ? 3.0f : 1.5f;
-        float rw = (float)sr.pixel_w * sprite_scale;
-        float rh = (float)sr.pixel_h * sprite_scale;
-        if (rw < 16) { rw = 48; rh = 60; } // Fallback for missing regions
+        float base_scale = (sr.pixel_w <= 24) ? 3.0f : 1.5f;
+        float rw = (float)sr.pixel_w * base_scale * game.player_sprite_scale;
+        float rh = (float)sr.pixel_h * base_scale * game.player_sprite_scale;
+        if (rw < 16) { rw = 48 * game.player_sprite_scale; rh = 60 * game.player_sprite_scale; }
         float bob = game.player_moving ? std::sin(game.anim_timer*15.0f)*2.0f : 0.0f;
         eb::Vec2 dp = {game.player_pos.x-rw*0.5f, game.player_pos.y-rh+4+bob};
         batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, game.player_pos.y, game.dean_desc);
@@ -3009,16 +3062,17 @@ static void sync_hud_values(GameState& game) {
     };
 
     bool paused = game.paused;
-    set_vis("pause_bg", paused);
-    set_vis("pause_title", paused);
-    set_vis("pause_cursor", paused);
-    static const char* pause_item_ids[5] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4"};
-    for (int i = 0; i < 5; i++) {
-        set_vis(pause_item_ids[i], paused);
+    bool show_pause = paused && !game.level_select_open;
+    set_vis("pause_bg", paused);  // Keep bg visible during level select too
+    set_vis("pause_title", show_pause);
+    set_vis("pause_cursor", show_pause);
+    static const char* pause_item_ids[6] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4","pause_item_5"};
+    for (int i = 0; i < 6; i++) {
+        set_vis(pause_item_ids[i], show_pause);
 
         // Highlight selected item
         if (auto* l = find_label(pause_item_ids[i])) {
-            if (i == game.pause_selection && paused) {
+            if (i == game.pause_selection && show_pause) {
                 l->color = {1.0f, 1.0f, 0.9f, 1.0f};
             } else {
                 l->color = {0.85f, 0.82f, 0.75f, 1.0f};
@@ -3027,16 +3081,63 @@ static void sync_hud_values(GameState& game) {
     }
 
     // Move pause cursor to selected item
-    if (paused) {
+    if (show_pause) {
         for (auto& img : game.script_ui.images) {
             if (img.id == "pause_cursor") {
-                // Match the Y position of the selected item label
                 if (auto* l = find_label(pause_item_ids[game.pause_selection])) {
                     img.position.y = l->position.y;
                 }
                 break;
             }
         }
+    }
+
+    // ── Level selector sub-menu ──
+    // Create/update level list labels dynamically
+    if (paused && game.level_select_open) {
+        // Show title
+        static bool level_title_created = false;
+        if (!level_title_created) {
+            float cx = game.hud.screen_w / 2.0f;
+            float cy = game.hud.screen_h / 2.0f;
+            game.script_ui.labels.push_back({"lvl_sel_title", "SELECT LEVEL", {cx - 80, cy - 110}, {1, 0.9f, 0.5f, 1}, 1.2f, true});
+            level_title_created = true;
+        }
+        set_vis("lvl_sel_title", true);
+
+        // Remove old level list labels
+        auto& labels = game.script_ui.labels;
+        labels.erase(std::remove_if(labels.begin(), labels.end(),
+            [](auto& l) { return l.id.size() > 8 && l.id.compare(0, 8, "lvl_sel_") == 0 && l.id != "lvl_sel_title"; }),
+            labels.end());
+
+        // Create labels for each loaded level
+        float cx = game.hud.screen_w / 2.0f;
+        float cy = game.hud.screen_h / 2.0f;
+        for (int i = 0; i < (int)game.level_select_ids.size(); i++) {
+            std::string lid = "lvl_sel_" + std::to_string(i);
+            // Strip .json for display
+            std::string display = game.level_select_ids[i];
+            auto dot = display.rfind('.');
+            if (dot != std::string::npos) display = display.substr(0, dot);
+            // Capitalize first letter
+            if (!display.empty()) display[0] = std::toupper(display[0]);
+            // Mark active level
+            if (game.level_manager && game.level_select_ids[i] == game.level_manager->active_level)
+                display += "  (current)";
+
+            eb::Vec4 color = (i == game.level_select_cursor)
+                ? eb::Vec4{1.0f, 1.0f, 0.9f, 1.0f}
+                : eb::Vec4{0.85f, 0.82f, 0.75f, 1.0f};
+            labels.push_back({lid, display, {cx - 60, cy - 70 + i * 36.0f}, color, 1.0f, true});
+        }
+    } else {
+        // Hide level selector labels
+        set_vis("lvl_sel_title", false);
+        auto& labels = game.script_ui.labels;
+        labels.erase(std::remove_if(labels.begin(), labels.end(),
+            [](auto& l) { return l.id.size() > 8 && l.id.compare(0, 8, "lvl_sel_") == 0 && l.id != "lvl_sel_title"; }),
+            labels.end());
     }
 }
 

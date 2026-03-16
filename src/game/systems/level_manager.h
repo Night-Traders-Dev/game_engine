@@ -33,6 +33,8 @@ struct Level {
     std::vector<NPCMeetTrigger> meet_triggers;
     std::vector<WorldDrop> drops;
     Vec2 player_start = {0, 0};
+    float zoom = 1.0f;             // Per-level camera zoom (1.0 = default, 2.0 = zoomed in)
+    int asset_scale = 1;           // Asset resolution to use (1 = 1x, 2 = 2x, 3 = 3x)
     bool loaded = false;
     bool script_executed = false;
 };

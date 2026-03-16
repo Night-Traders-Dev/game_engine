@@ -171,6 +171,9 @@ private:
     bool active_ = false;
     EditorTool tool_ = EditorTool::Paint;
     int selected_tile_ = 1;
+    int tile_rotation_ = 0;     // Current brush rotation (0-3: 0°/90°/180°/270°)
+    bool tile_flip_h_ = false;  // Current brush horizontal flip
+    bool tile_flip_v_ = false;  // Current brush vertical flip
     int active_layer_ = 0;
     bool show_grid_ = true;
     bool show_collision_ = false;

@@ -34,17 +34,24 @@ proc map_init():
         sw = 960
     if sh < 100:
         sh = 720
-    let px = sw / 2 - 110
-    let py = sh / 2 - 130
-    ui_panel("pause_bg", px, py, 220 * 2, 260 * 2, "panel_large")
-    ui_label("pause_title", "PAUSED", (px + 58) * 2, (py + 14) * 2, 1, 0.9, 0.5, 1)
-    ui_set("pause_title", "scale", 1.3)
-    ui_label("pause_item_0", "Resume Game", px + 38, py + 56, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_1", "Editor Mode", px + 38, py + 92, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_2", "Reset", px + 62, py + 128, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_3", "Settings", px + 52, py + 164, 0.85, 0.82, 0.75, 1)
-    ui_label("pause_item_4", "Quit", px + 70, py + 200, 0.85, 0.82, 0.75, 1)
-    ui_image("pause_cursor", px + 10, py + 56, 20, 20, "cursor_box")
+    let px = sw / 2 - 140
+    let py = sh / 2 - 160
+    ui_panel("pause_bg", px, py, 280, 340, "panel_large")
+    ui_label("pause_title", "PAUSED", px + 80, py + 18, 1, 0.9, 0.5, 1)
+    ui_set("pause_title", "scale", 1.4)
+    ui_label("pause_item_0", "Resume Game", px + 60, py + 66, 0.85, 0.82, 0.75, 1)
+    ui_set("pause_item_0", "scale", 1.0)
+    ui_label("pause_item_1", "Editor Mode", px + 60, py + 106, 0.85, 0.82, 0.75, 1)
+    ui_set("pause_item_1", "scale", 1.0)
+    ui_label("pause_item_2", "Levels", px + 60, py + 146, 0.85, 0.82, 0.75, 1)
+    ui_set("pause_item_2", "scale", 1.0)
+    ui_label("pause_item_3", "Reset", px + 60, py + 186, 0.85, 0.82, 0.75, 1)
+    ui_set("pause_item_3", "scale", 1.0)
+    ui_label("pause_item_4", "Settings", px + 60, py + 226, 0.85, 0.82, 0.75, 1)
+    ui_set("pause_item_4", "scale", 1.0)
+    ui_label("pause_item_5", "Quit", px + 60, py + 266, 0.85, 0.82, 0.75, 1)
+    ui_set("pause_item_5", "scale", 1.0)
+    ui_image("pause_cursor", px + 30, py + 66, 22, 22, "cursor_box")
     ui_set("pause_bg", "visible", false)
     ui_set("pause_title", "visible", false)
     ui_set("pause_item_0", "visible", false)
@@ -52,6 +59,7 @@ proc map_init():
     ui_set("pause_item_2", "visible", false)
     ui_set("pause_item_3", "visible", false)
     ui_set("pause_item_4", "visible", false)
+    ui_set("pause_item_5", "visible", false)
     ui_set("pause_cursor", "visible", false)
 
     # NPC setup

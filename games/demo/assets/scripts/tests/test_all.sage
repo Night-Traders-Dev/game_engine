@@ -268,6 +268,11 @@ proc run_all_tests():
     assert_true(get_level_count() >= 0, "get_level_count")
     assert_true(is_level_loaded("nonexistent") == false, "is_level_loaded false")
     # Note: load_level/switch_level require actual map files — tested manually
+    # Level zoom API
+    set_level_zoom("forest.json", 1.5)
+    assert_true(get_level_zoom("forest.json") == 1.5, "set/get level zoom")
+    set_level_zoom("forest.json", 1.0)
+    assert_true(get_level_zoom("nonexistent") == 1, "default zoom")
 
     # ── Flag Persistence ──
     log("Testing: Flag persistence & types")
@@ -311,6 +316,56 @@ proc run_all_tests():
     screen_flash(1, 1, 1, 0.5, 0.1)
     screen_fade(0, 0, 0, 0, 0.1)
     camera_shake(3, 0.1)
+
+    # ── Tile Rotation API ──
+    log("Testing: Tile rotation API")
+    let orig = get_tile(0, 5, 5)
+    set_tile_rotation(0, 5, 5, 1)
+    assert_true(get_tile_rotation(0, 5, 5) == 1, "set/get tile rotation 90")
+    set_tile_rotation(0, 5, 5, 2)
+    assert_true(get_tile_rotation(0, 5, 5) == 2, "tile rotation 180")
+    set_tile_rotation(0, 5, 5, 0)
+    assert_true(get_tile_rotation(0, 5, 5) == 0, "tile rotation reset")
+    assert_true(get_tile(0, 5, 5) == orig, "tile ID preserved after rotation")
+    # set_tile_ex with rotation and flip
+    set_tile_ex(0, 5, 5, orig, 3, true, false)
+    assert_true(get_tile(0, 5, 5) == orig, "set_tile_ex preserves ID")
+    assert_true(get_tile_rotation(0, 5, 5) == 3, "set_tile_ex rotation 270")
+    set_tile_ex(0, 5, 5, orig, 0, false, false)
+    # Tile flip
+    set_tile_flip(0, 5, 5, true, false)
+    set_tile_flip(0, 5, 5, false, false)
+
+    # ── Sprite Scale API ──
+    log("Testing: Sprite scale API")
+    # Player scale
+    set_player_scale(2.0)
+    assert_true(get_player_scale() == 2, "set/get player scale")
+    set_player_scale(1.0)
+    # Ally scale
+    set_ally_scale(1.5)
+    set_ally_scale(1.0)
+    # NPC scale/tint/flip
+    npc_set_scale("Elder", 2.0)
+    assert_true(npc_get_scale("Elder") == 2, "npc set/get scale")
+    npc_set_scale("Elder", 1.0)
+    npc_set_tint("Elder", 1, 0.5, 0.5, 1)
+    npc_set_tint("Elder", 1, 1, 1, 1)
+    npc_set_flip("Elder", true)
+    npc_set_flip("Elder", false)
+
+    # ── UI Get API ──
+    log("Testing: UI get API")
+    ui_label("test_lbl", "Hello", 50, 60, 1, 1, 1, 1)
+    ui_set("test_lbl", "scale", 1.2)
+    assert_true(ui_get("test_lbl", "x") == 50, "ui_get label x")
+    assert_true(ui_get("test_lbl", "y") == 60, "ui_get label y")
+    assert_true(ui_get("test_lbl", "scale") > 1.1, "ui_get label scale")
+    # Extended UI properties
+    ui_set("test_lbl", "opacity", 0.8)
+    ui_set("test_lbl", "layer", 5)
+    ui_set("test_lbl", "on_click", "test_click")
+    ui_remove("test_lbl")
 
     log("═══ All API Tests Complete ═══")
     info("TEST SUITE PASSED")

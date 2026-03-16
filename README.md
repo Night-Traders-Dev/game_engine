@@ -4,29 +4,32 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 
 ## Features
 
-- **Vulkan Renderer** — Sprite batching, Y-sorted rendering, texture atlases, animated tiles, fullscreen
-- **Cross-Platform** — Linux, Windows (cross-compile), Android (landscape, touch controls with native-to-virtual coordinate mapping, editor overlay), Meta Quest (flat 2D mode)
+- **Vulkan Renderer** — Sprite batching, Y-sorted rendering, texture atlases, animated tiles, fullscreen, per-sprite tint/alpha
+- **Cross-Platform** — Linux, Windows (cross-compile), Android (landscape, touch controls, editor overlay), Meta Quest (flat 2D mode)
 - **Engine / Game Separation** — Games live in `games/<name>/` with a `game.json` manifest; engine is standalone
-- **Tile Map System** — Multi-layer maps, collision, portals, animated water/grass overlays
-- **Level System** — Multi-level manager with load/cache/switch, portal auto-transitions, background ticking (NPC schedules, spawn timers), per-level map scripts
+- **Tile Map System** — Multi-layer maps, collision, portals, animated water/grass overlays, per-tile rotation (0°/90°/180°/270°) and flip
+- **Level System** — Multi-level manager with load/cache/switch, portal auto-transitions, background ticking, per-level zoom, per-level map scripts, level selector in pause menu
 - **Battle System** — Turn-based combat with rolling HP, party members, attack animations
 - **Inventory & Shop System** — SageLang-driven items with battle submenu, elemental weaknesses, stacking; merchant store UI with buy/sell and scalable pixel art panels
 - **Character Stats** — Fallout S.P.E.C.I.A.L.-style stats: Vitality, Arcana, Agility, Tactics, Spirit, Strength
 - **Day-Night Cycle** — Real-time clock with visual tinting (dawn/day/sunset/dusk/night), configurable speed
-- **NPC AI** — A* pathfinding, waypoint patrol routes, idle wandering with collision, hostile aggro/chase
+- **NPC AI** — A* pathfinding, waypoint patrol routes, idle wandering with collision, hostile aggro/chase, spatial grid separation
 - **NPC Schedules** — Time-based NPC visibility tied to the day-night cycle (e.g. merchant appears 8AM-6PM)
 - **NPC Interactions** — Proximity-triggered callbacks between NPCs, face-each-other, meet events
-- **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, and callbacks via `set_spawn_callback()` for auto-configuring spawned NPCs
+- **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, time-gating, and callbacks
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
-- **Script-Driven UI** — Labels, progress bars, panels, images, and timed notifications created from SageLang scripts; any component property modifiable via `ui_set()`; `reload_all()` clears all script UI before re-executing
-- **Script-Driven Pause Menu** — Pause menu layout defined inline in `default.sage`; C++ handles dim overlay, show/hide on ESC, selection highlight, cursor movement, and mouse click support
-- **Script-Driven HUD** — Built-in C++ HUD panels OFF by default; all HUD layout defined inline in `default.sage`. C++ auto-syncs values each frame by well-known component IDs (HP bar auto-colors green/yellow/red, sun/moon icon auto-swaps by time)
-- **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; 9 scripting API functions (`play_music`, `stop_music`, `crossfade_music`, `play_sfx`, etc.) plus an event library (`lib/audio.sage`) for context-based music management
+- **Per-Sprite Scaling** — Independent scale, tint, and flip per NPC, per object, player, and ally. Mix different sizes on screen (giant bosses + tiny minions)
+- **Script-Driven UI** — Labels, bars, panels, images with per-component opacity, layer, rotation, flip, scale, `on_click` callbacks, and `ui_get()`/`ui_set()` for reading/writing any property
+- **Script-Driven Pause Menu** — 6-item pause menu (Resume, Editor, Levels, Reset, Settings, Quit) with built-in level selector sub-menu
+- **Script-Driven HUD** — All HUD layout defined in `default.sage`. C++ auto-syncs values each frame (HP bar auto-colors, sun/moon icon auto-swaps)
+- **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; path-sanitized file operations
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
-- **SageLang Scripting** — 130+ API functions across 25+ modules driving all game systems with hot reload; all engine-loaded scripts share a global environment (functions callable across files without imports). Includes Player, Camera, Platform, NPC Runtime, Screen Effects, Tile Map Query, Input, Dialogue, Battle, and Renderer APIs. See [SCRIPTING.md](SCRIPTING.md) for the full API reference
-- **Test Suite** — `--test` CLI flag runs 100+ assertions across 28 modules (Engine Core, Flags, Inventory, Gold, Stats, Day-Night, Survival, UI, HUD, NPC, Spawn, Audio, Map, Player, Camera, Platform, NPC Runtime, Screen Effects, Tile Map, Input, Dialogue, Battle, Renderer, Level API, Flag Persistence, Value Clamping, Atlas Cache); also callable from the F4 debug console via `run_all_tests()`
-- **Security Hardened** — Path traversal protection on all script file operations, input value clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup
-- **Map Scripting** — Visual Basic-style editor: every editor action (spawn NPC, place object, set portal) auto-generates SageLang in a companion map script
+- **SageLang Scripting** — 150+ API functions across 30+ modules driving all game systems with hot reload. See [SCRIPTING.md](SCRIPTING.md) for the full API reference
+- **Asset Pipeline** — Multi-resolution asset generator (`tools/scale_assets.py`) creates 2x/3x versions via nearest-neighbor scaling; per-level zoom for different detail levels
+- **String-Keyed Atlas Cache** — Shared texture atlas cache across levels with automatic lifetime management via shared_ptr
+- **Test Suite** — `--test` CLI flag runs 110+ assertions across 30 modules; also callable from the F4 debug console via `run_all_tests()`
+- **Security Hardened** — Path traversal protection, input clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup, thread-safe Android platform
+- **Map Scripting** — Visual Basic-style editor: every editor action auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 
 ### Editor
@@ -254,7 +257,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 130+ API functions, string-keyed atlas cache)
+- SageLang (scripting — 150+ API functions, string-keyed atlas cache)
 - tinyfiledialogs (native file dialogs, desktop only)
 
 ## License
@@ -263,4 +266,4 @@ MIT
 
 ---
 
-*Twilight Engine v1.2.0*
+*Twilight Engine v1.3.0 — ~22,000 lines of C++, 150+ script API functions, 380 tiles, 40 stamps*

@@ -47,3 +47,7 @@ proc use_slime_gel():
     battle_msg = fighter_name + " uses Slime Gel! Recovered 20 HP."
     battle_target = fighter_name
     remove_item("slime_gel", 1)
+
+proc log_size():
+    log("Map Width: " + str(get_map_width()) + ", Map Height: " + str(get_map_height()))
+    log("Screen Width: " + str(hud_get("screen_w")) + ", Screen Height: " + str(hud_get("screen_h")))

@@ -581,6 +581,10 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "g") == 0) l.color.y = nv;
         else if (std::strcmp(prop, "b") == 0) l.color.z = nv;
         else if (std::strcmp(prop, "a") == 0) l.color.w = nv;
+        else if (std::strcmp(prop, "opacity") == 0) l.opacity = nv;
+        else if (std::strcmp(prop, "rotation") == 0) l.rotation = nv;
+        else if (std::strcmp(prop, "layer") == 0) l.layer = (int)nv;
+        else if (std::strcmp(prop, "on_click") == 0) l.on_click = sv;
         return val_nil();
     }
     // Search bars
@@ -597,6 +601,13 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "g") == 0) b.color.y = nv;
         else if (std::strcmp(prop, "b") == 0) b.color.z = nv;
         else if (std::strcmp(prop, "a") == 0) b.color.w = nv;
+        else if (std::strcmp(prop, "opacity") == 0) b.opacity = nv;
+        else if (std::strcmp(prop, "layer") == 0) b.layer = (int)nv;
+        else if (std::strcmp(prop, "show_text") == 0) b.show_text = bv;
+        else if (std::strcmp(prop, "bg_r") == 0) b.bg_color.x = nv;
+        else if (std::strcmp(prop, "bg_g") == 0) b.bg_color.y = nv;
+        else if (std::strcmp(prop, "bg_b") == 0) b.bg_color.z = nv;
+        else if (std::strcmp(prop, "bg_a") == 0) b.bg_color.w = nv;
         return val_nil();
     }
     // Search panels
@@ -608,6 +619,14 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "h") == 0) p.height = nv;
         else if (std::strcmp(prop, "sprite") == 0) p.sprite_region = sv;
         else if (std::strcmp(prop, "visible") == 0) p.visible = bv;
+        else if (std::strcmp(prop, "opacity") == 0) p.opacity = nv;
+        else if (std::strcmp(prop, "scale") == 0) p.scale = nv;
+        else if (std::strcmp(prop, "layer") == 0) p.layer = (int)nv;
+        else if (std::strcmp(prop, "on_click") == 0) p.on_click = sv;
+        else if (std::strcmp(prop, "r") == 0) p.color.x = nv;
+        else if (std::strcmp(prop, "g") == 0) p.color.y = nv;
+        else if (std::strcmp(prop, "b") == 0) p.color.z = nv;
+        else if (std::strcmp(prop, "a") == 0) p.color.w = nv;
         return val_nil();
     }
     // Search images
@@ -619,6 +638,70 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "h") == 0) img.height = nv;
         else if (std::strcmp(prop, "icon") == 0) img.icon_name = sv;
         else if (std::strcmp(prop, "visible") == 0) img.visible = bv;
+        else if (std::strcmp(prop, "opacity") == 0) img.opacity = nv;
+        else if (std::strcmp(prop, "scale") == 0) img.scale = nv;
+        else if (std::strcmp(prop, "rotation") == 0) img.rotation = nv;
+        else if (std::strcmp(prop, "flip_h") == 0) img.flip_h = bv;
+        else if (std::strcmp(prop, "flip_v") == 0) img.flip_v = bv;
+        else if (std::strcmp(prop, "layer") == 0) img.layer = (int)nv;
+        else if (std::strcmp(prop, "on_click") == 0) img.on_click = sv;
+        else if (std::strcmp(prop, "r") == 0) img.tint.x = nv;
+        else if (std::strcmp(prop, "g") == 0) img.tint.y = nv;
+        else if (std::strcmp(prop, "b") == 0) img.tint.z = nv;
+        else if (std::strcmp(prop, "a") == 0) img.tint.w = nv;
+        return val_nil();
+    }
+    return val_nil();
+}
+
+// ui_get(id, property) -> value — read any UI component property
+static Value native_ui_get(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    const char* prop = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+
+    for (auto& l : gs->script_ui.labels) {
+        if (l.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) return val_number(l.position.x);
+        if (std::strcmp(prop, "y") == 0) return val_number(l.position.y);
+        if (std::strcmp(prop, "scale") == 0) return val_number(l.scale);
+        if (std::strcmp(prop, "text") == 0) return val_string(l.text.c_str());
+        if (std::strcmp(prop, "visible") == 0) return val_bool(l.visible);
+        if (std::strcmp(prop, "opacity") == 0) return val_number(l.opacity);
+        if (std::strcmp(prop, "layer") == 0) return val_number(l.layer);
+        return val_nil();
+    }
+    for (auto& b : gs->script_ui.bars) {
+        if (b.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) return val_number(b.position.x);
+        if (std::strcmp(prop, "y") == 0) return val_number(b.position.y);
+        if (std::strcmp(prop, "value") == 0) return val_number(b.value);
+        if (std::strcmp(prop, "max") == 0) return val_number(b.max_value);
+        if (std::strcmp(prop, "w") == 0) return val_number(b.width);
+        if (std::strcmp(prop, "h") == 0) return val_number(b.height);
+        if (std::strcmp(prop, "visible") == 0) return val_bool(b.visible);
+        return val_nil();
+    }
+    for (auto& p : gs->script_ui.panels) {
+        if (p.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) return val_number(p.position.x);
+        if (std::strcmp(prop, "y") == 0) return val_number(p.position.y);
+        if (std::strcmp(prop, "w") == 0) return val_number(p.width);
+        if (std::strcmp(prop, "h") == 0) return val_number(p.height);
+        if (std::strcmp(prop, "visible") == 0) return val_bool(p.visible);
+        if (std::strcmp(prop, "scale") == 0) return val_number(p.scale);
+        return val_nil();
+    }
+    for (auto& img : gs->script_ui.images) {
+        if (img.id != id) continue;
+        if (std::strcmp(prop, "x") == 0) return val_number(img.position.x);
+        if (std::strcmp(prop, "y") == 0) return val_number(img.position.y);
+        if (std::strcmp(prop, "w") == 0) return val_number(img.width);
+        if (std::strcmp(prop, "h") == 0) return val_number(img.height);
+        if (std::strcmp(prop, "visible") == 0) return val_bool(img.visible);
+        if (std::strcmp(prop, "scale") == 0) return val_number(img.scale);
+        if (std::strcmp(prop, "rotation") == 0) return val_number(img.rotation);
         return val_nil();
     }
     return val_nil();
@@ -1319,6 +1402,113 @@ static Value native_npc_remove(int argc, Value* args) {
     return val_nil();
 }
 
+// ═══════════════ Sprite Manipulation API ═══════════════
+
+// npc_set_scale(name, scale)
+static Value native_npc_set_scale(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc && args[1].type == VAL_NUMBER) npc->sprite_scale = std::max(0.1f, std::min(10.0f, (float)args[1].as.number));
+    return val_nil();
+}
+
+// npc_get_scale(name) -> number
+static Value native_npc_get_scale(int argc, Value* args) {
+    if (argc < 1 || args[0].type != VAL_STRING) return val_number(1);
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    return val_number(npc ? npc->sprite_scale : 1.0f);
+}
+
+// npc_set_tint(name, r, g, b, a)
+static Value native_npc_set_tint(int argc, Value* args) {
+    if (argc < 5 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc) {
+        npc->sprite_tint = {
+            (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 1,
+            (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 1,
+            (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 1,
+            (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 1
+        };
+    }
+    return val_nil();
+}
+
+// npc_set_flip(name, flip_h)
+static Value native_npc_set_flip(int argc, Value* args) {
+    if (argc < 2 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (npc) npc->sprite_flip_h = (args[1].type == VAL_BOOL) ? args[1].as.boolean :
+                                   (args[1].type == VAL_NUMBER && args[1].as.number != 0);
+    return val_nil();
+}
+
+// set_player_scale(scale)
+static Value native_set_player_scale(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER)
+        s_active_engine->game_state_->player_sprite_scale = std::max(0.1f, std::min(10.0f, (float)args[0].as.number));
+    return val_nil();
+}
+
+// get_player_scale() -> number
+static Value native_get_player_scale(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(1);
+    return val_number(s_active_engine->game_state_->player_sprite_scale);
+}
+
+// set_ally_scale(scale)
+static Value native_set_ally_scale(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    if (args[0].type == VAL_NUMBER)
+        s_active_engine->game_state_->ally_sprite_scale = std::max(0.1f, std::min(10.0f, (float)args[0].as.number));
+    return val_nil();
+}
+
+// set_object_scale(x, y, scale) — set scale of nearest object to (x,y)
+static Value native_set_object_scale(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float scale = (args[2].type == VAL_NUMBER) ? std::max(0.1f, std::min(10.0f, (float)args[2].as.number)) : 1.0f;
+    float best_dist = 48.0f;
+    int best_idx = -1;
+    for (int i = 0; i < (int)gs->world_objects.size(); i++) {
+        float dx = gs->world_objects[i].position.x - x;
+        float dy = gs->world_objects[i].position.y - y;
+        float d = dx*dx + dy*dy;
+        if (d < best_dist*best_dist) { best_dist = std::sqrt(d); best_idx = i; }
+    }
+    if (best_idx >= 0) gs->world_objects[best_idx].scale = scale;
+    return val_nil();
+}
+
+// set_object_tint(x, y, r, g, b, a)
+static Value native_set_object_tint(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 6) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    float x = (args[0].type == VAL_NUMBER) ? (float)args[0].as.number : 0;
+    float y = (args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0;
+    float best_dist = 48.0f;
+    int best_idx = -1;
+    for (int i = 0; i < (int)gs->world_objects.size(); i++) {
+        float dx = gs->world_objects[i].position.x - x;
+        float dy = gs->world_objects[i].position.y - y;
+        float d = std::sqrt(dx*dx + dy*dy);
+        if (d < best_dist) { best_dist = d; best_idx = i; }
+    }
+    if (best_idx >= 0) {
+        gs->world_objects[best_idx].tint = {
+            (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 1,
+            (args[3].type == VAL_NUMBER) ? (float)args[3].as.number : 1,
+            (args[4].type == VAL_NUMBER) ? (float)args[4].as.number : 1,
+            (args[5].type == VAL_NUMBER) ? (float)args[5].as.number : 1
+        };
+    }
+    return val_nil();
+}
+
 // ═══════════════ Screen Effects API ═══════════════
 
 static Value native_screen_shake(int argc, Value* args) {
@@ -1360,7 +1550,63 @@ static Value native_get_tile(int argc, Value* args) {
     int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
     int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
     int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
-    return val_number(map.tile_at(layer, tx, ty));
+    return val_number(eb::tile_id(map.tile_at(layer, tx, ty)));
+}
+
+// get_tile_rotation(layer, tx, ty) -> 0-3 (0=0°, 1=90°, 2=180°, 3=270°)
+static Value native_get_tile_rotation(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_number(0);
+    auto& map = s_active_engine->game_state_->tile_map;
+    int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    return val_number(eb::tile_rotation(map.tile_at(layer, tx, ty)));
+}
+
+// set_tile_rotation(layer, tx, ty, rotation) — rotation: 0-3
+static Value native_set_tile_rotation(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    auto& map = s_active_engine->game_state_->tile_map;
+    int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    int rot = (args[3].type == VAL_NUMBER) ? ((int)args[3].as.number & 3) : 0;
+    int raw = map.tile_at(layer, tx, ty);
+    int id = eb::tile_id(raw);
+    bool fh = eb::tile_flip_h(raw), fv = eb::tile_flip_v(raw);
+    map.set_tile(layer, tx, ty, eb::make_tile(id, rot, fh, fv));
+    return val_nil();
+}
+
+// set_tile_flip(layer, tx, ty, flip_h, flip_v)
+static Value native_set_tile_flip(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 5) return val_nil();
+    auto& map = s_active_engine->game_state_->tile_map;
+    int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    bool fh = (args[3].type == VAL_BOOL) ? args[3].as.boolean : (args[3].type == VAL_NUMBER && args[3].as.number != 0);
+    bool fv = (args[4].type == VAL_BOOL) ? args[4].as.boolean : (args[4].type == VAL_NUMBER && args[4].as.number != 0);
+    int raw = map.tile_at(layer, tx, ty);
+    int id = eb::tile_id(raw);
+    int rot = eb::tile_rotation(raw);
+    map.set_tile(layer, tx, ty, eb::make_tile(id, rot, fh, fv));
+    return val_nil();
+}
+
+// set_tile_ex(layer, tx, ty, tile_id, rotation, flip_h, flip_v) — full control
+static Value native_set_tile_ex(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
+    auto& map = s_active_engine->game_state_->tile_map;
+    int layer = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int tx = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    int ty = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    int id = (args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    int rot = (argc > 4 && args[4].type == VAL_NUMBER) ? ((int)args[4].as.number & 3) : 0;
+    bool fh = (argc > 5) && ((args[5].type == VAL_BOOL) ? args[5].as.boolean : (args[5].type == VAL_NUMBER && args[5].as.number != 0));
+    bool fv = (argc > 6) && ((args[6].type == VAL_BOOL) ? args[6].as.boolean : (args[6].type == VAL_NUMBER && args[6].as.number != 0));
+    map.set_tile(layer, tx, ty, eb::make_tile(id, rot, fh, fv));
+    return val_nil();
 }
 
 static Value native_is_solid(int argc, Value* args) {
@@ -1607,6 +1853,36 @@ static Value native_level_get_npc_count(int argc, Value* args) {
     return val_number(0);
 }
 
+// set_level_zoom(id, zoom) — set per-level camera zoom (applied on switch)
+static Value native_set_level_zoom(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_nil();
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float zoom = (args[1].type == VAL_NUMBER) ? std::max(0.25f, std::min(8.0f, (float)args[1].as.number)) : 1.0f;
+    auto it = gs->level_manager->levels.find(id);
+    if (it != gs->level_manager->levels.end()) {
+        it->second.zoom = zoom;
+    }
+    // If setting zoom for active level, apply immediately
+    if (id == gs->level_manager->active_level) {
+        float base_w = gs->hud.screen_w, base_h = gs->hud.screen_h;
+        gs->camera.set_viewport(base_w / zoom, base_h / zoom);
+    }
+    return val_nil();
+}
+
+// get_level_zoom(id) -> number
+static Value native_get_level_zoom(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_number(1);
+    auto* gs = s_active_engine->game_state_;
+    if (!gs->level_manager) return val_number(1);
+    std::string id = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    auto it = gs->level_manager->levels.find(id);
+    if (it != gs->level_manager->levels.end()) return val_number(it->second.zoom);
+    return val_number(1);
+}
+
 // ═══════════════ ScriptEngine Implementation ═══════════════
 
 ScriptEngine::ScriptEngine() {
@@ -1744,6 +2020,7 @@ void ScriptEngine::register_ui_api() {
     env_define(env_, "ui_panel", 8, val_native(native_ui_panel));
     env_define(env_, "ui_image", 8, val_native(native_ui_image));
     env_define(env_, "ui_set", 6, val_native(native_ui_set));
+    env_define(env_, "ui_get", 6, val_native(native_ui_get));
     env_define(env_, "hud_set", 7, val_native(native_hud_set));
     env_define(env_, "hud_get", 7, val_native(native_hud_get));
     std::printf("[ScriptEngine] UI API registered\n");
@@ -1896,6 +2173,8 @@ void ScriptEngine::register_map_api() {
     env_define(env_, "clear_loot", 10, val_native(native_clear_loot));
     env_define(env_, "npc_set_despawn_day", 19, val_native(native_npc_set_despawn_day));
     env_define(env_, "npc_set_loot", 12, val_native(native_npc_set_loot));
+    env_define(env_, "set_object_scale", 16, val_native(native_set_object_scale));
+    env_define(env_, "set_object_tint", 15, val_native(native_set_object_tint));
     std::printf("[ScriptEngine] Map API registered\n");
 }
 
@@ -2012,6 +2291,10 @@ void ScriptEngine::register_player_api() {
     env_define(env_, "get_ally_hp", 11, val_native(native_get_ally_hp));
     env_define(env_, "set_ally_hp", 11, val_native(native_set_ally_hp));
     env_define(env_, "get_ally_atk", 12, val_native(native_get_ally_atk));
+    // Sprite scale
+    env_define(env_, "set_player_scale", 16, val_native(native_set_player_scale));
+    env_define(env_, "get_player_scale", 16, val_native(native_get_player_scale));
+    env_define(env_, "set_ally_scale", 14, val_native(native_set_ally_scale));
     std::printf("[ScriptEngine] Player API registered\n");
 }
 
@@ -2065,6 +2348,11 @@ void ScriptEngine::register_npc_runtime_api() {
     env_define(env_, "npc_count", 9, val_native(native_npc_count));
     env_define(env_, "npc_exists", 10, val_native(native_npc_exists));
     env_define(env_, "npc_remove", 10, val_native(native_npc_remove));
+    // Sprite manipulation
+    env_define(env_, "npc_set_scale", 13, val_native(native_npc_set_scale));
+    env_define(env_, "npc_get_scale", 13, val_native(native_npc_get_scale));
+    env_define(env_, "npc_set_tint", 12, val_native(native_npc_set_tint));
+    env_define(env_, "npc_set_flip", 12, val_native(native_npc_set_flip));
     std::printf("[ScriptEngine] NPC Runtime API registered\n");
 }
 
@@ -2079,6 +2367,10 @@ void ScriptEngine::register_effects_api() {
 void ScriptEngine::register_tilemap_api() {
     if (!env_) return;
     env_define(env_, "get_tile", 8, val_native(native_get_tile));
+    env_define(env_, "get_tile_rotation", 17, val_native(native_get_tile_rotation));
+    env_define(env_, "set_tile_rotation", 17, val_native(native_set_tile_rotation));
+    env_define(env_, "set_tile_flip", 13, val_native(native_set_tile_flip));
+    env_define(env_, "set_tile_ex", 11, val_native(native_set_tile_ex));
     env_define(env_, "is_solid", 8, val_native(native_is_solid));
     env_define(env_, "is_solid_world", 14, val_native(native_is_solid_world));
     env_define(env_, "get_map_width", 13, val_native(native_get_map_width));
@@ -2130,6 +2422,8 @@ void ScriptEngine::register_level_api() {
     env_define(env_, "get_level_count", 15, val_native(native_get_level_count));
     env_define(env_, "set_level_spawn", 15, val_native(native_set_level_spawn));
     env_define(env_, "level_get_npc_count", 19, val_native(native_level_get_npc_count));
+    env_define(env_, "set_level_zoom", 14, val_native(native_set_level_zoom));
+    env_define(env_, "get_level_zoom", 14, val_native(native_get_level_zoom));
     std::printf("[ScriptEngine] Level API registered\n");
 }
 

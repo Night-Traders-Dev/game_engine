@@ -10,6 +10,26 @@ class SpriteBatch;
 class TextureAtlas;
 class Camera;
 
+// Tile rotation encoding — stored in upper bits of tile ID
+// Bits 0-23:  tile ID (supports up to 16M tiles)
+// Bits 24-25: rotation (0=0°, 1=90°CW, 2=180°, 3=270°CW)
+// Bit 26:     flip horizontal
+// Bit 27:     flip vertical
+static constexpr int TILE_ID_MASK   = 0x00FFFFFF;
+static constexpr int TILE_ROT_SHIFT = 24;
+static constexpr int TILE_ROT_MASK  = 0x03000000;  // 2 bits for rotation
+static constexpr int TILE_FLIP_H    = 0x04000000;  // Bit 26
+static constexpr int TILE_FLIP_V    = 0x08000000;  // Bit 27
+
+inline int tile_id(int raw)       { return raw & TILE_ID_MASK; }
+inline int tile_rotation(int raw) { return (raw & TILE_ROT_MASK) >> TILE_ROT_SHIFT; }  // 0-3
+inline bool tile_flip_h(int raw)  { return (raw & TILE_FLIP_H) != 0; }
+inline bool tile_flip_v(int raw)  { return (raw & TILE_FLIP_V) != 0; }
+inline int make_tile(int id, int rot = 0, bool fh = false, bool fv = false) {
+    return (id & TILE_ID_MASK) | ((rot & 3) << TILE_ROT_SHIFT)
+           | (fh ? TILE_FLIP_H : 0) | (fv ? TILE_FLIP_V : 0);
+}
+
 // Collision types for each tile
 enum class CollisionType : uint8_t {
     None = 0,     // Passable
@@ -78,7 +98,7 @@ public:
     int tile_size() const { return tile_size_; }
     float world_width() const { return static_cast<float>(width_ * tile_size_); }
     float world_height() const { return static_cast<float>(height_ * tile_size_); }
-    int tile_at(int layer, int x, int y) const;
+    int tile_at(int layer, int x, int y) const;  // Returns raw value (use tile_id() to extract ID)
     int layer_count() const { return static_cast<int>(layers_.size()); }
     std::vector<TileLayer>& layers() { return layers_; }
     const std::vector<TileLayer>& layers() const { return layers_; }

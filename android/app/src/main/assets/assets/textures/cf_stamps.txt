@@ -27,3 +27,14 @@ Pig|544|288|32|32|misc
 Sheep|576|288|32|32|misc
 Skeleton|608|288|32|32|misc
 Slime|0|384|32|32|misc
+Table|0|544|64|64|misc
+Bed|64|544|64|64|misc
+Chair|128|544|64|64|misc
+Chest|192|544|64|64|misc
+Cabinet|256|544|64|64|misc
+Fireplace|320|544|32|64|misc
+Torch|352|544|64|64|misc
+LPC Barrel|416|544|64|64|misc
+Cauldron|480|544|32|64|misc
+Curtains|512|544|64|64|misc
+Painting|576|544|64|64|misc

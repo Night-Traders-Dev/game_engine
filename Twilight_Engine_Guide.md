@@ -2394,15 +2394,96 @@ The test script at `assets/scripts/tests/test_all.sage` defines a `run_all_tests
 | Dialogue | `set_dialogue_speed`, `set_dialogue_scale` |
 | Battle Ext | `start_battle`, `is_in_battle`, `set_xp_formula` |
 | Renderer | `set_clear_color` |
-| Level API | `load_level`, `switch_level`, `get_active_level`, `is_level_loaded`, `get_level_count` |
+| Level API | `load_level`, `switch_level`, `get_active_level`, `is_level_loaded`, `get_level_count`, `set_level_zoom`, `get_level_zoom` |
+| Sprite API | `npc_set_scale`, `npc_get_scale`, `npc_set_tint`, `npc_set_flip`, `set_player_scale`, `set_ally_scale`, `set_object_scale`, `set_object_tint` |
+| Tile Rotation | `set_tile_rotation`, `get_tile_rotation`, `set_tile_flip`, `set_tile_ex` |
+| UI Extended | `ui_get` (read any component property back) |
 
 ### Adding New Tests
 
 1. Open `assets/scripts/tests/test_all.sage`
 2. Add assertions using `assert_true(condition, "description")`
-3. Group related tests under a logged header: `info("=== Module Name ===")`
-4. The test runner counts passes/failures and reports a summary
+3. Group related tests under a logged header: `log("Testing: Module Name")`
+4. The test runner counts errors in the debug log and reports a summary
 
 ---
 
-*Twilight Engine v1.1.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui*
+## v1.2–1.3 New Features
+
+### String-Keyed Atlas Cache
+
+NPC texture atlases are now stored in a shared cache keyed by texture path (`atlas_cache` / `atlas_descs` in GameState). This replaces the old integer-indexed `npc_atlases` vector. Benefits:
+
+- Atlases shared across levels (same skeleton texture loaded once, used everywhere)
+- Automatic lifetime via `shared_ptr` — freed when no level references the texture
+- No more unbounded vector growth on level switches
+- NPCs now have `sprite_atlas_key` (string) in addition to legacy `sprite_atlas_id` (int)
+
+### Per-Sprite Scaling, Tinting, and Flipping
+
+Every NPC, world object, player, and ally can have independent visual properties:
+
+```sage
+npc_set_scale("Boss", 3.0)              # 3x size
+npc_set_tint("Ghost", 0.5, 0.5, 1, 0.4) # Blue, semi-transparent
+npc_set_flip("Guard", true)              # Mirror horizontally
+set_player_scale(0.7)                    # Shrink for interiors
+set_object_scale(400, 300, 2.0)          # Scale up a house object
+```
+
+Scale is applied at render time by multiplying the base sprite dimensions. Tint is passed as a color parameter to `draw_sorted()`. Flip swaps UV X coordinates.
+
+### Tile Rotation System
+
+Tiles support per-tile rotation (0°/90°/180°/270°) and horizontal/vertical flip:
+
+- **Storage**: Encoded in upper bits of the tile ID (bits 24-27)
+- **Rendering**: UV coordinates are remapped at render time
+- **Editor**: Press R to cycle rotation, Shift+R to toggle flip
+- **Persistence**: Rotation bits are stored in the tile data array in JSON — no extra storage needed
+
+```sage
+set_tile_rotation(0, 5, 3, 1)                    # 90° CW
+set_tile_ex(0, 10, 5, 73, 2, true, false)         # 180° + flip H
+```
+
+### Per-Level Zoom
+
+Each level can specify a camera zoom that auto-applies on switch:
+
+```sage
+set_level_zoom("house_inside.json", 2.0)  # Close-up interior
+set_level_zoom("overworld.json", 1.0)     # Wide view
+```
+
+### Level Selector in Pause Menu
+
+The pause menu now has 6 items: Resume, Editor, **Levels**, Reset, Settings, Quit. Selecting "Levels" opens a sub-menu listing all loaded levels with keyboard/mouse navigation.
+
+### Expanded UI Component Properties
+
+All UI components now support: `opacity`, `layer` (z-order), `rotation` (labels/images), `scale` (panels/images), `flip_h`/`flip_v` (images), `on_click` callback (labels/panels/images), `show_text` (bars). The new `ui_get(id, property)` function reads any property back.
+
+### Asset Pipeline
+
+`tools/scale_assets.py` generates pixel-perfect 2x/3x versions of all textures using nearest-neighbor scaling. Also generates scaled `cf_stamps.txt` files.
+
+### Security Hardening (v1.2)
+
+- Path traversal sanitization on all script file operations
+- File size validation (max 256MB)
+- Vulkan descriptor pool exhaustion protection
+- VkCommandBuffer cleanup in renderer destructor
+- Value clamping on volumes, shake, day_speed
+- Windows realpath buffer overflow fix
+- Android thread-safe platform state (`std::atomic`)
+- Flag storage upgraded from O(n) vector to O(1) `unordered_map`
+
+### Performance Improvements (v1.2)
+
+- NPC separation uses spatial hash grid (O(n) vs O(n²))
+- Pause menu item IDs pre-cached (no per-frame string allocation)
+
+---
+
+Twilight Engine v1.3.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui

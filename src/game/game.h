@@ -72,6 +72,8 @@ struct ObjectStamp {
 struct WorldObject {
     int sprite_id;
     eb::Vec2 position;
+    float scale = 1.0f;            // Render scale multiplier
+    eb::Vec4 tint = {1,1,1,1};     // Color tint/alpha
 };
 
 struct ObjectDef {
@@ -195,6 +197,10 @@ struct ScriptUILabel {
     eb::Vec2 position;
     eb::Vec4 color = {1,1,1,1};
     float scale = 0.7f;
+    float rotation = 0.0f;         // Rotation in degrees
+    float opacity = 1.0f;          // Independent opacity (multiplied with color.w)
+    int layer = 0;                 // Z-order layer (higher = on top)
+    std::string on_click;          // SageLang callback function name
     bool visible = true;
 };
 struct ScriptUIBar {
@@ -204,6 +210,10 @@ struct ScriptUIBar {
     float width = 100, height = 12;
     eb::Vec4 color = {0.2f, 0.8f, 0.2f, 1.0f};
     eb::Vec4 bg_color = {0.15f, 0.15f, 0.15f, 0.8f};
+    float border_radius = 0.0f;    // Rounded corners (visual hint)
+    float opacity = 1.0f;
+    int layer = 0;
+    bool show_text = false;        // Show "value/max" text overlay
     bool visible = true;
 };
 struct ScriptUIPanel {
@@ -212,6 +222,10 @@ struct ScriptUIPanel {
     float width = 100, height = 60;
     std::string sprite_region;  // UI atlas region name (e.g. "panel_hud_wide")
     eb::Vec4 color = {1,1,1,1}; // Tint / fallback color
+    float opacity = 1.0f;
+    float scale = 1.0f;           // Panel scale (for animations)
+    int layer = 0;
+    std::string on_click;
     bool visible = true;
 };
 struct ScriptUIImage {
@@ -220,11 +234,19 @@ struct ScriptUIImage {
     float width = 32, height = 32;
     std::string icon_name;  // UI atlas region name (e.g. "icon_sword")
     eb::Vec4 tint = {1,1,1,1};
+    float rotation = 0.0f;
+    float opacity = 1.0f;
+    float scale = 1.0f;
+    bool flip_h = false;
+    bool flip_v = false;
+    int layer = 0;
+    std::string on_click;
     bool visible = true;
 };
 struct ScriptUINotification {
     std::string text;
     float duration = 3.0f, timer = 0.0f;
+    eb::Vec4 color = {1, 1, 1, 1};
 };
 struct ScriptUI {
     std::vector<ScriptUILabel> labels;
@@ -288,6 +310,11 @@ struct NPC {
     bool aggro_active = false, has_triggered = false;
     bool despawn_at_day = false;  // Remove when day starts
     std::string loot_func;       // SageLang function called on death to spawn drops
+
+    // Per-sprite visual properties (script-controllable)
+    float sprite_scale = 1.0f;   // Render scale (1.0 = default, 2.0 = double size)
+    eb::Vec4 sprite_tint = {1,1,1,1}; // Color tint/alpha
+    bool sprite_flip_h = false;  // Horizontal flip
 
     // Pathfinding
     std::vector<PathNode> current_path;
@@ -449,6 +476,10 @@ struct GameState {
     int player_level = 1, player_xp = 0;
     int sam_hp = 90, sam_hp_max = 90, sam_atk = 15;
 
+    // Per-sprite visual properties (player + party)
+    float player_sprite_scale = 1.0f;
+    float ally_sprite_scale = 1.0f;
+
     // Character stats
     CharacterStats player_stats;
     CharacterStats ally_stats;
@@ -517,10 +548,14 @@ struct GameState {
 
     // Pause menu
     bool paused = false;
-    int pause_selection = 0;  // 0=Resume, 1=Editor, 2=Reset, 3=Settings, 4=Quit
+    int pause_selection = 0;  // 0=Resume, 1=Editor, 2=Levels, 3=Reset, 4=Settings, 5=Quit
     bool pause_request_editor = false;
     bool pause_request_reset = false;
     bool pause_request_quit = false;
+    // Level selector sub-menu
+    bool level_select_open = false;
+    int level_select_cursor = 0;
+    std::vector<std::string> level_select_ids;  // Cached level IDs for selector
 
     // Level system
     std::unique_ptr<eb::LevelManager> level_manager;

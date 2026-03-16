@@ -113,6 +113,27 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // Load default map from manifest (must happen after scripts are loaded)
+        if (!manifest.default_map.empty() && game.level_manager) {
+            std::printf("[Main] Loading default map: %s\n", manifest.default_map.c_str());
+            if (load_map_file(game, engine.renderer(), manifest.default_map)) {
+                game.camera.set_bounds(0, 0, game.tile_map.world_width(), game.tile_map.world_height());
+                game.camera.center_on(game.player_pos);
+                // Register as active level
+                std::string level_id = manifest.default_map;
+                auto slash = level_id.rfind('/');
+                if (slash != std::string::npos) level_id = level_id.substr(slash + 1);
+                game.level_manager->active_level = level_id;
+                eb::Level lvl;
+                lvl.id = level_id;
+                lvl.map_path = manifest.default_map;
+                lvl.loaded = true;
+                lvl.script_executed = true;
+                game.level_manager->levels[level_id] = std::move(lvl);
+                game.level_manager->save_active_to_level(game);
+            }
+        }
+
         // Execute map_init if it was defined by any loaded script (e.g. maps/default.sage)
         if (script_engine.has_function("map_init")) {
             script_engine.call_function("map_init");

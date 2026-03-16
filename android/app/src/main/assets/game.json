@@ -112,5 +112,5 @@
     "battle": "assets/audio/battle.wav"
   },
 
-  "default_map": ""
+  "default_map": "assets/maps/forest.json"
 }

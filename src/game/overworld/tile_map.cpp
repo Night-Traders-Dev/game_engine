@@ -127,34 +127,62 @@ void TileMap::render(SpriteBatch& batch, const Camera& camera, float time) const
     for (const auto& layer : layers_) {
         for (int y = start_y; y < end_y; y++) {
             for (int x = start_x; x < end_x; x++) {
-                int tile_id = layer.data[y * width_ + x];
-                if (tile_id <= 0) continue;
+                int raw = layer.data[y * width_ + x];
+                int tid = eb::tile_id(raw);
+                if (tid <= 0) continue;
 
-                auto region = tileset_->region(tile_id - 1);
+                auto region = tileset_->region(tid - 1);
+
+                // Apply rotation/flip to UV coordinates
+                int rot = eb::tile_rotation(raw);
+                bool fh = eb::tile_flip_h(raw);
+                bool fv = eb::tile_flip_v(raw);
+                if (rot != 0 || fh || fv) {
+                    // Get the four UV corners: TL, TR, BR, BL
+                    float u0 = region.uv_min.x, v0 = region.uv_min.y;
+                    float u1 = region.uv_max.x, v1 = region.uv_max.y;
+                    // Apply flips first
+                    if (fh) std::swap(u0, u1);
+                    if (fv) std::swap(v0, v1);
+                    // Apply rotation (by swapping UV corners)
+                    // Rotation is done by remapping which UV corner maps to which quad corner
+                    // For draw_quad(uv_min, uv_max), we swap axes for 90/270
+                    if (rot == 1) { // 90° CW: swap axes, flip new X
+                        region.uv_min = {v0, u0};
+                        region.uv_max = {v1, u1};
+                        std::swap(region.uv_min.y, region.uv_max.y);
+                    } else if (rot == 2) { // 180°: flip both
+                        region.uv_min = {u1, v1};
+                        region.uv_max = {u0, v0};
+                    } else if (rot == 3) { // 270° CW: swap axes, flip new Y
+                        region.uv_min = {v0, u0};
+                        region.uv_max = {v1, u1};
+                        std::swap(region.uv_min.x, region.uv_max.x);
+                    } else {
+                        region.uv_min = {u0, v0};
+                        region.uv_max = {u1, v1};
+                    }
+                }
 
                 Vec2 pos = {x * ts, y * ts};
                 Vec2 size = {ts, ts};
 
                 bool is_animated = (animated_first_ >= 0 &&
-                                    tile_id >= animated_first_ &&
-                                    tile_id <= animated_last_);
+                                    tid >= animated_first_ &&
+                                    tid <= animated_last_);
 
                 if (is_animated && time > 0.0f) {
-                    // Wave effect: offset position and shimmer color
                     float phase = x * 0.8f + y * 1.2f + time * 2.5f;
                     float wave_y = std::sin(phase) * 1.5f;
                     float wave_x = std::cos(phase * 0.7f + 0.5f) * 0.8f;
                     pos.y += wave_y;
                     pos.x += wave_x;
 
-                    // UV distortion for ripple effect
                     float uv_w = region.uv_max.x - region.uv_min.x;
-                    float uv_h = region.uv_max.y - region.uv_min.y;
                     float uv_off = std::sin(time * 1.8f + x * 1.5f) * uv_w * 0.06f;
                     region.uv_min.x += uv_off;
                     region.uv_max.x += uv_off;
 
-                    // Color shimmer
                     float shimmer = 0.85f + 0.15f * std::sin(time * 3.0f + x * 0.9f + y * 1.1f);
                     Vec4 color = {shimmer * 0.8f, shimmer * 0.9f, shimmer, 1.0f};
                     batch.draw_quad(pos, size, region.uv_min, region.uv_max, color);

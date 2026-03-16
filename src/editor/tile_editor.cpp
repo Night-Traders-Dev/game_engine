@@ -527,7 +527,15 @@ void TileEditor::handle_shortcuts(const InputState& input) {
     if (input.key_pressed(GLFW_KEY_E) && !input.mods.ctrl) { tool_ = EditorTool::Erase; set_status("Erase"); }
     if (input.key_pressed(GLFW_KEY_F)) { tool_ = EditorTool::Fill; set_status("Fill"); }
     if (input.key_pressed(GLFW_KEY_I)) { tool_ = EditorTool::Eyedrop; set_status("Eyedrop"); }
-    if (input.key_pressed(GLFW_KEY_R)) { tool_ = EditorTool::Select; set_status("Select"); }
+    if (input.key_pressed(GLFW_KEY_R) && !input.mods.ctrl && !input.mods.shift) {
+        tile_rotation_ = (tile_rotation_ + 1) & 3;
+        const char* rot_names[] = {"0°", "90°", "180°", "270°"};
+        set_status(std::string("Rotation: ") + rot_names[tile_rotation_]);
+    }
+    if (input.key_pressed(GLFW_KEY_R) && input.mods.shift) {
+        tile_flip_h_ = !tile_flip_h_;
+        set_status(tile_flip_h_ ? "Flip H: ON" : "Flip H: OFF");
+    }
     if (input.key_pressed(GLFW_KEY_C) && !input.mods.ctrl) { tool_ = EditorTool::Collision; set_status("Collision"); }
     if (input.key_pressed(GLFW_KEY_L) && !input.mods.ctrl) { tool_ = EditorTool::Line; set_status("Line"); }
     if (input.key_pressed(GLFW_KEY_B)) { tool_ = EditorTool::Rect; set_status("Rectangle"); }
@@ -636,8 +644,20 @@ void TileEditor::handle_map_click(float mx, float my, const Camera& camera, bool
             }
             break;
         case EditorTool::Erase: erase_tile(tile.x, tile.y); break;
-        case EditorTool::Fill: if (!is_drag) { begin_action("fill"); flood_fill(tile.x, tile.y, selected_tile_); commit_action(); } break;
-        case EditorTool::Eyedrop: if (!is_drag) { int p = map_->tile_at(active_layer_, tile.x, tile.y); if (p > 0) { selected_tile_ = p; tool_ = EditorTool::Paint; set_status("Picked " + std::to_string(p)); } } break;
+        case EditorTool::Fill: if (!is_drag) { begin_action("fill"); flood_fill(tile.x, tile.y, eb::make_tile(selected_tile_, tile_rotation_, tile_flip_h_, tile_flip_v_)); commit_action(); } break;
+        case EditorTool::Eyedrop: if (!is_drag) {
+            int raw = map_->tile_at(active_layer_, tile.x, tile.y);
+            int tid = eb::tile_id(raw);
+            if (tid > 0) {
+                selected_tile_ = tid;
+                tile_rotation_ = eb::tile_rotation(raw);
+                tile_flip_h_ = eb::tile_flip_h(raw);
+                tile_flip_v_ = eb::tile_flip_v(raw);
+                tool_ = EditorTool::Paint;
+                const char* rot_names[] = {"0°", "90°", "180°", "270°"};
+                set_status("Picked " + std::to_string(tid) + " rot:" + rot_names[tile_rotation_]);
+            }
+        } break;
         case EditorTool::Select:
             if (!is_drag) { selection_.x1 = tile.x; selection_.y1 = tile.y; selection_.x2 = tile.x; selection_.y2 = tile.y; selection_.active = true; }
             else { selection_.x2 = tile.x; selection_.y2 = tile.y; }
@@ -728,14 +748,16 @@ void TileEditor::paint_tile(int tx, int ty) {
     if (!map_ || active_layer_ < 0 || active_layer_ >= map_->layer_count()) return;
     int w = map_->width(), h = map_->height();
     int half = (brush_size_ - 1) / 2;
+    // Encode rotation/flip into the tile value
+    int paint_val = eb::make_tile(selected_tile_, tile_rotation_, tile_flip_h_, tile_flip_v_);
     for (int dy = -half; dy <= half; dy++) {
         for (int dx = -half; dx <= half; dx++) {
             int bx = tx + dx, by = ty + dy;
             if (bx < 0 || bx >= w || by < 0 || by >= h) continue;
             int old_t = map_->tile_at(active_layer_, bx, by);
-            if (old_t != selected_tile_) {
-                record_tile_change(active_layer_, bx, by, old_t, selected_tile_);
-                map_->set_tile(active_layer_, bx, by, selected_tile_);
+            if (old_t != paint_val) {
+                record_tile_change(active_layer_, bx, by, old_t, paint_val);
+                map_->set_tile(active_layer_, bx, by, paint_val);
             }
         }
     }
