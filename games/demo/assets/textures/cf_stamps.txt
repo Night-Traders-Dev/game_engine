@@ -27,14 +27,36 @@ Pig|544|288|32|32|misc
 Sheep|576|288|32|32|misc
 Skeleton|608|288|32|32|misc
 Slime|0|384|32|32|misc
-Table|0|544|64|64|furniture
-Bed|64|544|64|64|furniture
-Chair|128|544|64|64|furniture
-Chest|192|544|64|64|furniture
-Cabinet|256|544|64|64|furniture
-Fireplace|320|544|32|64|furniture
-Torch|352|544|64|64|furniture
-LPC Barrel|416|544|64|64|furniture
-Cauldron|480|544|32|64|furniture
-Curtains|512|544|64|64|furniture
-Painting|576|544|64|64|furniture
+Table|0|736|64|64|furniture
+Bed|64|736|64|64|furniture
+Chair|128|736|64|64|furniture
+Chest|192|736|64|64|furniture
+Cabinet|256|736|64|64|furniture
+Fireplace|320|736|32|64|furniture
+Torch|352|736|64|64|furniture
+LPC Barrel|416|736|64|64|furniture
+Cauldron|480|736|32|64|furniture
+Curtains|512|736|64|64|furniture
+Painting|576|736|64|64|furniture
+Knight|0|800|32|32|character
+Mage_R|36|800|32|32|character
+Archer|72|800|32|32|character
+Rogue|108|800|32|32|character
+Assassin|144|800|32|32|character
+Ninja|180|800|32|32|character
+Lancer|216|800|32|32|character
+Dragoon|252|800|32|32|character
+Cleric|288|800|32|32|character
+Monk|324|800|32|32|character
+Warrior|360|800|32|32|character
+Paladin|396|800|32|32|character
+Apple|432|800|32|32|misc
+Carrot_F|468|800|32|32|misc
+Wheat_F|504|800|32|32|misc
+Fruit Crate|540|800|64|32|misc
+Hay_F|0|864|64|64|misc
+Mushroom|68|864|32|32|misc
+Skeleton_U|104|864|32|32|misc
+Golem|140|864|32|32|misc
+Ice Elemental|176|864|32|32|misc
+Chest_U|212|864|32|32|misc

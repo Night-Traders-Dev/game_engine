@@ -99,4 +99,9 @@ proc forest_init():
     set_clear_color(0.02, 0.04, 0.02)
     set_day_speed(6)
 
+    # ── Weather: cloudy forest with god rays by default ──
+    set_clouds(true, 0.4, 15, 60)
+    set_god_rays(true, 0.2, 4)
+    set_wind(0.2, 30)
+
     log("Forest ready")

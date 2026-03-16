@@ -73,6 +73,10 @@ int main(int argc, char* argv[]) {
         game.hud.native_w = game.hud.screen_w;
         game.hud.native_h = game.hud.screen_h;
 
+        // Set renderer/resource pointers early (needed for runtime sprite loading in scripts)
+        game.renderer = &engine.renderer();
+        game.resource_manager = &engine.resources();
+
         // ─── SageLang scripting engine ───
         eb::ScriptEngine script_engine;
         script_engine.set_game_state(&game);
@@ -159,7 +163,6 @@ int main(int argc, char* argv[]) {
         // ─── Audio engine ───
         eb::AudioEngine audio;
         game.audio_engine = &audio;
-        game.renderer = &engine.renderer();
         if (audio.is_initialized() && !manifest.audio.overworld.empty()) {
             audio.set_music_volume(0.5f);
             audio.play_music(manifest.audio.overworld, true);

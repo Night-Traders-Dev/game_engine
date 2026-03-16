@@ -873,6 +873,78 @@ proc map_init():
 
 ---
 
+## Weather System
+
+Full weather control with particles, lighting effects, and atmospheric overlays.
+
+### Quick Presets
+
+| Function | Description |
+|----------|-------------|
+| `set_weather(type, intensity)` | Set weather preset (0.0-1.0 intensity) |
+| `get_weather()` | Returns current type: `"clear"`, `"rain"`, `"storm"`, `"snow"`, `"fog"`, `"cloudy"` |
+
+**Types:** `"clear"`, `"rain"`, `"storm"` (rain+lightning+wind), `"snow"`, `"fog"`, `"cloudy"` (clouds+god rays)
+
+```sage
+set_weather("storm", 0.9)    # Thunderstorm
+set_weather("snow", 0.5)     # Gentle snowfall
+set_weather("cloudy", 0.7)   # Overcast with god rays
+set_weather("clear")         # Reset everything
+```
+
+### Individual Controls
+
+| Function | Description |
+|----------|-------------|
+| `set_rain(active, intensity)` | Rain particles (0.0-1.0) |
+| `set_snow(active, intensity)` | Snow flakes (0.0-1.0) |
+| `set_lightning(active, interval, chance)` | Lightning bolts (seconds between, probability 0-1) |
+| `set_clouds(active, density, speed, direction)` | Cloud shadows (density 0-1, speed px/s, direction degrees) |
+| `set_god_rays(active, intensity, count)` | Light beams through clouds |
+| `set_fog(active, density, r, g, b)` | Fog overlay with custom color |
+| `set_wind(strength, direction)` | Wind affects rain angle, snow drift, clouds (0-1, degrees) |
+| `set_rain_color(r, g, b, a)` | Custom rain color |
+| `is_raining()` | Check if rain active |
+| `is_snowing()` | Check if snow active |
+
+```sage
+# Custom storm with colored rain
+set_rain(true, 0.7)
+set_rain_color(0.5, 0.6, 1.0, 0.4)  # Blue-tinted rain
+set_lightning(true, 5, 0.6)           # Every 5s, 60% chance
+set_clouds(true, 0.6, 25, 45)         # Dense clouds moving NE
+set_wind(0.5, 30)                     # Moderate wind
+set_fog(true, 0.2, 0.3, 0.3, 0.4)   # Light dark fog
+
+# Blood rain (horror)
+set_rain(true, 0.6)
+set_rain_color(0.8, 0.1, 0.1, 0.5)
+
+# Blizzard
+set_snow(true, 1.0)
+set_wind(0.8, 60)
+set_fog(true, 0.5, 0.9, 0.9, 0.95)
+
+# Volcanic ash
+set_snow(true, 0.4)
+set_fog(true, 0.3, 0.4, 0.35, 0.3)
+
+# Dynamic weather based on time
+proc check_weather():
+    let h = get_hour()
+    if h >= 5 and h < 8:
+        set_fog(true, 0.4)
+        set_god_rays(true, 0.3, 4)
+    elif h >= 19:
+        if random(1, 10) > 7:
+            set_weather("rain", 0.4)
+```
+
+See `weather.sage` for a complete library of presets (forest, desert, mountain, haunted, cave, etc.).
+
+---
+
 ## Asset Pipeline
 
 ### Multi-Resolution Scaling
@@ -1115,4 +1187,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v1.3.0 — SageLang API Reference
+Twilight Engine v1.4.0 — 184 API Functions, 27 Modules

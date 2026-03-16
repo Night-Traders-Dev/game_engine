@@ -102,6 +102,8 @@
 |  |  Level          : load/switch/preload, zoom, level_selector  |  |
 |  |  Platform       : PLATFORM, IS_ANDROID/DESKTOP/QUEST         |  |
 |  |  Sprite         : npc/player/object scale, tint, flip        |  |
+|  |  Weather        : rain, snow, lightning, clouds, god rays,   |  |
+|  |                    fog, wind, presets                         |  |
 |  |  Debug          : log, warn, error, assert_true              |  |
 |  |                                                               |  |
 |  +-------------------------------------------------------------+  |
@@ -117,7 +119,7 @@ game.json (manifest)
     v
 +-------------------+     +-------------------+     +------------------+
 | init_game_from_   |     | ScriptEngine      |     | TileEditor       |
-| manifest()        |---->| (150+ natives)    |<--->| (ImGui desktop)  |
+| manifest()        |---->| (184 natives)     |<--->| (ImGui desktop)  |
 | Load tileset,     |     | Load .sage files  |     | Paint/erase/fill |
 | NPCs, party,      |     | Execute map_init  |     | Tile rotation    |
 | audio config      |     | Hot reload        |     | NPC spawner      |
@@ -131,8 +133,10 @@ game.json (manifest)
 | portals, objects, |     |  Day-night        |
 | NPCs              |     |  Survival         |
 +-------------------+     |  Spawn loops      |
-    |                      |  Pause menu       |
-    v                      |  Battle/dialogue  |
+    |                      |  Weather (rain,   |
+    v                      |   snow, lightning) |
++-------------------+     |  Pause menu       |
+| LevelManager      |     |  Battle/dialogue  |
 +-------------------+     |  Player movement  |
 | LevelManager      |     |  NPC AI (spatial) |
 | Load/cache levels |     |  Portal detection |
@@ -149,20 +153,24 @@ game.json (manifest)
                     | Player (scaled)   |
                     | Script UI (layered|
                     |   with opacity)   |
+                    | Weather (rain,    |
+                    |  snow, lightning,  |
+                    |  clouds, god rays) |
                     | Battle screen     |
                     | Screen effects    |
                     +-------------------+
 ```
 
-## File Counts (v1.3.0)
+## File Counts (v1.4.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | ~22,000 lines | Engine + game framework |
-| Script API | 150+ functions | 30+ modules |
-| Test Assertions | 110+ | 30 test categories |
-| Tileset Tiles | 380 | 20x19 grid at 32x32 |
-| Object Stamps | 40 | Buildings, trees, furniture |
+| C++ Source | 17,211 lines | Engine + game framework |
+| Script API | 184 functions | 27 modules |
+| Test Assertions | 101 | 33 test categories |
+| Tileset Tiles | 580 | 20x29 grid at 32x32 |
+| Object Stamps | 62 | 6 categories (buildings, furniture, characters, trees, vehicles, misc) |
+| Sage Scripts | 16 | Game logic, weather, tests, map scripts |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 | Asset Scale Levels | 3 | 1x, 2x, 3x (auto-generated) |
 

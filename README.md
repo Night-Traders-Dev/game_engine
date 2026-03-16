@@ -24,10 +24,11 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Script-Driven HUD** — All HUD layout defined in `default.sage`. C++ auto-syncs values each frame (HP bar auto-colors, sun/moon icon auto-swaps)
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; path-sanitized file operations
 - **Dialogue System** — SageLang-driven dialogue via `say()`, typewriter text, character portraits
-- **SageLang Scripting** — 150+ API functions across 30+ modules driving all game systems with hot reload. See [SCRIPTING.md](SCRIPTING.md) for the full API reference
-- **Asset Pipeline** — Multi-resolution asset generator (`tools/scale_assets.py`) creates 2x/3x versions via nearest-neighbor scaling; per-level zoom for different detail levels
-- **String-Keyed Atlas Cache** — Shared texture atlas cache across levels with automatic lifetime management via shared_ptr
-- **Test Suite** — `--test` CLI flag runs 110+ assertions across 30 modules; also callable from the F4 debug console via `run_all_tests()`
+- **Weather System** — Rain, snow, lightning, procedural cloud shadows, god rays, fog, wind. All script-controllable with presets (`set_weather("storm")`) and per-parameter control. Dynamic time-based weather changes
+- **SageLang Scripting** — 184 API functions across 27 modules driving all game systems with hot reload. See [SCRIPTING.md](SCRIPTING.md) for the full API reference
+- **Asset Pipeline** — Multi-resolution asset generator (`tools/scale_assets.py`) creates 2x/3x versions; 580 tiles, 62 stamps across 6 categories (Buildings, Furniture, Characters, Trees, Vehicles, Misc)
+- **String-Keyed Atlas Cache** — Shared texture atlas cache across levels; runtime sprite loading from scripts
+- **Test Suite** — `--test` CLI flag runs 101 assertions across 33 test categories; also callable from the F4 debug console via `run_all_tests()`
 - **Security Hardened** — Path traversal protection, input clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup, thread-safe Android platform
 - **Map Scripting** — Visual Basic-style editor: every editor action auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
@@ -257,7 +258,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 150+ API functions, string-keyed atlas cache)
+- SageLang (scripting — 184 API functions, string-keyed atlas cache)
 - tinyfiledialogs (native file dialogs, desktop only)
 
 ## License
@@ -266,4 +267,4 @@ MIT
 
 ---
 
-*Twilight Engine v1.3.0 — ~22,000 lines of C++, 150+ script API functions, 380 tiles, 40 stamps*
+*Twilight Engine v1.4.0 — 17,211 lines C++, 184 script API functions, 580 tiles, 62 stamps, 4 platforms*

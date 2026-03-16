@@ -1646,6 +1646,141 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                         [](auto& n) { return n.timer >= n.duration; }),
         game.script_ui.notifications.end());
 
+    // ── Weather system update ──
+    {
+        auto& w = game.weather;
+        float sw = game.hud.screen_w, sh = game.hud.screen_h;
+
+        // Wind affects rain angle and snow drift
+        float wind_rad = w.wind_direction * 3.14159f / 180.0f;
+        float wind_x = std::sin(wind_rad) * w.wind_strength;
+
+        // Rain update
+        if (w.rain_active) {
+            int target = (int)(w.rain_max_drops * w.rain_intensity);
+            while ((int)w.rain_drops.size() < target) {
+                RainDrop d;
+                d.x = (float)(game.rng() % (int)(sw + 200)) - 100;
+                d.y = -(float)(game.rng() % (int)sh);
+                d.speed = w.rain_speed * (0.8f + (game.rng() % 40) / 100.0f);
+                d.length = 8.0f + (game.rng() % 12);
+                d.opacity = w.rain_opacity * (0.6f + (game.rng() % 40) / 100.0f);
+                w.rain_drops.push_back(d);
+            }
+            float angle_rad = (w.rain_angle + wind_x * 30.0f) * 3.14159f / 180.0f;
+            for (auto& d : w.rain_drops) {
+                d.y += d.speed * dt;
+                d.x += std::sin(angle_rad) * d.speed * dt;
+                if (d.y > sh + 20) {
+                    d.y = -(float)(game.rng() % 60);
+                    d.x = (float)(game.rng() % (int)(sw + 200)) - 100;
+                }
+            }
+        } else {
+            w.rain_drops.clear();
+        }
+
+        // Snow update
+        if (w.snow_active) {
+            int target = (int)(w.snow_max_flakes * w.snow_intensity);
+            while ((int)w.snow_flakes.size() < target) {
+                SnowFlake f;
+                f.x = (float)(game.rng() % (int)sw);
+                f.y = -(float)(game.rng() % (int)sh);
+                f.speed = w.snow_speed * (0.5f + (game.rng() % 50) / 100.0f);
+                f.drift = w.snow_drift * (0.5f + (game.rng() % 50) / 100.0f);
+                f.size = 1.5f + (game.rng() % 20) / 10.0f;
+                f.phase = (game.rng() % 628) / 100.0f;
+                f.opacity = (0.5f + (game.rng() % 50) / 100.0f);
+                w.snow_flakes.push_back(f);
+            }
+            for (auto& f : w.snow_flakes) {
+                f.y += f.speed * dt;
+                f.x += std::sin(f.phase + game.game_time * 1.5f) * f.drift * dt + wind_x * 40.0f * dt;
+                if (f.y > sh + 10) {
+                    f.y = -(float)(game.rng() % 30);
+                    f.x = (float)(game.rng() % (int)sw);
+                }
+                if (f.x < -10) f.x = sw + 5;
+                if (f.x > sw + 10) f.x = -5;
+            }
+        } else {
+            w.snow_flakes.clear();
+        }
+
+        // Lightning update
+        if (w.lightning_active) {
+            w.lightning_timer += dt;
+            if (w.lightning_timer >= w.lightning_interval) {
+                w.lightning_timer = 0;
+                if ((game.rng() % 100) < (int)(w.lightning_chance * 100)) {
+                    // Create a lightning bolt
+                    LightningBolt bolt;
+                    bolt.x1 = (float)(game.rng() % (int)sw);
+                    bolt.y1 = 0;
+                    bolt.x2 = bolt.x1 + (game.rng() % 200) - 100;
+                    bolt.y2 = sh * (0.4f + (game.rng() % 40) / 100.0f);
+                    bolt.timer = w.lightning_flash_duration;
+                    bolt.brightness = 0.8f + (game.rng() % 20) / 100.0f;
+                    // Generate fork segments
+                    float cx = bolt.x1, cy = bolt.y1;
+                    int segs = 8 + game.rng() % 6;
+                    float dx = (bolt.x2 - bolt.x1) / segs;
+                    float dy = (bolt.y2 - bolt.y1) / segs;
+                    for (int s = 0; s < segs; s++) {
+                        float jx = (game.rng() % 40) - 20.0f;
+                        float nx = cx + dx + jx;
+                        float ny = cy + dy;
+                        bolt.segments.push_back({nx, ny});
+                        cx = nx; cy = ny;
+                    }
+                    w.bolts.push_back(bolt);
+                    // Screen flash
+                    game.flash_r = 0.9f; game.flash_g = 0.9f; game.flash_b = 1.0f;
+                    game.flash_a = bolt.brightness * 0.6f;
+                    game.flash_timer = w.lightning_flash_duration;
+                }
+            }
+            // Decay bolts
+            for (auto& b : w.bolts) b.timer -= dt;
+            w.bolts.erase(std::remove_if(w.bolts.begin(), w.bolts.end(),
+                [](auto& b) { return b.timer <= 0; }), w.bolts.end());
+        } else {
+            w.bolts.clear();
+        }
+
+        // Cloud shadows update
+        if (w.clouds_active) {
+            while ((int)w.cloud_shadows.size() < w.cloud_max) {
+                CloudShadow c;
+                c.x = (float)(game.rng() % (int)(sw * 2)) - sw * 0.5f;
+                c.y = (float)(game.rng() % (int)(sh * 2)) - sh * 0.5f;
+                c.radius = 60.0f + (game.rng() % 120);
+                c.opacity = w.cloud_shadow_opacity * (0.5f + (game.rng() % 50) / 100.0f);
+                float dir_rad = w.cloud_direction * 3.14159f / 180.0f;
+                c.speed_x = std::cos(dir_rad) * w.cloud_speed * (0.7f + (game.rng() % 30) / 100.0f);
+                c.speed_y = std::sin(dir_rad) * w.cloud_speed * (0.7f + (game.rng() % 30) / 100.0f);
+                w.cloud_shadows.push_back(c);
+            }
+            for (auto& c : w.cloud_shadows) {
+                c.x += (c.speed_x + wind_x * 15.0f) * dt;
+                c.y += c.speed_y * dt;
+                // Wrap around
+                if (c.x > sw * 1.5f) c.x = -c.radius * 2;
+                if (c.x < -c.radius * 3) c.x = sw * 1.2f;
+                if (c.y > sh * 1.5f) c.y = -c.radius * 2;
+                if (c.y < -c.radius * 3) c.y = sh * 1.2f;
+            }
+        } else {
+            w.cloud_shadows.clear();
+        }
+
+        // God ray sway animation
+        if (w.god_rays_active) {
+            w.god_ray_sway = std::sin(game.game_time * 0.3f) * 15.0f;
+        }
+    }
+
     // Pause menu toggle (ESC / Menu)
     if (input.is_pressed(eb::InputAction::Menu)) {
         game.paused = !game.paused;
@@ -2941,12 +3076,11 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     }
 
     // Player character (with per-player sprite scale)
+    // Render at same size as NPCs (48x64) so all characters are consistent
     if (game.dean_atlas) {
         auto sr = get_character_sprite(*game.dean_atlas, game.player_dir, game.player_moving, game.player_frame);
-        float base_scale = (sr.pixel_w <= 24) ? 3.0f : 1.5f;
-        float rw = (float)sr.pixel_w * base_scale * game.player_sprite_scale;
-        float rh = (float)sr.pixel_h * base_scale * game.player_sprite_scale;
-        if (rw < 16) { rw = 48 * game.player_sprite_scale; rh = 60 * game.player_sprite_scale; }
+        float rw = 48.0f * game.player_sprite_scale;
+        float rh = 64.0f * game.player_sprite_scale;
         float bob = game.player_moving ? std::sin(game.anim_timer*15.0f)*2.0f : 0.0f;
         eb::Vec2 dp = {game.player_pos.x-rw*0.5f, game.player_pos.y-rh+4+bob};
         batch.draw_sorted(dp, {rw,rh}, sr.uv_min, sr.uv_max, game.player_pos.y, game.dean_desc);
@@ -3260,6 +3394,94 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
                         {0,0}, {1,1}, {0, 0, 0, 0.7f * alpha});
         text.draw_text(batch, game.font_desc, n.text,
                        {nx, ny}, {1, 1, 1, alpha}, ns);
+    }
+
+    // ── Weather Rendering ──
+    {
+        auto& w = game.weather;
+        batch.set_texture(game.white_desc);
+
+        // Cloud shadows (drawn first, darkens the scene)
+        if (w.clouds_active) {
+            for (auto& c : w.cloud_shadows) {
+                // Draw overlapping ellipses for soft cloud shadow
+                float r = c.radius;
+                eb::Vec4 shadow_col = {0, 0, 0, c.opacity};
+                batch.draw_quad({c.x - r, c.y - r * 0.6f}, {r * 2, r * 1.2f}, {0,0}, {1,1}, shadow_col);
+                // Secondary blob offset for organic shape
+                batch.draw_quad({c.x - r * 0.7f + 20, c.y - r * 0.4f - 10}, {r * 1.4f, r * 0.8f}, {0,0}, {1,1},
+                    {0, 0, 0, c.opacity * 0.6f});
+            }
+        }
+
+        // God rays (additive light beams through cloud gaps)
+        if (w.god_rays_active && w.clouds_active) {
+            float ray_w = sw / w.god_ray_count;
+            float angle_offset = w.god_ray_angle + w.god_ray_sway;
+            for (int i = 0; i < w.god_ray_count; i++) {
+                float base_x = (i + 0.5f) * ray_w;
+                // Vary opacity per ray using sine
+                float ray_alpha = w.god_ray_color.w * (0.5f + 0.5f * std::sin(game.game_time * 0.5f + i * 1.7f));
+                if (ray_alpha < 0.02f) continue;
+                float top_x = base_x + angle_offset;
+                float beam_w = ray_w * 0.3f;
+                // Draw as a tall narrow quad (approximation of a light beam)
+                eb::Vec4 rc = {w.god_ray_color.x, w.god_ray_color.y, w.god_ray_color.z, ray_alpha};
+                batch.draw_quad({top_x - beam_w * 0.5f, 0}, {beam_w, sh}, {0,0}, {1,1}, rc);
+                // Wider, more transparent base
+                batch.draw_quad({top_x - beam_w, sh * 0.3f}, {beam_w * 2, sh * 0.7f}, {0,0}, {1,1},
+                    {rc.x, rc.y, rc.z, ray_alpha * 0.3f});
+            }
+        }
+
+        // Rain particles
+        if (w.rain_active) {
+            float angle_rad = (w.rain_angle + w.wind_strength * 30.0f) * 3.14159f / 180.0f;
+            float sin_a = std::sin(angle_rad);
+            for (auto& d : w.rain_drops) {
+                float x2 = d.x + sin_a * d.length;
+                float y2 = d.y + d.length;
+                // Draw rain drop as a thin vertical quad
+                float rw = 1.0f;
+                eb::Vec4 rc = {w.rain_color.x, w.rain_color.y, w.rain_color.z, d.opacity};
+                batch.draw_quad({d.x, d.y}, {rw, d.length}, {0,0}, {1,1}, rc);
+            }
+        }
+
+        // Snow particles
+        if (w.snow_active) {
+            for (auto& f : w.snow_flakes) {
+                eb::Vec4 sc = {w.snow_color.x, w.snow_color.y, w.snow_color.z, f.opacity * w.snow_color.w};
+                batch.draw_quad({f.x, f.y}, {f.size, f.size}, {0,0}, {1,1}, sc);
+            }
+        }
+
+        // Lightning bolts
+        for (auto& bolt : w.bolts) {
+            float alpha = bolt.brightness * (bolt.timer / w.lightning_flash_duration);
+            if (alpha < 0.01f) continue;
+            eb::Vec4 lc = {0.9f, 0.9f, 1.0f, alpha};
+            // Draw bolt segments
+            float px = bolt.x1, py = bolt.y1;
+            for (auto& [sx, sy] : bolt.segments) {
+                // Draw each segment as a thin quad
+                float dx = sx - px, dy = sy - py;
+                float len = std::sqrt(dx * dx + dy * dy);
+                batch.draw_quad({std::min(px, sx) - 1, std::min(py, sy)},
+                    {std::abs(dx) + 2, std::abs(dy) + 1}, {0,0}, {1,1}, lc);
+                // Glow around bolt
+                batch.draw_quad({std::min(px, sx) - 4, std::min(py, sy) - 2},
+                    {std::abs(dx) + 8, std::abs(dy) + 4}, {0,0}, {1,1},
+                    {0.7f, 0.7f, 1.0f, alpha * 0.2f});
+                px = sx; py = sy;
+            }
+        }
+
+        // Fog overlay
+        if (w.fog_active && w.fog_density > 0.01f) {
+            eb::Vec4 fc = {w.fog_color.x, w.fog_color.y, w.fog_color.z, w.fog_density * w.fog_color.w};
+            batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, fc);
+        }
     }
 
     // ── Screen Effects ──

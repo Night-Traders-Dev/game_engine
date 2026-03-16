@@ -2484,6 +2484,43 @@ All UI components now support: `opacity`, `layer` (z-order), `rotation` (labels/
 - NPC separation uses spatial hash grid (O(n) vs O(n²))
 - Pause menu item IDs pre-cached (no per-frame string allocation)
 
+### Weather System (v1.4)
+
+Full weather simulation with 12 SageLang API functions:
+
+- **Rain** — Particle drops with configurable speed, angle, intensity, and custom color. Wind-affected.
+- **Snow** — Drifting flakes with sine-wave horizontal movement. Wind-affected.
+- **Lightning** — Procedural forked bolts with screen flash. Configurable interval and probability.
+- **Cloud Shadows** — Semi-transparent ellipses gliding across the screen with configurable speed/direction.
+- **God Rays** — Animated light beams through cloud gaps with sway animation. Only visible when clouds are active.
+- **Fog** — Full-screen color overlay with custom color.
+- **Wind** — Affects rain angle, snow drift, and cloud speed globally.
+
+Quick presets: `set_weather("storm", 0.9)`, `set_weather("snow", 0.5)`, `set_weather("cloudy", 0.7)`, `set_weather("clear")`
+
+Individual control: `set_rain(true, 0.7)`, `set_lightning(true, 5, 0.6)`, `set_clouds(true, 0.6, 25, 45)`, etc.
+
+See `weather.sage` for a complete library of presets (forest, desert, mountain, haunted, cave, sandstorm, blizzard, blood rain, aurora, volcanic ash).
+
+### Runtime Sprite Loading (v1.4)
+
+NPCs spawned via `spawn_npc()` with a string sprite path now automatically load the texture into the atlas cache at runtime. Previously, only textures referenced in `game.json` were loaded. Now any script-spawned NPC with a new sprite path triggers a `ResourceManager::load_texture()` call, creates atlas regions, and registers the descriptor set — all transparently.
+
+### Asset Catalog (v1.4)
+
+Tileset expanded to 640x928 (580 tiles) with 62 object stamps across 6 editor categories:
+
+| Category | Count | Examples |
+|----------|-------|---------|
+| Buildings | 1 | House |
+| Furniture | 11 | Table, Bed, Chair, Chest, Cabinet, Fireplace, Torch, Barrel, Cauldron, Curtains, Painting |
+| Characters | 12 | Knight, Mage, Archer, Rogue, Assassin, Ninja, Lancer, Dragoon, Cleric, Monk, Warrior, Paladin |
+| Trees | 2 | Oak Tree, Small Oak |
+| Vehicles | 0 | (reserved) |
+| Misc | 36 | Flowers, rocks, wheat, animals, fruits, farming items, dungeon monsters |
+
+Tile rows include: grass (31), dirt (14), water (23), stone (12), wood/interior (39), dark/dungeon (29), snow (20), desert (20), outdoor (20), dungeon crawl (40).
+
 ---
 
-Twilight Engine v1.3.0 — Built with Vulkan, SageLang, miniaudio, and Dear ImGui
+Twilight Engine v1.4.0 — 17,211 lines C++, 184 API functions, 27 modules, 4 platforms

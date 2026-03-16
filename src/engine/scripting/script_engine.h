@@ -80,6 +80,7 @@ private:
     void register_dialogue_ext_api();
     void register_battle_ext_api();
     void register_renderer_api();
+    void register_weather_api();
     void register_level_api();
 
     Env* env_ = nullptr;

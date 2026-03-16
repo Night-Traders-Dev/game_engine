@@ -1021,7 +1021,27 @@ static Value native_spawn_npc_map(int argc, Value* args) {
     if (argc > 3 && args[3].type == VAL_NUMBER) npc.dir = (int)args[3].as.number;
     if (argc > 4) npc.hostile = (args[4].type == VAL_BOOL) ? args[4].as.boolean : (args[4].type == VAL_NUMBER && args[4].as.number != 0);
     if (argc > 5) {
-        if (args[5].type == VAL_STRING) npc.sprite_atlas_key = args[5].as.string;
+        if (args[5].type == VAL_STRING) {
+            npc.sprite_atlas_key = args[5].as.string;
+            // Load texture into atlas cache if not already cached
+            if (!npc.sprite_atlas_key.empty() && !gs->atlas_cache.count(npc.sprite_atlas_key)) {
+                if (gs->resource_manager && gs->renderer) {
+                    try {
+                        auto* tex = gs->resource_manager->load_texture(npc.sprite_atlas_key);
+                        if (tex) {
+                            int cw = tex->width() / 3;
+                            int ch = tex->height() / 3;
+                            auto atlas = std::make_shared<eb::TextureAtlas>(tex);
+                            define_npc_atlas_regions(*atlas, cw, ch);
+                            gs->atlas_cache[npc.sprite_atlas_key] = atlas;
+                            gs->atlas_descs[npc.sprite_atlas_key] = gs->renderer->get_texture_descriptor(*tex);
+                        }
+                    } catch (...) {
+                        std::fprintf(stderr, "[Script] Failed to load NPC sprite: %s\n", npc.sprite_atlas_key.c_str());
+                    }
+                }
+            }
+        }
         else if (args[5].type == VAL_NUMBER) npc.sprite_atlas_id = (int)args[5].as.number;
     }
     if (argc > 6 && args[6].type == VAL_NUMBER) { npc.battle_enemy_hp = (int)args[6].as.number; npc.has_battle = npc.battle_enemy_hp > 0; }
@@ -1927,6 +1947,7 @@ ScriptEngine::ScriptEngine() {
         register_dialogue_ext_api();
         register_battle_ext_api();
         register_renderer_api();
+        register_weather_api();
         register_level_api();
         s_active_engine = this;
     }
@@ -2402,6 +2423,153 @@ void ScriptEngine::register_battle_ext_api() {
     env_define(env_, "is_in_battle", 12, val_native(native_is_in_battle));
     env_define(env_, "set_xp_formula", 14, val_native(native_set_xp_formula));
     std::printf("[ScriptEngine] Battle Extension API registered\n");
+}
+
+// ═══════════════ Weather API ═══════════════
+
+static Value native_set_weather(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    const char* type = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float intensity = (argc > 1 && args[1].type == VAL_NUMBER) ? std::max(0.0f, std::min(1.0f, (float)args[1].as.number)) : 0.5f;
+
+    // Reset all
+    w.rain_active = w.snow_active = w.lightning_active = false;
+    w.clouds_active = w.god_rays_active = w.fog_active = false;
+
+    if (std::strcmp(type, "rain") == 0) {
+        w.rain_active = true; w.rain_intensity = intensity;
+        w.clouds_active = true; w.cloud_density = intensity * 0.6f;
+    } else if (std::strcmp(type, "storm") == 0) {
+        w.rain_active = true; w.rain_intensity = std::max(0.7f, intensity);
+        w.lightning_active = true; w.lightning_chance = intensity;
+        w.clouds_active = true; w.cloud_density = 0.7f;
+        w.wind_strength = 0.6f;
+    } else if (std::strcmp(type, "snow") == 0) {
+        w.snow_active = true; w.snow_intensity = intensity;
+        w.clouds_active = true; w.cloud_density = intensity * 0.4f;
+        w.fog_active = true; w.fog_density = intensity * 0.2f;
+    } else if (std::strcmp(type, "fog") == 0) {
+        w.fog_active = true; w.fog_density = intensity;
+        w.clouds_active = true; w.cloud_density = intensity * 0.3f;
+    } else if (std::strcmp(type, "cloudy") == 0) {
+        w.clouds_active = true; w.cloud_density = intensity;
+        w.god_rays_active = true; w.god_ray_intensity = intensity * 0.3f;
+    } else if (std::strcmp(type, "clear") == 0) {
+        // Everything already reset
+    }
+    return val_nil();
+}
+
+static Value native_set_rain(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.rain_active = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.rain_intensity = std::max(0.0f, std::min(1.0f, (float)args[1].as.number));
+    return val_nil();
+}
+
+static Value native_set_snow(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.snow_active = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.snow_intensity = std::max(0.0f, std::min(1.0f, (float)args[1].as.number));
+    return val_nil();
+}
+
+static Value native_set_lightning(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.lightning_active = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.lightning_interval = std::max(1.0f, (float)args[1].as.number);
+    if (argc > 2 && args[2].type == VAL_NUMBER) w.lightning_chance = std::max(0.0f, std::min(1.0f, (float)args[2].as.number));
+    return val_nil();
+}
+
+static Value native_set_clouds(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.clouds_active = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.cloud_density = std::max(0.0f, std::min(1.0f, (float)args[1].as.number));
+    if (argc > 2 && args[2].type == VAL_NUMBER) w.cloud_speed = (float)args[2].as.number;
+    if (argc > 3 && args[3].type == VAL_NUMBER) w.cloud_direction = (float)args[3].as.number;
+    return val_nil();
+}
+
+static Value native_set_god_rays(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.god_rays_active = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.god_ray_intensity = std::max(0.0f, std::min(1.0f, (float)args[1].as.number));
+    if (argc > 2 && args[2].type == VAL_NUMBER) w.god_ray_count = std::max(1, std::min(20, (int)args[2].as.number));
+    return val_nil();
+}
+
+static Value native_set_fog(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.fog_active = (args[0].type == VAL_BOOL) ? args[0].as.boolean : (args[0].type == VAL_NUMBER && args[0].as.number != 0);
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.fog_density = std::max(0.0f, std::min(1.0f, (float)args[1].as.number));
+    if (argc > 2 && args[2].type == VAL_NUMBER) w.fog_color.x = (float)args[2].as.number;
+    if (argc > 3 && args[3].type == VAL_NUMBER) w.fog_color.y = (float)args[3].as.number;
+    if (argc > 4 && args[4].type == VAL_NUMBER) w.fog_color.z = (float)args[4].as.number;
+    return val_nil();
+}
+
+static Value native_set_wind(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.wind_strength = (args[0].type == VAL_NUMBER) ? std::max(0.0f, std::min(1.0f, (float)args[0].as.number)) : 0;
+    if (argc > 1 && args[1].type == VAL_NUMBER) w.wind_direction = (float)args[1].as.number;
+    return val_nil();
+}
+
+static Value native_set_rain_color(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto& w = s_active_engine->game_state_->weather;
+    w.rain_color.x = (float)args[0].as.number;
+    w.rain_color.y = (float)args[1].as.number;
+    w.rain_color.z = (float)args[2].as.number;
+    if (argc > 3) w.rain_color.w = (float)args[3].as.number;
+    return val_nil();
+}
+
+static Value native_get_weather(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_string("clear");
+    auto& w = s_active_engine->game_state_->weather;
+    if (w.rain_active && w.lightning_active) return val_string("storm");
+    if (w.rain_active) return val_string("rain");
+    if (w.snow_active) return val_string("snow");
+    if (w.fog_active) return val_string("fog");
+    if (w.clouds_active) return val_string("cloudy");
+    return val_string("clear");
+}
+
+static Value native_is_raining(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_bool(0);
+    return val_bool(s_active_engine->game_state_->weather.rain_active);
+}
+
+static Value native_is_snowing(int, Value*) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_bool(0);
+    return val_bool(s_active_engine->game_state_->weather.snow_active);
+}
+
+void ScriptEngine::register_weather_api() {
+    if (!env_) return;
+    env_define(env_, "set_weather", 11, val_native(native_set_weather));
+    env_define(env_, "get_weather", 11, val_native(native_get_weather));
+    env_define(env_, "set_rain", 8, val_native(native_set_rain));
+    env_define(env_, "set_snow", 8, val_native(native_set_snow));
+    env_define(env_, "set_lightning", 13, val_native(native_set_lightning));
+    env_define(env_, "set_clouds", 10, val_native(native_set_clouds));
+    env_define(env_, "set_god_rays", 12, val_native(native_set_god_rays));
+    env_define(env_, "set_fog", 7, val_native(native_set_fog));
+    env_define(env_, "set_wind", 8, val_native(native_set_wind));
+    env_define(env_, "set_rain_color", 14, val_native(native_set_rain_color));
+    env_define(env_, "is_raining", 10, val_native(native_is_raining));
+    env_define(env_, "is_snowing", 10, val_native(native_is_snowing));
+    std::printf("[ScriptEngine] Weather API registered\n");
 }
 
 void ScriptEngine::register_renderer_api() {

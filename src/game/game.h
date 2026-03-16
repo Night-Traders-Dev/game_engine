@@ -256,6 +256,93 @@ struct ScriptUI {
     std::vector<ScriptUINotification> notifications;
 };
 
+// ─── Weather System ───
+
+struct RainDrop {
+    float x, y;        // Position (screen space)
+    float speed;        // Fall speed
+    float length;       // Visual length
+    float opacity;
+};
+
+struct SnowFlake {
+    float x, y;
+    float speed;
+    float drift;        // Horizontal sine offset
+    float size;
+    float phase;        // Sine phase for drift
+    float opacity;
+};
+
+struct CloudShadow {
+    float x, y;         // Center position (world space)
+    float radius;       // Shadow radius
+    float opacity;
+    float speed_x, speed_y; // Movement direction
+};
+
+struct LightningBolt {
+    float x1, y1, x2, y2;  // Start and end
+    float timer;            // Time remaining
+    float brightness;
+    std::vector<std::pair<float,float>> segments; // Fork segments
+};
+
+struct WeatherState {
+    // Rain
+    bool rain_active = false;
+    float rain_intensity = 0.5f;    // 0.0 to 1.0 (controls density)
+    float rain_speed = 800.0f;      // Pixels per second
+    float rain_angle = 5.0f;        // Degrees from vertical (wind)
+    float rain_opacity = 0.4f;
+    eb::Vec4 rain_color = {0.7f, 0.8f, 1.0f, 0.4f};
+    std::vector<RainDrop> rain_drops;
+    int rain_max_drops = 200;
+
+    // Snow
+    bool snow_active = false;
+    float snow_intensity = 0.3f;
+    float snow_speed = 60.0f;
+    float snow_drift = 30.0f;       // Horizontal drift amount
+    eb::Vec4 snow_color = {1.0f, 1.0f, 1.0f, 0.8f};
+    std::vector<SnowFlake> snow_flakes;
+    int snow_max_flakes = 150;
+
+    // Lightning
+    bool lightning_active = false;
+    float lightning_interval = 8.0f;   // Seconds between strikes
+    float lightning_timer = 0.0f;
+    float lightning_chance = 0.3f;     // Probability per interval
+    float lightning_flash_duration = 0.15f;
+    std::vector<LightningBolt> bolts;
+
+    // Cloud shadows
+    bool clouds_active = false;
+    float cloud_density = 0.4f;        // 0.0 to 1.0
+    float cloud_speed = 20.0f;         // Pixels per second
+    float cloud_direction = 45.0f;     // Degrees (0=right, 90=down)
+    float cloud_shadow_opacity = 0.25f;
+    std::vector<CloudShadow> cloud_shadows;
+    int cloud_max = 8;
+
+    // God rays
+    bool god_rays_active = false;
+    float god_ray_intensity = 0.3f;
+    float god_ray_angle = 30.0f;       // Degrees from vertical
+    float god_ray_sway = 0.0f;         // Current sway offset (animated)
+    int god_ray_count = 5;
+    eb::Vec4 god_ray_color = {1.0f, 0.95f, 0.7f, 0.15f};
+
+    // Wind (affects rain angle, snow drift, cloud speed)
+    float wind_strength = 0.0f;        // 0.0 to 1.0
+    float wind_direction = 0.0f;       // Degrees
+
+    // Fog
+    bool fog_active = false;
+    float fog_density = 0.3f;
+    eb::Vec4 fog_color = {0.8f, 0.85f, 0.9f, 0.3f};
+};
+
 // ─── Item type (forward for loot/drops) ───
 enum class ItemType { Consumable, Weapon, KeyItem };
 
@@ -520,6 +607,9 @@ struct GameState {
     std::vector<WorldDrop> world_drops;
     std::vector<LootTable> loot_tables;
 
+    // Weather system
+    WeatherState weather;
+
     // Screen effects (controlled by scripts)
     float shake_intensity = 0, shake_timer = 0;
     float flash_r = 0, flash_g = 0, flash_b = 0, flash_a = 0, flash_timer = 0;
@@ -529,8 +619,9 @@ struct GameState {
     // Input state snapshot (set each frame for script access)
     const eb::InputState* current_input = nullptr;
 
-    // Renderer (for script access to clear color, etc.)
+    // Renderer and resource manager (for runtime asset loading)
     eb::Renderer* renderer = nullptr;
+    eb::ResourceManager* resource_manager = nullptr;
 
     // XP multiplier (customizable from scripts)
     float xp_multiplier = 1.0f;

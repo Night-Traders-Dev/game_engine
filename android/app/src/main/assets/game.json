@@ -9,7 +9,7 @@
   "player": {
     "name": "Mage",
     "sprite": "assets/textures/mage_player.png",
-    "sprite_grid": [16, 20],
+    "sprite_grid": [32, 48],
     "hp": 120, "hp_max": 120,
     "atk": 18, "def": 8,
     "level": 1, "xp": 0,
