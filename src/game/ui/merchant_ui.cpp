@@ -14,7 +14,9 @@ namespace eb {
 void define_ui_atlas_regions(TextureAtlas& atlas) {
     // Panels
     atlas.define_region("panel_large",    32, 1120, 183, 280);  // Main store panel
+    atlas.define_region("panel_window",  32, 1120, 237, 271);  // Warm window (full width)
     atlas.define_region("panel_scroll",  268, 1133, 159, 251);  // Scroll/list panel
+    atlas.define_region("panel_window_lg", 38, 1666, 248, 280); // Large settings window
     atlas.define_region("panel_dialogue", 32,  678, 410,  84);  // Dialogue box
     atlas.define_region("panel_mini",     38,  983, 109,  34);  // Mini dialogue
     atlas.define_region("panel_hud_wide", 32,   32, 157,  65);  // HUD panel (wide)

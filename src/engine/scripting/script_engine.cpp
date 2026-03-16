@@ -1008,7 +1008,42 @@ static Value native_set_spawn_time(int argc, Value* args) {
 
 // ═══════════════ Map API ═══════════════
 
-// spawn_npc(name, x, y, dir, hostile, sprite_id, hp, atk, speed, aggro)
+// Helper: load a sprite into atlas cache with specific grid size
+static void ensure_sprite_cached(GameState* gs, const std::string& path, int grid_w, int grid_h) {
+    if (path.empty() || !gs->resource_manager || !gs->renderer) return;
+    // Build cache key: path + grid dimensions (same texture with different grids = different atlases)
+    std::string cache_key = path;
+    if (grid_w > 0 && grid_h > 0) {
+        char buf[32]; std::snprintf(buf, sizeof(buf), "@%dx%d", grid_w, grid_h);
+        cache_key += buf;
+    }
+    if (gs->atlas_cache.count(cache_key)) return; // Already cached
+    try {
+        auto* tex = gs->resource_manager->load_texture(path);
+        if (!tex) return;
+        int cw = (grid_w > 0) ? grid_w : tex->width() / 3;
+        int ch = (grid_h > 0) ? grid_h : tex->height() / 3;
+        auto atlas = std::make_shared<eb::TextureAtlas>(tex);
+        define_npc_atlas_regions(*atlas, cw, ch);
+        gs->atlas_cache[cache_key] = atlas;
+        gs->atlas_descs[cache_key] = gs->renderer->get_texture_descriptor(*tex);
+    } catch (...) {
+        std::fprintf(stderr, "[Script] Failed to load sprite: %s\n", path.c_str());
+    }
+}
+
+// Build the atlas cache key for an NPC (path + optional grid size suffix)
+static std::string npc_cache_key(const NPC& npc) {
+    std::string key = npc.sprite_atlas_key;
+    if (!key.empty() && npc.sprite_grid_w > 0 && npc.sprite_grid_h > 0) {
+        char buf[32]; std::snprintf(buf, sizeof(buf), "@%dx%d", npc.sprite_grid_w, npc.sprite_grid_h);
+        key += buf;
+    }
+    return key;
+}
+
+// spawn_npc(name, x, y, dir, hostile, sprite, hp, atk, speed, aggro)
+// spawn_npc(name, x, y, dir, hostile, sprite, hp, atk, speed, aggro, grid_w, grid_h)
 static Value native_spawn_npc_map(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
     auto* gs = s_active_engine->game_state_;
@@ -1020,27 +1055,13 @@ static Value native_spawn_npc_map(int argc, Value* args) {
     npc.wander_target = npc.position;
     if (argc > 3 && args[3].type == VAL_NUMBER) npc.dir = (int)args[3].as.number;
     if (argc > 4) npc.hostile = (args[4].type == VAL_BOOL) ? args[4].as.boolean : (args[4].type == VAL_NUMBER && args[4].as.number != 0);
+    // Optional grid size (args 10-11)
+    if (argc > 10 && args[10].type == VAL_NUMBER) npc.sprite_grid_w = (int)args[10].as.number;
+    if (argc > 11 && args[11].type == VAL_NUMBER) npc.sprite_grid_h = (int)args[11].as.number;
     if (argc > 5) {
         if (args[5].type == VAL_STRING) {
             npc.sprite_atlas_key = args[5].as.string;
-            // Load texture into atlas cache if not already cached
-            if (!npc.sprite_atlas_key.empty() && !gs->atlas_cache.count(npc.sprite_atlas_key)) {
-                if (gs->resource_manager && gs->renderer) {
-                    try {
-                        auto* tex = gs->resource_manager->load_texture(npc.sprite_atlas_key);
-                        if (tex) {
-                            int cw = tex->width() / 3;
-                            int ch = tex->height() / 3;
-                            auto atlas = std::make_shared<eb::TextureAtlas>(tex);
-                            define_npc_atlas_regions(*atlas, cw, ch);
-                            gs->atlas_cache[npc.sprite_atlas_key] = atlas;
-                            gs->atlas_descs[npc.sprite_atlas_key] = gs->renderer->get_texture_descriptor(*tex);
-                        }
-                    } catch (...) {
-                        std::fprintf(stderr, "[Script] Failed to load NPC sprite: %s\n", npc.sprite_atlas_key.c_str());
-                    }
-                }
-            }
+            ensure_sprite_cached(gs, npc.sprite_atlas_key, npc.sprite_grid_w, npc.sprite_grid_h);
         }
         else if (args[5].type == VAL_NUMBER) npc.sprite_atlas_id = (int)args[5].as.number;
     }
@@ -1051,6 +1072,20 @@ static Value native_spawn_npc_map(int argc, Value* args) {
     npc.battle_enemy_name = npc.name;
     npc.dialogue = {{npc.name, "..."}};
     gs->npcs.push_back(npc);
+    return val_nil();
+}
+
+// npc_set_grid(name, grid_w, grid_h) — change sprite grid size at runtime
+static Value native_npc_set_grid(int argc, Value* args) {
+    if (argc < 3 || args[0].type != VAL_STRING) return val_nil();
+    NPC* npc = find_npc_by_name(args[0].as.string);
+    if (!npc) return val_nil();
+    npc->sprite_grid_w = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    npc->sprite_grid_h = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 0;
+    // Re-cache with new grid size
+    if (s_active_engine && s_active_engine->game_state_ && !npc->sprite_atlas_key.empty()) {
+        ensure_sprite_cached(s_active_engine->game_state_, npc->sprite_atlas_key, npc->sprite_grid_w, npc->sprite_grid_h);
+    }
     return val_nil();
 }
 
@@ -2374,6 +2409,7 @@ void ScriptEngine::register_npc_runtime_api() {
     env_define(env_, "npc_get_scale", 13, val_native(native_npc_get_scale));
     env_define(env_, "npc_set_tint", 12, val_native(native_npc_set_tint));
     env_define(env_, "npc_set_flip", 12, val_native(native_npc_set_flip));
+    env_define(env_, "npc_set_grid", 12, val_native(native_npc_set_grid));
     std::printf("[ScriptEngine] NPC Runtime API registered\n");
 }
 

@@ -27,3 +27,65 @@ Pig|1632|864|96|96|misc
 Sheep|1728|864|96|96|misc
 Skeleton|1824|864|96|96|misc
 Slime|0|1152|96|96|misc
+Table|0|2208|192|192|furniture
+Bed|192|2208|192|192|furniture
+Chair|384|2208|192|192|furniture
+Chest|576|2208|192|192|furniture
+Cabinet|768|2208|192|192|furniture
+Fireplace|960|2208|96|192|furniture
+Torch|1056|2208|192|192|furniture
+LPC Barrel|1248|2208|192|192|furniture
+Cauldron|1440|2208|96|192|furniture
+Curtains|1536|2208|192|192|furniture
+Painting|1728|2208|192|192|furniture
+Knight|0|2400|96|96|character
+Mage_R|108|2400|96|96|character
+Archer|216|2400|96|96|character
+Rogue|324|2400|96|96|character
+Assassin|432|2400|96|96|character
+Ninja|540|2400|96|96|character
+Lancer|648|2400|96|96|character
+Dragoon|756|2400|96|96|character
+Cleric|864|2400|96|96|character
+Monk|972|2400|96|96|character
+Warrior|1080|2400|96|96|character
+Paladin|1188|2400|96|96|character
+Apple|1296|2400|96|96|misc
+Carrot_F|1404|2400|96|96|misc
+Wheat_F|1512|2400|96|96|misc
+Fruit Crate|1620|2400|192|96|misc
+Hay_F|0|2592|192|192|misc
+Mushroom|204|2592|96|96|misc
+Skeleton_U|312|2592|96|96|misc
+Golem|420|2592|96|96|misc
+Ice Elemental|528|2592|96|96|misc
+Chest_U|636|2592|96|96|misc
+Cactus Tall|0|2976|120|384|tree
+Cactus Short|126|2976|120|288|tree
+Agave|252|2976|240|240|tree
+Pine Tree|498|2976|288|384|tree
+Coral Red|792|2976|192|192|misc
+Boulder|990|2976|336|288|misc
+Snow Pine|1332|2976|240|336|tree
+Fir Tree|1578|2976|192|336|tree
+Green Pine|0|3366|192|288|tree
+Dead Tree|198|3366|192|288|tree
+Ice Rock|396|3366|336|336|misc
+Stone Door|738|3366|144|192|building
+Bench TD|888|3366|192|96|furniture
+Stone Pillar|1086|3366|96|192|misc
+Wood Door|1188|3366|144|240|building
+Barrel TD|1338|3366|96|96|misc
+Tombstone 2|1440|3366|96|144|misc
+Fountain|1542|3366|288|240|building
+Cross|0|3708|96|144|misc
+Big Tree 1|102|3708|384|384|tree
+Big Tree 2|492|3708|336|384|tree
+Big Tree 3|834|3708|288|384|tree
+Bush Round 1|1128|3708|144|96|tree
+Bush Round 2|1278|3708|168|120|tree
+Bush Round 3|1452|3708|144|120|tree
+Bush Small TD|1602|3708|120|96|tree
+Stone Wall Front|0|4098|288|288|building
+Stone Wall Wide|294|4098|384|288|building
+Stone Wall Long|684|4098|576|192|building

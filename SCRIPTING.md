@@ -191,6 +191,32 @@ spawn_npc("Slime", 600, 400, 0, true, "assets/textures/cf_slime.png", 20, 5, 40,
 
 The 6th argument can be a **string** (texture path for atlas cache) or a **number** (legacy atlas index).
 
+Optional args 11-12 specify grid cell dimensions:
+
+```sage
+# Spawn with explicit grid size (args 11, 12)
+spawn_npc("Boss", 400, 300, 0, true, "assets/textures/boss_64x64.png", 500, 40, 10, 200, 64, 64)
+
+# Same texture, different grids — cached separately
+spawn_npc("SmallGuy", 100, 100, 0, false, "assets/textures/multi.png", 0, 0, 20, 0, 16, 16)
+spawn_npc("BigGuy", 200, 200, 0, false, "assets/textures/multi.png", 0, 0, 20, 0, 48, 48)
+```
+
+### Grid Size Control
+
+| Function | Description |
+|----------|-------------|
+| `npc_set_grid(name, grid_w, grid_h)` | Change sprite grid size at runtime |
+
+The grid size determines how the sprite sheet is divided into cells (3 cols × 3 rows) and the render size (grid × 1.5). Grid size of 0 = auto-detect from texture.
+
+| Grid | Render Size | Use Case |
+|------|-------------|----------|
+| 16×16 | 24×24 | Tiny sprites |
+| 32×32 | 48×48 | Standard NPCs |
+| 32×48 | 48×72 | Tall characters (mage) |
+| 64×64 | 96×96 | Large creatures, bosses |
+
 ### Runtime Queries
 
 | Function | Description |
@@ -1187,4 +1213,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v1.4.0 — 184 API Functions, 27 Modules
+Twilight Engine v1.5.0 — 185 API Functions, 27 Modules, Multi-Grid Sprites

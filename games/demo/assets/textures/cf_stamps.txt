@@ -1,62 +1,88 @@
-House|0|160|96|128|building
-Bridge|96|160|144|64|building
-Oak Tree|240|160|64|80|tree
-Small Oak|304|160|96|48|tree
-Flower Red|400|160|32|32|misc
-Flower Yellow|432|160|32|32|misc
-Grass Tuft|464|160|32|32|misc
-Bush Small|496|160|32|32|misc
-Pumpkin|528|160|32|32|misc
-Carrot|560|160|32|32|misc
-Crate|592|160|32|32|misc
-Barrel|0|288|32|32|misc
-Rock 1|32|288|32|32|misc
-Rock 2|64|288|32|32|misc
-Rock 3|96|288|32|32|misc
-Rock Pile|128|288|32|32|misc
-Wheat 1|160|288|32|32|misc
-Wheat 2|192|288|32|32|misc
-Hay Bale|224|288|32|32|misc
-Sign Post|256|288|32|64|misc
-Lamp Post|288|288|32|96|misc
-Log|320|288|64|32|misc
-Flower Bed|384|288|96|32|misc
-Chicken|480|288|32|32|misc
-Cow|512|288|32|32|misc
-Pig|544|288|32|32|misc
-Sheep|576|288|32|32|misc
-Skeleton|608|288|32|32|misc
-Slime|0|384|32|32|misc
-Table|0|736|64|64|furniture
-Bed|64|736|64|64|furniture
-Chair|128|736|64|64|furniture
-Chest|192|736|64|64|furniture
-Cabinet|256|736|64|64|furniture
-Fireplace|320|736|32|64|furniture
-Torch|352|736|64|64|furniture
-LPC Barrel|416|736|64|64|furniture
-Cauldron|480|736|32|64|furniture
-Curtains|512|736|64|64|furniture
-Painting|576|736|64|64|furniture
-Knight|0|800|32|32|character
-Mage_R|36|800|32|32|character
-Archer|72|800|32|32|character
-Rogue|108|800|32|32|character
-Assassin|144|800|32|32|character
-Ninja|180|800|32|32|character
-Lancer|216|800|32|32|character
-Dragoon|252|800|32|32|character
-Cleric|288|800|32|32|character
-Monk|324|800|32|32|character
-Warrior|360|800|32|32|character
-Paladin|396|800|32|32|character
-Apple|432|800|32|32|misc
-Carrot_F|468|800|32|32|misc
-Wheat_F|504|800|32|32|misc
-Fruit Crate|540|800|64|32|misc
-Hay_F|0|864|64|64|misc
-Mushroom|68|864|32|32|misc
-Skeleton_U|104|864|32|32|misc
-Golem|140|864|32|32|misc
-Ice Elemental|176|864|32|32|misc
-Chest_U|212|864|32|32|misc
+Bridge|0|992|133|63|building
+Fountain|135|992|90|74|building
+House|227|992|74|118|building
+Stone Door|303|992|20|35|building
+Stone Pillar|325|992|30|56|building
+Stone Wall Front|357|992|68|68|building
+Stone Wall Long|427|992|164|36|building
+Stone Wall Wide|0|1112|132|68|building
+Wood Door|134|1112|23|45|building
+Agave|159|1112|84|84|tree
+Big Tree 1|245|1112|109|118|tree
+Big Tree 2|356|1112|84|115|tree
+Big Tree 3|442|1112|74|101|tree
+Bush Round 1|518|1112|26|14|tree
+Bush Round 2|546|1112|31|25|tree
+Bush Round 3|579|1112|38|30|tree
+Cactus Short|0|1232|44|72|tree
+Cactus Tall|46|1232|29|121|tree
+Dead Tree|77|1232|30|96|tree
+Fir Tree|109|1232|51|116|tree
+Green Pine|162|1232|42|100|tree
+Oak Tree|206|1232|45|67|tree
+Pine Tree|253|1232|92|123|tree
+Round Bush SM|347|1232|26|25|tree
+Small Oak|375|1232|83|38|tree
+Snow Pine|460|1232|60|115|tree
+Bed|522|1232|48|18|furniture
+Cabinet|572|1232|68|63|furniture
+Cauldron|0|1357|35|67|furniture
+Chair|37|1357|62|68|furniture
+Chest|101|1357|68|68|furniture
+Curtains|171|1357|68|68|furniture
+Dungeon Chest|241|1357|30|36|furniture
+Fireplace|273|1357|35|66|furniture
+Painting|310|1357|65|53|furniture
+Stone Bench|377|1357|30|27|furniture
+Table|409|1357|68|64|furniture
+Torch|479|1357|64|66|furniture
+Archer|545|1357|36|36|character
+Cleric|583|1357|36|36|character
+Dungeon Skel|0|1427|26|22|character
+Golem|28|1427|24|24|character
+Ice Elemental|54|1427|30|35|character
+Knight|86|1427|36|36|character
+Monk|124|1427|36|36|character
+Mushroom|162|1427|26|23|character
+Paladin|190|1427|36|36|character
+RPG Mage|228|1427|36|36|character
+Rogue|266|1427|36|36|character
+Rogue NPC|304|1427|36|36|character
+Warrior|342|1427|36|36|character
+Apple|380|1427|32|35|misc
+Barrel|414|1427|14|12|misc
+Boulder|430|1427|84|73|misc
+Bush Small|516|1427|32|36|misc
+Carrot|550|1427|24|20|misc
+Chicken|576|1427|17|18|misc
+Coral Red|0|1502|54|29|misc
+Cow|56|1502|28|25|misc
+Crate|86|1502|30|20|misc
+Cross|118|1502|34|52|misc
+Farm Carrot|154|1502|27|31|misc
+Farm Wheat|183|1502|28|28|misc
+Flower Bed|213|1502|84|26|misc
+Flower Red|299|1502|24|12|misc
+Flower Yellow|325|1502|20|12|misc
+Fruit Crate|347|1502|68|28|misc
+Grass Tuft|417|1502|24|20|misc
+Hay Bale|443|1502|28|32|misc
+Hay Bundle|473|1502|66|68|misc
+Ice Rock|541|1502|94|104|misc
+LPC Barrel|0|1608|64|42|misc
+Lamp Post|66|1608|30|98|misc
+Log|98|1608|62|34|misc
+Pig|162|1608|25|19|misc
+Pumpkin|189|1608|34|30|misc
+Rock 1|225|1608|36|32|misc
+Rock 2|263|1608|24|18|misc
+Rock 3|289|1608|34|28|misc
+Rock Pile|325|1608|18|24|misc
+Sheep|345|1608|23|20|misc
+Sign Post|370|1608|34|66|misc
+Skeleton|406|1608|17|24|misc
+Slime|425|1608|14|14|misc
+Stone Barrel|441|1608|36|33|misc
+Tombstone 2|479|1608|30|30|misc
+Wheat 1|511|1608|34|36|misc
+Wheat 2|547|1608|28|36|misc

@@ -389,6 +389,8 @@ struct NPC {
     int battle_enemy_hp = 0, battle_enemy_atk = 0;
     int sprite_atlas_id = -1;       // Legacy (kept for JSON compat)
     std::string sprite_atlas_key;   // Texture path key into GameState::atlas_cache
+    int sprite_grid_w = 0;          // Cell width (0 = auto-detect from texture)
+    int sprite_grid_h = 0;          // Cell height (0 = auto-detect from texture)
     bool hostile = false;
     float aggro_range = 150.0f, attack_range = 32.0f;
     float wander_timer = 0.0f, wander_interval = 3.0f;
@@ -635,6 +637,12 @@ struct GameState {
     VkDescriptorSet icons_desc = VK_NULL_HANDLE;
     std::unique_ptr<eb::TextureAtlas> ui_atlas;
     std::unique_ptr<eb::TextureAtlas> icons_atlas;
+    // Fantasy icons atlas (Shikashi pack — ~300 RPG icons in 32x32 grid)
+    VkDescriptorSet fantasy_icons_desc = VK_NULL_HANDLE;
+    std::unique_ptr<eb::TextureAtlas> fantasy_icons_atlas;
+    // Flat UI pack
+    VkDescriptorSet ui_flat_desc = VK_NULL_HANDLE;
+    std::unique_ptr<eb::TextureAtlas> ui_flat_atlas;
     bool initialized = false;
 
     // Pause menu

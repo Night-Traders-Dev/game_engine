@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v1.3                       |
+|                        TWILIGHT ENGINE v1.5                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -74,7 +74,7 @@
 |  |                   SAGELANG SCRIPTING                          |  |
 |  |-------------------------------------------------------------|  |
 |  |                                                               |  |
-|  |  150+ Native Functions across 30+ Modules:                   |  |
+|  |  185 Native Functions across 27 Modules:                   |  |
 |  |                                                               |  |
 |  |  Engine Core    : log, random, clamp, str, flags             |  |
 |  |  Player         : pos, hp, atk, def, xp, dir, scale         |  |
@@ -161,18 +161,21 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v1.4.0)
+## File Counts (v1.5.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 17,211 lines | Engine + game framework |
-| Script API | 184 functions | 27 modules |
+| C++ Source | 17,353 lines | Engine + game framework |
+| Script API | 185 functions | 27 modules |
 | Test Assertions | 101 | 33 test categories |
-| Tileset Tiles | 580 | 20x29 grid at 32x32 |
-| Object Stamps | 62 | 6 categories (buildings, furniture, characters, trees, vehicles, misc) |
+| Tileset Tiles | 1,080 | 20x54 grid at 32x32 |
+| Object Stamps | 88 | 6 categories (9 buildings, 17 trees, 12 furniture, 13 characters, 37 misc) |
+| Fantasy Icons | 432 | 16x27 grid at 32x32 (weapons, armor, potions, food, tools, elements) |
+| UI Sheets | 3 | Original spritesheet (704x2160), Fantasy icons (512x867), Flat UI (736x288) |
 | Sage Scripts | 16 | Game logic, weather, tests, map scripts |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 | Asset Scale Levels | 3 | 1x, 2x, 3x (auto-generated) |
+| Maps | 2 | Forest (30x22) + House Interior (9x9) with portal transitions |
 
 ## Platform Support
 

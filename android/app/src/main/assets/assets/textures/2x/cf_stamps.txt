@@ -27,3 +27,65 @@ Pig|1088|576|64|64|misc
 Sheep|1152|576|64|64|misc
 Skeleton|1216|576|64|64|misc
 Slime|0|768|64|64|misc
+Table|0|1472|128|128|furniture
+Bed|128|1472|128|128|furniture
+Chair|256|1472|128|128|furniture
+Chest|384|1472|128|128|furniture
+Cabinet|512|1472|128|128|furniture
+Fireplace|640|1472|64|128|furniture
+Torch|704|1472|128|128|furniture
+LPC Barrel|832|1472|128|128|furniture
+Cauldron|960|1472|64|128|furniture
+Curtains|1024|1472|128|128|furniture
+Painting|1152|1472|128|128|furniture
+Knight|0|1600|64|64|character
+Mage_R|72|1600|64|64|character
+Archer|144|1600|64|64|character
+Rogue|216|1600|64|64|character
+Assassin|288|1600|64|64|character
+Ninja|360|1600|64|64|character
+Lancer|432|1600|64|64|character
+Dragoon|504|1600|64|64|character
+Cleric|576|1600|64|64|character
+Monk|648|1600|64|64|character
+Warrior|720|1600|64|64|character
+Paladin|792|1600|64|64|character
+Apple|864|1600|64|64|misc
+Carrot_F|936|1600|64|64|misc
+Wheat_F|1008|1600|64|64|misc
+Fruit Crate|1080|1600|128|64|misc
+Hay_F|0|1728|128|128|misc
+Mushroom|136|1728|64|64|misc
+Skeleton_U|208|1728|64|64|misc
+Golem|280|1728|64|64|misc
+Ice Elemental|352|1728|64|64|misc
+Chest_U|424|1728|64|64|misc
+Cactus Tall|0|1984|80|256|tree
+Cactus Short|84|1984|80|192|tree
+Agave|168|1984|160|160|tree
+Pine Tree|332|1984|192|256|tree
+Coral Red|528|1984|128|128|misc
+Boulder|660|1984|224|192|misc
+Snow Pine|888|1984|160|224|tree
+Fir Tree|1052|1984|128|224|tree
+Green Pine|0|2244|128|192|tree
+Dead Tree|132|2244|128|192|tree
+Ice Rock|264|2244|224|224|misc
+Stone Door|492|2244|96|128|building
+Bench TD|592|2244|128|64|furniture
+Stone Pillar|724|2244|64|128|misc
+Wood Door|792|2244|96|160|building
+Barrel TD|892|2244|64|64|misc
+Tombstone 2|960|2244|64|96|misc
+Fountain|1028|2244|192|160|building
+Cross|0|2472|64|96|misc
+Big Tree 1|68|2472|256|256|tree
+Big Tree 2|328|2472|224|256|tree
+Big Tree 3|556|2472|192|256|tree
+Bush Round 1|752|2472|96|64|tree
+Bush Round 2|852|2472|112|80|tree
+Bush Round 3|968|2472|96|80|tree
+Bush Small TD|1068|2472|80|64|tree
+Stone Wall Front|0|2732|192|192|building
+Stone Wall Wide|196|2732|256|192|building
+Stone Wall Long|456|2732|384|128|building

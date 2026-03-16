@@ -111,6 +111,8 @@ bool save_map_file(const GameState& game, const std::string& path) {
           << ",\"dir\":" << npc.dir
           << ",\"sprite_atlas_id\":" << npc.sprite_atlas_id
           << ",\"sprite_atlas_key\":\"" << esc(npc.sprite_atlas_key) << "\""
+          << ",\"sprite_grid_w\":" << npc.sprite_grid_w
+          << ",\"sprite_grid_h\":" << npc.sprite_grid_h
           << ",\"interact_radius\":" << npc.interact_radius
           << ",\"hostile\":" << (npc.hostile ? "true" : "false")
           << ",\"aggro_range\":" << npc.aggro_range
@@ -306,6 +308,8 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
                         else if (key=="dir") npc.dir = (int)mnum(json, i);
                         else if (key=="sprite_atlas_id") npc.sprite_atlas_id = (int)mnum(json, i);
                         else if (key=="sprite_atlas_key") npc.sprite_atlas_key = mstr(json, i);
+                        else if (key=="sprite_grid_w") npc.sprite_grid_w = (int)mnum(json, i);
+                        else if (key=="sprite_grid_h") npc.sprite_grid_h = (int)mnum(json, i);
                         else if (key=="interact_radius") npc.interact_radius = (float)mnum(json, i);
                         else if (key=="hostile") npc.hostile = mbool(json, i);
                         else if (key=="aggro_range") npc.aggro_range = (float)mnum(json, i);
@@ -1209,21 +1213,27 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
             npc.battle_enemy_hp = npc_def.battle_hp;
             npc.battle_enemy_atk = npc_def.battle_atk;
 
-            // Load NPC sprite into atlas cache
+            // Load NPC sprite into atlas cache with grid-size-aware key
             if (!npc_def.sprite_path.empty()) {
                 npc.sprite_atlas_key = npc_def.sprite_path;
-                if (!game.atlas_cache.count(npc_def.sprite_path)) {
+                int cw = npc_def.sprite_grid_w > 0 ? npc_def.sprite_grid_w : 32;
+                int ch = npc_def.sprite_grid_h > 0 ? npc_def.sprite_grid_h : 32;
+                npc.sprite_grid_w = cw;
+                npc.sprite_grid_h = ch;
+                // Build grid-aware cache key
+                std::string cache_key = npc_def.sprite_path;
+                char kbuf[32]; std::snprintf(kbuf, sizeof(kbuf), "@%dx%d", cw, ch);
+                cache_key += kbuf;
+                if (!game.atlas_cache.count(cache_key)) {
                     auto* npc_tex = try_load(npc_def.sprite_path);
                     if (npc_tex) {
                         auto atlas = std::make_shared<eb::TextureAtlas>(npc_tex);
-                        int cw = npc_def.sprite_grid_w > 0 ? npc_def.sprite_grid_w : 32;
-                        int ch = npc_def.sprite_grid_h > 0 ? npc_def.sprite_grid_h : 32;
                         define_npc_atlas_regions(*atlas, cw, ch);
-                        game.atlas_cache[npc_def.sprite_path] = atlas;
-                        game.atlas_descs[npc_def.sprite_path] = renderer.get_texture_descriptor(*npc_tex);
+                        game.atlas_cache[cache_key] = atlas;
+                        game.atlas_descs[cache_key] = renderer.get_texture_descriptor(*npc_tex);
                         // Also push to legacy vectors
                         npc.sprite_atlas_id = (int)game.npc_atlases.size();
-                        game.npc_descs.push_back(game.atlas_descs[npc_def.sprite_path]);
+                        game.npc_descs.push_back(game.atlas_descs[cache_key]);
                         game.npc_atlases.push_back(std::make_unique<eb::TextureAtlas>(npc_tex));
                         define_npc_atlas_regions(*game.npc_atlases.back(), cw, ch);
                     }
@@ -1287,6 +1297,41 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
             eb::define_icons_atlas_regions(*game.icons_atlas);
             game.icons_desc = renderer.get_texture_descriptor(*icons_tex);
             std::printf("[Game] Icons sprite sheet loaded\n");
+        }
+
+        // Fantasy icons atlas (32x32 grid of ~300 RPG icons)
+        auto* fantasy_tex = try_load("assets/textures/fantasy_icons.png");
+        if (fantasy_tex) {
+            game.fantasy_icons_atlas = std::make_unique<eb::TextureAtlas>(fantasy_tex);
+            // Define as 32x32 grid
+            int fi_cols = fantasy_tex->width() / 32;
+            int fi_rows = fantasy_tex->height() / 32;
+            for (int r = 0; r < fi_rows; r++)
+                for (int c = 0; c < fi_cols; c++)
+                    game.fantasy_icons_atlas->add_region(c * 32, r * 32, 32, 32);
+            game.fantasy_icons_desc = renderer.get_texture_descriptor(*fantasy_tex);
+            std::printf("[Game] Fantasy icons loaded (%dx%d, %d icons)\n",
+                       fantasy_tex->width(), fantasy_tex->height(), fi_cols * fi_rows);
+        }
+
+        // Flat UI pack — define named regions for panels/bars/buttons
+        auto* ui_flat_tex = try_load("assets/textures/ui_flat_pack.png");
+        if (ui_flat_tex) {
+            game.ui_flat_atlas = std::make_unique<eb::TextureAtlas>(ui_flat_tex);
+            // Large panels (96x64 each, starting at y=32)
+            game.ui_flat_atlas->define_region("flat_grey",    32, 32, 96, 64);
+            game.ui_flat_atlas->define_region("flat_blue",   128, 32, 96, 64);
+            game.ui_flat_atlas->define_region("flat_orange", 224, 32, 96, 64);
+            game.ui_flat_atlas->define_region("flat_cream",  320, 32, 64, 64);
+            // Smaller panels (various sizes)
+            game.ui_flat_atlas->define_region("flat_grey_sm",    32, 96, 64, 32);
+            game.ui_flat_atlas->define_region("flat_blue_sm",   128, 96, 64, 32);
+            game.ui_flat_atlas->define_region("flat_orange_sm", 224, 96, 64, 32);
+            // Dark panels (at y=96-192, right side)
+            game.ui_flat_atlas->define_region("flat_dark",  288, 96, 64, 64);
+            game.ui_flat_atlas->define_region("flat_dark_tall", 288, 96, 64, 128);
+            game.ui_flat_desc = renderer.get_texture_descriptor(*ui_flat_tex);
+            std::printf("[Game] Flat UI pack loaded (%dx%d)\n", ui_flat_tex->width(), ui_flat_tex->height());
         }
 
         // Camera
@@ -2718,6 +2763,16 @@ void render_battle(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& te
 
 static void draw_ui_region(eb::SpriteBatch& batch, GameState& game,
                             const char* name, float x, float y, float w, float h) {
+    // Check flat UI pack first for flat_ prefixed names
+    if (name[0] == 'f' && name[1] == 'l' && game.ui_flat_atlas) {
+        auto* r = game.ui_flat_atlas->find_region(name);
+        if (r) {
+            batch.set_texture(game.ui_flat_desc);
+            batch.draw_quad({x, y}, {w, h}, r->uv_min, r->uv_max);
+            return;
+        }
+    }
+    // Standard UI atlas
     if (game.ui_atlas) {
         auto* r = game.ui_atlas->find_region(name);
         if (r) {
@@ -2733,11 +2788,32 @@ static void draw_ui_region(eb::SpriteBatch& batch, GameState& game,
 
 static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game,
                           const char* name, float x, float y, float sz) {
-    if (!game.ui_atlas) return;
-    auto* r = game.ui_atlas->find_region(name);
-    if (r) {
-        batch.set_texture(game.ui_desc);
-        batch.draw_quad({x, y}, {sz, sz}, r->uv_min, r->uv_max);
+    // Fantasy icon by index: "fi_42" = fantasy icon #42
+    if (name[0] == 'f' && name[1] == 'i' && name[2] == '_') {
+        int idx = std::atoi(name + 3);
+        if (game.fantasy_icons_atlas && idx >= 0 && idx < game.fantasy_icons_atlas->region_count()) {
+            auto r = game.fantasy_icons_atlas->region(idx);
+            batch.set_texture(game.fantasy_icons_desc);
+            batch.draw_quad({x, y}, {sz, sz}, r.uv_min, r.uv_max);
+            return;
+        }
+    }
+    // Standard UI atlas icon
+    if (game.ui_atlas) {
+        auto* r = game.ui_atlas->find_region(name);
+        if (r) {
+            batch.set_texture(game.ui_desc);
+            batch.draw_quad({x, y}, {sz, sz}, r->uv_min, r->uv_max);
+            return;
+        }
+    }
+    // Fantasy icons atlas by name search (fallback)
+    if (game.fantasy_icons_atlas) {
+        auto* r = game.fantasy_icons_atlas->find_region(name);
+        if (r) {
+            batch.set_texture(game.fantasy_icons_desc);
+            batch.draw_quad({x, y}, {sz, sz}, r->uv_min, r->uv_max);
+        }
     }
 }
 
@@ -3038,14 +3114,27 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     // NPCs (skip scheduled-out NPCs)
     for (const auto& npc : game.npcs) {
         if (!npc.schedule.currently_visible) continue;
-        // Prefer string-keyed atlas cache
+        // Prefer string-keyed atlas cache (with grid-size-aware key)
         eb::TextureAtlas* atlas_ptr = nullptr;
         VkDescriptorSet desc = VK_NULL_HANDLE;
         if (!npc.sprite_atlas_key.empty()) {
-            auto it = game.atlas_cache.find(npc.sprite_atlas_key);
+            // Build cache key with optional grid size suffix
+            std::string cache_key = npc.sprite_atlas_key;
+            if (npc.sprite_grid_w > 0 && npc.sprite_grid_h > 0) {
+                char buf[32]; std::snprintf(buf, sizeof(buf), "@%dx%d", npc.sprite_grid_w, npc.sprite_grid_h);
+                cache_key += buf;
+            }
+            auto it = game.atlas_cache.find(cache_key);
             if (it != game.atlas_cache.end()) {
                 atlas_ptr = it->second.get();
-                desc = game.atlas_descs[npc.sprite_atlas_key];
+                desc = game.atlas_descs[cache_key];
+            } else {
+                // Try without grid suffix (backward compat)
+                auto it2 = game.atlas_cache.find(npc.sprite_atlas_key);
+                if (it2 != game.atlas_cache.end()) {
+                    atlas_ptr = it2->second.get();
+                    desc = game.atlas_descs[npc.sprite_atlas_key];
+                }
             }
         }
         // Fallback to legacy indexed lookup
@@ -3055,7 +3144,11 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         }
         if (atlas_ptr && desc) {
             auto sr = get_character_sprite(*atlas_ptr, npc.dir, npc.moving, npc.frame);
-            float rw = 48 * npc.sprite_scale, rh = 64 * npc.sprite_scale;
+            // Use per-NPC cell size for render dimensions, with 1.5x scale
+            float base_w = (npc.sprite_grid_w > 0) ? (float)npc.sprite_grid_w : 32.0f;
+            float base_h = (npc.sprite_grid_h > 0) ? (float)npc.sprite_grid_h : 32.0f;
+            float rw = base_w * 1.5f * npc.sprite_scale;
+            float rh = base_h * 1.5f * npc.sprite_scale;
             eb::Vec2 uv0 = sr.uv_min, uv1 = sr.uv_max;
             if (npc.sprite_flip_h) std::swap(uv0.x, uv1.x);
             eb::Vec2 dp = {npc.position.x-rw*0.5f, npc.position.y-rh+4};
@@ -3174,10 +3267,10 @@ static void sync_hud_values(GameState& game) {
         if (auto* b = find_bar("hud_energy")) { b->value = game.survival.energy; }
     }
 
-    // Sun/moon icon swap
+    // Sun/moon icon swap (fantasy icons: 281=sun, 280=moon)
     if (auto* img = find_image("hud_sun")) {
         int hour = (int)game.day_night.game_hours;
-        img->icon_name = (hour >= 6 && hour < 18) ? "icon_star" : "icon_gem_blue";
+        img->icon_name = (hour >= 6 && hour < 18) ? "fi_281" : "fi_280";
     }
 
     // HP bar color (green → yellow → red)
@@ -3198,11 +3291,14 @@ static void sync_hud_values(GameState& game) {
     bool paused = game.paused;
     bool show_pause = paused && !game.level_select_open;
     set_vis("pause_bg", paused);  // Keep bg visible during level select too
+    set_vis("pause_icon", show_pause);
     set_vis("pause_title", show_pause);
     set_vis("pause_cursor", show_pause);
     static const char* pause_item_ids[6] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4","pause_item_5"};
+    static const char* pause_icon_ids[6] = {"pause_icon_0","pause_icon_1","pause_icon_2","pause_icon_3","pause_icon_4","pause_icon_5"};
     for (int i = 0; i < 6; i++) {
         set_vis(pause_item_ids[i], show_pause);
+        set_vis(pause_icon_ids[i], show_pause);
 
         // Highlight selected item
         if (auto* l = find_label(pause_item_ids[i])) {

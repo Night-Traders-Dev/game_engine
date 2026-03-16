@@ -2512,15 +2512,55 @@ Tileset expanded to 640x928 (580 tiles) with 62 object stamps across 6 editor ca
 
 | Category | Count | Examples |
 |----------|-------|---------|
-| Buildings | 1 | House |
-| Furniture | 11 | Table, Bed, Chair, Chest, Cabinet, Fireplace, Torch, Barrel, Cauldron, Curtains, Painting |
-| Characters | 12 | Knight, Mage, Archer, Rogue, Assassin, Ninja, Lancer, Dragoon, Cleric, Monk, Warrior, Paladin |
-| Trees | 2 | Oak Tree, Small Oak |
-| Vehicles | 0 | (reserved) |
-| Misc | 36 | Flowers, rocks, wheat, animals, fruits, farming items, dungeon monsters |
+| Buildings | 9 | House, Stone Door, Wood Door, Fountain, Stone Walls, Stone Pillar |
+| Furniture | 12 | Table, Bed, Chair, Chest, Cabinet, Fireplace, Torch, Cauldron, Curtains, Painting, Bench, Dungeon Chest |
+| Characters | 13 | Knight, RPG Mage, Archer, Rogue, Rogue NPC, Cleric, Monk, Warrior, Paladin, Dungeon Skel, Golem, Ice Elemental, Mushroom |
+| Trees | 17 | Oak Tree, Small Oak, Pine, Fir, Snow Pine, Green Pine, Dead Tree, Big Trees, Cacti, Agave, Bushes |
+| Misc | 37 | Flowers, rocks, wheat, animals, fruits, farming items, boulders, ice rocks, corals, tombstones |
 
-Tile rows include: grass (31), dirt (14), water (23), stone (12), wood/interior (39), dark/dungeon (29), snow (20), desert (20), outdoor (20), dungeon crawl (40).
+Tile rows: grass, dirt, water, stone, wood/interior, dark/dungeon, snow, desert, outdoor, dungeon crawl, top-down grass, top-down stone (1,080 total tiles).
+
+### Multi-Grid Sprite System (v1.5)
+
+Each NPC stores its own `sprite_grid_w` and `sprite_grid_h`. The atlas cache keys include grid dimensions, so the same texture file can be loaded with different grid sizes simultaneously.
+
+```sage
+# Mix different sprite sizes on screen
+spawn_npc("Tiny", 100, 100, 0, false, "sprite.png", 0, 0, 20, 0, 16, 16)
+spawn_npc("Normal", 200, 200, 0, false, "sprite.png", 0, 0, 20, 0, 32, 32)
+spawn_npc("Boss", 400, 400, 0, true, "boss.png", 500, 40, 10, 200, 64, 64)
+
+# Change grid at runtime
+npc_set_grid("Boss", 48, 48)
+```
+
+Render size = `grid_size * 1.5 * sprite_scale`. Grid size 0 = auto-detect from texture.
+
+### NPC Sprite Updates (v1.5)
+
+All NPC sprites rebuilt from Cute Fantasy Free source sheets with proper 4-direction walk cycles:
+- **Elder**: Warm brown recolor of Player sprite (was hand-drawn placeholder)
+- **Merchant**: Green/gold recolor (was hand-drawn placeholder)
+- **Skeleton**: Full directional walk extracted from 6x10 source sheet
+- **Slime**: Animation frames from source sheet
+- **Wolf**: New sprite extracted from critters pack (was using slime placeholder)
+- **Animals**: Scaled from 64x64 source to 32x32 cells
+
+### UI Overhaul (v1.5)
+
+- **Fantasy Icons** (432 RPG icons) accessible via `"fi_N"` prefix in `ui_image()`
+- **Flat UI Pack** panels accessible via `"flat_blue"`, `"flat_orange"`, `"flat_grey"`, `"flat_dark"` in `ui_panel()`
+- **Window Panels** from original spritesheet: `"panel_window"`, `"panel_window_lg"`
+- HUD uses flat blue/orange panels with fantasy icon heart, coin, sun/moon
+- Pause menu uses warm window panel with per-item fantasy icons
+
+### Stamp Cleanup (v1.5)
+
+- 50+ clipped stamps re-extracted with 2px padding
+- 3 duplicate stamps removed (Ninja/Lancer/Dragoon identical to Assassin)
+- 6 mislabeled categories fixed
+- All stamps verified: bounds-checked, content-verified, no broken references
 
 ---
 
-Twilight Engine v1.4.0 — 17,211 lines C++, 184 API functions, 27 modules, 4 platforms
+Twilight Engine v1.5.0 — 17,353 lines C++, 185 API functions, 27 modules, 4 platforms
