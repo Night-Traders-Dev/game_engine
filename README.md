@@ -364,4 +364,4 @@ MIT
 
 ---
 
-Twilight Engine v2.3.0 — 20,313 lines C++ (72 source files), 231 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms
+Twilight Engine v2.4.0 — 20,503 lines C++ (72 source files), 231 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms
