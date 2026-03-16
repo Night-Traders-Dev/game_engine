@@ -31,6 +31,11 @@ bool LevelManager::load_level(const std::string& id, const std::string& map_path
         return false;
     }
 
+    // Set tileset atlas from GameState (shared across all levels)
+    if (game.tileset_atlas) {
+        level.tile_map.set_tileset(game.tileset_atlas.get());
+    }
+
     // Parse NPCs and objects from the map JSON (reuse load_map_file logic)
     auto data = FileIO::read_file(map_path);
     if (!data.empty()) {
@@ -86,6 +91,10 @@ void LevelManager::restore_level_to_game(const std::string& id, GameState& game)
 
     auto& lvl = it->second;
     game.tile_map = lvl.tile_map;
+    // Ensure tileset is set (copy doesn't preserve the pointer)
+    if (game.tileset_atlas) {
+        game.tile_map.set_tileset(game.tileset_atlas.get());
+    }
     game.npcs = lvl.npcs;
     game.world_objects = lvl.objects;
     game.object_defs = lvl.object_defs;
@@ -132,6 +141,18 @@ bool LevelManager::switch_level(const std::string& id, GameState& game) {
             game.script_engine->call_function("map_init");
         }
         lvl.script_executed = true;
+    }
+
+    // Call per-level enter function (runs EVERY time you enter, not just first)
+    if (game.script_engine) {
+        // Strip .json extension for function name: "house_inside.json" -> "house_inside_enter"
+        std::string enter_func = id;
+        auto dot = enter_func.rfind('.');
+        if (dot != std::string::npos) enter_func = enter_func.substr(0, dot);
+        enter_func += "_enter";
+        if (game.script_engine->has_function(enter_func)) {
+            game.script_engine->call_function(enter_func);
+        }
     }
 
     // Apply per-level zoom

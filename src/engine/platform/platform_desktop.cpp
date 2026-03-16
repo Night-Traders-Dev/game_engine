@@ -10,6 +10,10 @@ namespace eb {
 
 PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height, bool fullscreen)
     : width_(width), height_(height) {
+    // Allow forcing X11 via environment variable (for test tooling on Wayland)
+    if (std::getenv("TW_FORCE_X11")) {
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+    }
     // Disable libdecor on Wayland to avoid fontconfig crash in some distros
     glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
     if (!glfwInit()) {

@@ -22,8 +22,10 @@
 
 int main(int argc, char* argv[]) {
     bool run_tests = false;
+    bool windowed = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--test") run_tests = true;
+        if (std::string(argv[i]) == "--windowed") windowed = true;
     }
 
     try {
@@ -41,7 +43,7 @@ int main(int argc, char* argv[]) {
         config.width = manifest.window_width;
         config.height = manifest.window_height;
         config.vsync = true;
-        config.fullscreen = true;
+        config.fullscreen = !windowed;
 
         eb::Engine engine(config);
         engine.renderer().set_shader_dir("shaders/");

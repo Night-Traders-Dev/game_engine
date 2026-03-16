@@ -3293,6 +3293,7 @@ static void sync_hud_values(GameState& game) {
     set_vis("pause_bg", paused);  // Keep bg visible during level select too
     set_vis("pause_icon", show_pause);
     set_vis("pause_title", show_pause);
+    set_vis("pause_div", show_pause);
     set_vis("pause_cursor", show_pause);
     static const char* pause_item_ids[6] = {"pause_item_0","pause_item_1","pause_item_2","pause_item_3","pause_item_4","pause_item_5"};
     static const char* pause_icon_ids[6] = {"pause_icon_0","pause_icon_1","pause_icon_2","pause_icon_3","pause_icon_4","pause_icon_5"};

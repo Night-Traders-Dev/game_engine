@@ -4,8 +4,8 @@
 proc house_inside_init():
     log("=== House Interior loaded ===")
 
-    # ── Warm interior ──
-    set_clear_color(0.12, 0.10, 0.06)
+    # ── Bright warm interior ──
+    set_clear_color(0.25, 0.20, 0.15)
     set_level_zoom("house_inside.json", 2.0)
 
     # ── Furniture ──
@@ -25,3 +25,8 @@ proc house_inside_init():
     set_weather("clear")
 
     log("House interior ready")
+
+# Called EVERY time the player enters this level (not just first time)
+proc house_inside_enter():
+    set_weather("clear")
+    set_clear_color(0.25, 0.20, 0.15)

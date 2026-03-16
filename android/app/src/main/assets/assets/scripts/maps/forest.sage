@@ -4,8 +4,8 @@
 proc forest_init():
     log("=== Enchanted Forest loaded ===")
 
-    # ── House sprite centered over door portal (14, 12) ──
-    place_object(464, 320, "House")
+    # ── House sprite — bottom at y=384, covering portal tile (14,11) ──
+    place_object(448, 384, "House")
 
     # ── Dense tree ring (edge trees match dark tile border) ──
     # Top edge
@@ -91,3 +91,10 @@ proc forest_init():
     set_day_speed(6)
 
     log("Forest ready")
+
+# Called EVERY time the player enters this level
+proc forest_enter():
+    set_clouds(true, 0.35, 12, 60)
+    set_god_rays(true, 0.18, 4)
+    set_wind(0.15, 30)
+    set_clear_color(0.02, 0.04, 0.02)
