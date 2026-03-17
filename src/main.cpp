@@ -218,6 +218,9 @@ int main(int argc, char* argv[]) {
                 if (editor.is_active()) {
                     game.camera.clear_bounds();
                 } else {
+                    // Auto-save map script when closing editor
+                    if (editor.is_map_script_dirty())
+                        editor.save_map_script();
                     // Restore camera to game viewport (manifest size, not native screen)
                     float gw = (float)config.width;
                     float gh = (float)config.height;
@@ -232,6 +235,7 @@ int main(int argc, char* argv[]) {
 
             // ESC in editor mode → close editor (pause menu handles ESC in game mode)
             if (input.is_pressed(eb::InputAction::Menu) && editor.is_active()) {
+                if (editor.is_map_script_dirty()) editor.save_map_script();
                 editor.toggle();
                 game.editor_active = editor.is_active();
                 float gw = (float)config.width;

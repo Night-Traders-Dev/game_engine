@@ -309,32 +309,15 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 ui_drag_active_ = false;
                 // Write back to HUDConfig so sync_hud_values uses updated positions
                 sync_to_hud_config(game, ui_selected_id_);
-                // Find final position and generate SageLang
-                for (auto& p : game.script_ui.panels) {
-                    if (p.id == ui_selected_id_) {
-                        append_map_script("ui_set(\"" + p.id + "\", \"x\", " + std::to_string((int)p.position.x) + ")");
-                        append_map_script("ui_set(\"" + p.id + "\", \"y\", " + std::to_string((int)p.position.y) + ")");
-                        break;
-                    }
-                }
-                for (auto& b : game.script_ui.bars) {
-                    if (b.id == ui_selected_id_) {
-                        append_map_script("ui_set(\"" + b.id + "\", \"x\", " + std::to_string((int)b.position.x) + ")");
-                        break;
-                    }
-                }
-                for (auto& l : game.script_ui.labels) {
-                    if (l.id == ui_selected_id_) {
-                        append_map_script("ui_set(\"" + l.id + "\", \"x\", " + std::to_string((int)l.position.x) + ")");
-                        break;
-                    }
-                }
-                for (auto& img : game.script_ui.images) {
-                    if (img.id == ui_selected_id_) {
-                        append_map_script("ui_set(\"" + img.id + "\", \"x\", " + std::to_string((int)img.position.x) + ")");
-                        break;
-                    }
-                }
+                // Find final position and generate SageLang for both X and Y
+                auto gen_move = [&](const std::string& id, float x, float y) {
+                    append_map_script("ui_set(\"" + id + "\", \"x\", " + std::to_string((int)x) + ")");
+                    append_map_script("ui_set(\"" + id + "\", \"y\", " + std::to_string((int)y) + ")");
+                };
+                for (auto& p : game.script_ui.panels) { if (p.id == ui_selected_id_) { gen_move(p.id, p.position.x, p.position.y); break; } }
+                for (auto& b : game.script_ui.bars) { if (b.id == ui_selected_id_) { gen_move(b.id, b.position.x, b.position.y); break; } }
+                for (auto& l : game.script_ui.labels) { if (l.id == ui_selected_id_) { gen_move(l.id, l.position.x, l.position.y); break; } }
+                for (auto& img : game.script_ui.images) { if (img.id == ui_selected_id_) { gen_move(img.id, img.position.x, img.position.y); break; } }
                 set_status("Moved: " + ui_selected_id_);
             }
         }
@@ -386,6 +369,21 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
         if (resizing && !ImGui::IsMouseDown(1)) {
             resizing = false;
             sync_to_hud_config(game, ui_selected_id_);
+            // Generate resize script
+            for (auto& p : game.script_ui.panels) {
+                if (p.id == ui_selected_id_) {
+                    append_map_script("ui_set(\"" + p.id + "\", \"w\", " + std::to_string((int)p.width) + ")");
+                    append_map_script("ui_set(\"" + p.id + "\", \"h\", " + std::to_string((int)p.height) + ")");
+                    break;
+                }
+            }
+            for (auto& b : game.script_ui.bars) {
+                if (b.id == ui_selected_id_) {
+                    append_map_script("ui_set(\"" + b.id + "\", \"w\", " + std::to_string((int)b.width) + ")");
+                    append_map_script("ui_set(\"" + b.id + "\", \"h\", " + std::to_string((int)b.height) + ")");
+                    break;
+                }
+            }
             set_status("Resized: " + ui_selected_id_);
         }
 

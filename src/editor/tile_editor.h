@@ -114,6 +114,8 @@ public:
 
     // Map script (Visual Basic-style editor code generation)
     void load_map_script(const std::string& map_path);
+    void save_map_script();
+    bool is_map_script_dirty() const { return map_script_dirty_; }
 
 private:
     void handle_palette_click(float mx, float my, int screen_w, int screen_h);
@@ -284,10 +286,10 @@ private:
 
     // Map script generation (Visual Basic-style)
     std::string map_script_path_;
-    std::string map_script_body_;   // Lines inside map_init()
+    std::string map_script_init_func_ = "map_init"; // e.g. "forest_init" or "map_init"
+    std::string map_script_body_;   // Lines inside the init function
     bool map_script_dirty_ = false;
     void append_map_script(const std::string& line);
-    void save_map_script();
 
     void update_autotile_neighbors(int tx, int ty);
 
