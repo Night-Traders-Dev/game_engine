@@ -814,6 +814,69 @@ void TileEditor::paint_tile(int tx, int ty) {
             }
         }
     }
+    // Auto-tile: update transition tiles around painted area
+    if (auto_tile_enabled_) {
+        for (int dy = -half; dy <= half; dy++)
+            for (int dx = -half; dx <= half; dx++)
+                update_autotile_neighbors(tx + dx, ty + dy);
+    }
+}
+
+// Auto-tiling: after painting, update transition tiles around the painted area
+void TileEditor::update_autotile_neighbors(int tx, int ty) {
+    if (!auto_tile_enabled_ || !auto_tile_config_.configured || !map_) return;
+    int w = map_->width(), h = map_->height();
+    int tA = auto_tile_config_.terrain_a_tile;
+    int tB = auto_tile_config_.terrain_b_tile;
+    int tStart = auto_tile_config_.transition_start;
+    if (tStart <= 0) return;
+
+    // Check: is this tile ID terrain A?
+    auto is_a = [&](int raw) -> bool { return eb::tile_id(raw) == tA; };
+    auto is_b = [&](int raw) -> bool { return eb::tile_id(raw) == tB; };
+    auto is_ab = [&](int raw) -> bool { return is_a(raw) || is_b(raw); };
+
+    // For each tile in the 3x3 area around the painted tile, compute a 4-bit bitmask
+    // Bits: 0=TL, 1=TR, 2=BR, 3=BL — set if that corner touches terrain B
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            int cx = tx + dx, cy = ty + dy;
+            if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
+            int raw = map_->tile_at(active_layer_, cx, cy);
+            // Only auto-tile if this tile is A, B, or already a transition tile
+            int tid = eb::tile_id(raw);
+            if (!is_a(raw) && !is_b(raw) && !(tid >= tStart && tid < tStart + 16)) continue;
+
+            // Sample the 4 corners of this tile by checking neighbors
+            // TL corner: influenced by tiles at (cx-1,cy), (cx,cy-1), (cx-1,cy-1)
+            // TR corner: influenced by tiles at (cx+1,cy), (cx,cy-1), (cx+1,cy-1)
+            // BR corner: influenced by tiles at (cx+1,cy), (cx,cy+1), (cx+1,cy+1)
+            // BL corner: influenced by tiles at (cx-1,cy), (cx,cy+1), (cx-1,cy+1)
+            auto sample = [&](int sx, int sy) -> bool {
+                if (sx < 0 || sx >= w || sy < 0 || sy >= h) return is_a(raw); // Edge = same as self
+                int r = map_->tile_at(active_layer_, sx, sy);
+                return is_b(r) || (eb::tile_id(r) >= tStart && eb::tile_id(r) < tStart + 16 && !is_a(r));
+            };
+
+            bool tl = sample(cx-1, cy) || sample(cx, cy-1) || sample(cx-1, cy-1);
+            bool tr = sample(cx+1, cy) || sample(cx, cy-1) || sample(cx+1, cy-1);
+            bool br = sample(cx+1, cy) || sample(cx, cy+1) || sample(cx+1, cy+1);
+            bool bl = sample(cx-1, cy) || sample(cx, cy+1) || sample(cx-1, cy+1);
+
+            int mask = (tl ? 1 : 0) | (tr ? 2 : 0) | (br ? 4 : 0) | (bl ? 8 : 0);
+
+            int new_tile;
+            if (mask == 0) new_tile = tA;        // All corners are terrain A
+            else if (mask == 15) new_tile = tB;   // All corners are terrain B
+            else new_tile = tStart + mask;         // Transition tile
+
+            int old_t = map_->tile_at(active_layer_, cx, cy);
+            if (old_t != new_tile) {
+                record_tile_change(active_layer_, cx, cy, old_t, new_tile);
+                map_->set_tile(active_layer_, cx, cy, new_tile);
+            }
+        }
+    }
 }
 
 void TileEditor::erase_tile(int tx, int ty) {

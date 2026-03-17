@@ -95,6 +95,7 @@ private:
     void register_lighting_api();
     void register_anim_api();
     void register_visual_fx_api();
+    void register_parallax_api();
 
     Env* env_ = nullptr;
 

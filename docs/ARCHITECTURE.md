@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v2.5                       |
+|                        TWILIGHT ENGINE v2.6                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -75,7 +75,7 @@
 |  |                   SAGELANG SCRIPTING                          |  |
 |  |-------------------------------------------------------------|  |
 |  |                                                               |  |
-|  |  233 Native Functions across 40 Modules:                   |  |
+|  |  236 Native Functions across 41 Modules:                   |  |
 |  |                                                               |  |
 |  |  Engine Core    : log, random, clamp, str, flags             |  |
 |  |  Player         : pos, hp, atk, def, xp, dir, scale         |  |
@@ -121,7 +121,7 @@ game.json (manifest)
     v
 +-------------------+     +-------------------+     +------------------+
 | init_game_from_   |     | ScriptEngine      |     | TileEditor       |
-| manifest()        |---->| (233 natives)     |<--->| (ImGui desktop)  |
+| manifest()        |---->| (236 natives)     |<--->| (ImGui desktop)  |
 | Load tileset,     |     | Load .sage files  |     | Paint/erase/fill |
 | NPCs, party,      |     | Execute map_init  |     | Tile rotation    |
 | audio config      |     | Hot reload        |     | NPC spawner      |
@@ -164,31 +164,39 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v2.5.0)
+## File Counts (v2.6.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 21,000+ lines (78 files) | Engine + game framework + 4 system headers |
-| Game Logic | 5 files | game.cpp (update, 966), game_io.cpp (save/load, 537), game_init.cpp (init, 891), game_battle.cpp (battle, 516), game_render.cpp (render+HUD, 1,217) |
-| Script Engine | 2 files | script_engine.cpp (core + original APIs, 2,840) + script_api_new.cpp (Phase 1-4 APIs, 644) |
-| Script API | 233 functions | 40 modules across 2 files |
+| C++ Source | 21,249 lines (76 files) | Engine + game framework (excl. third-party) |
+| With Third-Party | 272,354 lines (206 files) | Including ImGui, SageLang, stb, miniaudio |
+| Game Logic | 5 files, 4,220 lines | game.cpp (1,000), game_io.cpp (537), game_init.cpp (891), game_battle.cpp (516), game_render.cpp (1,276) |
+| Script Engine | 2 files, 3,558 lines | script_engine.cpp (2,841) + script_api_new.cpp (717) |
+| Script API | 236 functions | 41 modules across 2 files (190 + 46 env_define) |
+| Editor | 7 files, 3,699 lines | tile_editor.cpp (1,946), ui (727), script_ide (410), systems (236), imgui (150), npc_spawner (147), debug (83) |
+| Graphics | 14 files, 2,493 lines | Vulkan context, renderer, sprite batch, pipeline, text, texture, atlas |
+| Platform | 8 files, 1,151 lines | Desktop (232), Android (246), Quest, input (171), touch (277) |
+| Systems | 8 headers, 965 lines | Tween (213), particles (244), save (257), spawn, level_manager, day_night, survival, sprite_anim |
+| Overworld | 4 files, 880 lines | Camera (149), TileMap (731) with collision + reflection grids |
+| Audio | 2 files, 258 lines | miniaudio backend, spatial audio, crossfade |
+| AI | 2 files, 119 lines | A* pathfinding with grid-based navigation |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
 | Maps | 6 | Forest, House Inside, Desert, Snow, Cave, Volcanic |
-| Tilesets | 8 | cf_tileset (1,080 tiles) + 4 procedural biome tilesets + 3 legacy |
-| Object Stamps | 88+ | 6 categories + auto-discovered biome stamps (29 additional) |
+| Tilesets | 16 | cf_tileset (1,080 tiles) + procedural biome tilesets + legacy |
+| Object Stamps | 88+ | 6 categories + auto-discovered biome stamps |
 | Fantasy Icons | 432 | 16x27 grid at 32x32 |
-| UI Sheets | 3 + 4 generated | Original (704x2160), Fantasy icons (512x867), Flat UI (736x288) + 4 procedural UI theme packs (47 components each) |
-| UI Themes | 4 | Fantasy RPG, Dark, Medieval Stone, Cute Fantasy — panels, buttons, bars, checkboxes, sliders, 9-slice tiles, arrows |
+| UI Regions | 113 | 57 (main atlas) + 56 (flat/theme packs) |
+| UI Themes | 4 | Fantasy RPG, Dark, Medieval Stone, Cute Fantasy — 47 components each |
 | Sage Scripts | 20 | Game logic, weather, tests, map scripts |
 | Biome Presets | 10 | Grasslands, Forest, Desert, Snow, Swamp, Volcanic, Beach, Cave, Urban, Farmland |
-| Python Tools | 7 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor, security fuzzer, UI pack generator |
+| Python Tools | 7 + tw_test | Tileset generator, biome wiring, test automation (11 modules), asset scaler, tileset extractor, security fuzzer, UI pack generator |
 | Fuzz Categories | 7 | boundaries, division, strings, types, exhaustion, conflicts, rapid |
 | Test Assertions | 510 | 46 test sections across all API modules |
-| Editor Source | 7 files | tile_editor.cpp (core, 1,883), npc_spawner (147), script_ide (410), debug (83), systems (236), ui (727), imgui_integration (150) |
-| Editor Panels | 26 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (15 sections), Object Inspector, Prefabs, UI/HUD Editor (with style pickers and templates) |
-| Tile Properties | 2 grids | Collision (None/Solid/Portal) + Reflection (reflective surface for water/ice) |
-| Platforms | 4 | Linux, Windows, Android, Quest |
+| Editor Panels | 26 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (15 sections), Object Inspector, Prefabs, UI/HUD Editor |
+| Tile Properties | 2 grids | Collision (None/Solid/Portal) + Reflection (water/ice) |
+| Screen Transitions | 5 types | Fade, Iris, Wipe, Pixelate, Slide |
+| Platforms | 4 | Linux, Windows, Android, Meta Quest |
 
 ## Platform Support
 

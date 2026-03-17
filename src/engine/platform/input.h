@@ -77,15 +77,15 @@ struct InputState {
     };
     static constexpr int INPUT_BUFFER_SIZE = 8;
     static constexpr float INPUT_BUFFER_WINDOW = 0.15f; // 150ms buffer
-    BufferedInput input_buffer[INPUT_BUFFER_SIZE] = {};
-    int buffer_head = 0;
+    mutable BufferedInput input_buffer[INPUT_BUFFER_SIZE] = {};
+    mutable int buffer_head = 0;
     float input_time = 0;
 
     void buffer_press(InputAction action) {
         input_buffer[buffer_head] = {action, input_time};
         buffer_head = (buffer_head + 1) % INPUT_BUFFER_SIZE;
     }
-    bool consume_buffered(InputAction action) {
+    bool consume_buffered(InputAction action) const {
         for (int i = 0; i < INPUT_BUFFER_SIZE; i++) {
             auto& b = input_buffer[i];
             if (b.action == action && (input_time - b.timestamp) < INPUT_BUFFER_WINDOW) {

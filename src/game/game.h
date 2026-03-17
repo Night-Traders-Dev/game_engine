@@ -665,6 +665,10 @@ struct GameState {
     int level_select_cursor = 0;
     std::vector<std::string> level_select_ids;  // Cached level IDs for selector
 
+    // Settings sub-menu
+    bool settings_open = false;
+    int settings_cursor = 0; // 0=Music, 1=SFX, 2=Text Speed, 3=Back
+
     // Level system
     std::unique_ptr<eb::LevelManager> level_manager;
 

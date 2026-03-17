@@ -6,6 +6,7 @@
 #include "game/systems/survival.h"
 #include "game/systems/spawn_system.h"
 #include "game/systems/level_manager.h"
+#include "engine/audio/audio_engine.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -306,6 +307,37 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
     static constexpr int PAUSE_ITEM_COUNT = 6;
     // 0=Resume, 1=Editor, 2=Levels, 3=Reset, 4=Settings, 5=Quit
     if (game.paused) {
+        // Settings sub-menu
+        if (game.settings_open) {
+            static constexpr int SETTINGS_COUNT = 4; // Music, SFX, Text Speed, Back
+            if (input.is_pressed(eb::InputAction::MoveUp) && game.settings_cursor > 0)
+                game.settings_cursor--;
+            if (input.is_pressed(eb::InputAction::MoveDown) && game.settings_cursor < SETTINGS_COUNT - 1)
+                game.settings_cursor++;
+            // Left/Right to adjust values
+            bool left = input.is_pressed(eb::InputAction::MoveLeft);
+            bool right = input.is_pressed(eb::InputAction::MoveRight);
+            float step = 0.1f;
+            if (game.settings_cursor == 0) { // Music volume
+                if (left) game.settings.music_volume = std::max(0.0f, game.settings.music_volume - step);
+                if (right) game.settings.music_volume = std::min(1.0f, game.settings.music_volume + step);
+                if (game.audio_engine) game.audio_engine->set_music_volume(game.settings.music_volume);
+            } else if (game.settings_cursor == 1) { // SFX volume
+                if (left) game.settings.sfx_volume = std::max(0.0f, game.settings.sfx_volume - step);
+                if (right) game.settings.sfx_volume = std::min(1.0f, game.settings.sfx_volume + step);
+            } else if (game.settings_cursor == 2) { // Text speed
+                if (left && game.settings.text_speed > 1) game.settings.text_speed--;
+                if (right && game.settings.text_speed < 3) game.settings.text_speed++;
+            }
+            if (input.is_pressed(eb::InputAction::Confirm)) {
+                if (game.settings_cursor == 3) game.settings_open = false; // Back
+            }
+            if (input.is_pressed(eb::InputAction::Cancel)) {
+                game.settings_open = false;
+            }
+            return;
+        }
+
         // Level selector sub-menu
         if (game.level_select_open) {
             if (input.is_pressed(eb::InputAction::MoveUp) && game.level_select_cursor > 0)
@@ -347,7 +379,7 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
                     break;
                 }
                 case 3: game.pause_request_reset = true; game.paused = false; break;
-                case 4: break; // Settings placeholder
+                case 4: game.settings_open = true; game.settings_cursor = 0; break;
                 case 5: game.pause_request_quit = true; break;
             }
         };
@@ -402,10 +434,11 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         return;
     }
 
-    // Dialogue mode
+    // Dialogue mode — use buffered input for lenient confirm timing
     if (game.dialogue.is_active()) {
-        int result = game.dialogue.update(dt,
-            input.is_pressed(eb::InputAction::Confirm),
+        bool confirm = input.is_pressed(eb::InputAction::Confirm) ||
+                       input.consume_buffered(eb::InputAction::Confirm);
+        int result = game.dialogue.update(dt, confirm,
             input.is_pressed(eb::InputAction::MoveUp),
             input.is_pressed(eb::InputAction::MoveDown));
         if (result >= 0 && game.pending_battle_npc >= 0 &&
@@ -885,8 +918,9 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         }
     }
 
-    // Manual NPC interaction (Z/A button for friendly NPCs)
-    if (input.is_pressed(eb::InputAction::Confirm)) {
+    // Manual NPC interaction (Z/A button for friendly NPCs) — with input buffering
+    if (input.is_pressed(eb::InputAction::Confirm) ||
+        input.consume_buffered(eb::InputAction::Confirm)) {
         for (int i = 0; i < (int)game.npcs.size(); i++) {
             auto& npc = game.npcs[i];
             if (npc.hostile && !npc.has_triggered) continue;

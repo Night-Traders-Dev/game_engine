@@ -903,6 +903,51 @@ proc map_init():
 
 ---
 
+## Parallax Backgrounds
+
+| Function | Description |
+|----------|-------------|
+| `add_parallax(path, scroll_x, scroll_y)` | Add a parallax layer. Returns layer index. Lower scroll = further away |
+| `remove_parallax(index)` | Remove a parallax layer |
+| `set_parallax(index, property, value)` | Set layer property |
+
+**Properties:** `"scroll_x"`, `"scroll_y"`, `"offset_x"`, `"offset_y"`, `"repeat_x"`, `"repeat_y"`, `"active"`
+
+```sage
+# Add a far background (scrolls at 20% of camera speed)
+add_parallax("assets/textures/sky.png", 0.2, 0.1)
+
+# Add a mid-ground layer (scrolls at 50%)
+let trees = add_parallax("assets/textures/trees.png", 0.5, 0.3)
+
+# Adjust at runtime
+set_parallax(trees, "offset_y", -40)
+set_parallax(trees, "repeat_x", true)
+```
+
+---
+
+## Visual Effects
+
+| Function | Description |
+|----------|-------------|
+| `set_water_reflections(bool)` | Enable/disable per-tile water reflections |
+| `set_bloom(enabled, intensity, threshold)` | Configure bloom/glow effect |
+| `set_reflective(tx, ty, bool)` | Mark a tile as reflective (water, ice) |
+| `is_reflective(tx, ty)` | Check if a tile is reflective |
+
+```sage
+set_water_reflections(true)
+set_bloom(true, 0.5, 0.8)
+
+# Mark water tiles as reflective
+for x in range(0, 10):
+    for y in range(5, 8):
+        set_reflective(x, y, true)
+```
+
+---
+
 ## Weather System
 
 Full weather control with particles, lighting effects, and atmospheric overlays.
@@ -1217,4 +1262,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v2.5.0 — 21,000+ lines C++ (78 files), 233 API functions, 40 modules, 7 editor files, 2 script files, 4 UI themes, 6 maps, 4 platforms
+Twilight Engine v2.6.0 — 21,249 lines C++ (76 files), 236 API functions, 41 modules, 7 editor files, 20 .sage scripts, 4 UI themes, 6 maps, 4 platforms

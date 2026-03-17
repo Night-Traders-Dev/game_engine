@@ -2020,6 +2020,7 @@ ScriptEngine::ScriptEngine() {
         register_lighting_api();
         register_anim_api();
         register_visual_fx_api();
+        register_parallax_api();
         s_active_engine = this;
     }
 }

@@ -641,4 +641,77 @@ void ScriptEngine::register_visual_fx_api() {
     std::printf("[ScriptEngine] Visual FX API registered\n");
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Parallax Background API
+// ═══════════════════════════════════════════════════════════════
+
+// add_parallax(texture_path, scroll_x, scroll_y) -> index
+static Value native_add_parallax(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_number(-1);
+    auto* gs = s_active_engine->game_state_;
+    const char* path = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    float sx = (argc > 1 && args[1].type == VAL_NUMBER) ? (float)args[1].as.number : 0.5f;
+    float sy = (argc > 2 && args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0.5f;
+
+    // Load texture at runtime
+    if (gs->resource_manager && gs->renderer) {
+        try {
+            auto* tex = gs->resource_manager->load_texture(path);
+            if (tex) {
+                eb::ParallaxLayer layer;
+                layer.texture_path = path;
+                layer.scroll_x = sx;
+                layer.scroll_y = sy;
+                layer.texture_desc = (void*)gs->renderer->get_texture_descriptor(*tex);
+                layer.tex_width = tex->width();
+                layer.tex_height = tex->height();
+                gs->parallax_layers.push_back(layer);
+                return val_number((double)(gs->parallax_layers.size() - 1));
+            }
+        } catch (...) {
+            std::fprintf(stderr, "[Parallax] Failed to load texture: %s\n", path);
+        }
+    }
+    return val_number(-1);
+}
+
+// remove_parallax(index)
+static Value native_remove_parallax(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    int idx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : -1;
+    if (idx >= 0 && idx < (int)gs->parallax_layers.size()) {
+        gs->parallax_layers.erase(gs->parallax_layers.begin() + idx);
+    }
+    return val_nil();
+}
+
+// set_parallax(index, property, value)
+static Value native_set_parallax(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    int idx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : -1;
+    const char* prop = (args[1].type == VAL_STRING) ? args[1].as.string : "";
+    float nv = (args[2].type == VAL_NUMBER) ? (float)args[2].as.number : 0;
+    bool bv = (args[2].type == VAL_BOOL) ? args[2].as.boolean : (nv != 0);
+    if (idx < 0 || idx >= (int)gs->parallax_layers.size()) return val_nil();
+    auto& l = gs->parallax_layers[idx];
+    if (std::strcmp(prop, "scroll_x") == 0) l.scroll_x = nv;
+    else if (std::strcmp(prop, "scroll_y") == 0) l.scroll_y = nv;
+    else if (std::strcmp(prop, "offset_x") == 0) l.offset_x = nv;
+    else if (std::strcmp(prop, "offset_y") == 0) l.offset_y = nv;
+    else if (std::strcmp(prop, "repeat_x") == 0) l.repeat_x = bv;
+    else if (std::strcmp(prop, "repeat_y") == 0) l.repeat_y = bv;
+    else if (std::strcmp(prop, "active") == 0) l.active = bv;
+    return val_nil();
+}
+
+void ScriptEngine::register_parallax_api() {
+    if (!env_) return;
+    env_define(env_, "add_parallax", 12, val_native(native_add_parallax));
+    env_define(env_, "remove_parallax", 15, val_native(native_remove_parallax));
+    env_define(env_, "set_parallax", 12, val_native(native_set_parallax));
+    std::printf("[ScriptEngine] Parallax API registered\n");
+}
+
 } // namespace eb

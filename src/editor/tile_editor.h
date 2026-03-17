@@ -289,6 +289,8 @@ private:
     void append_map_script(const std::string& line);
     void save_map_script();
 
+    void update_autotile_neighbors(int tx, int ty);
+
     // Auto-tiling configuration
     bool auto_tile_enabled_ = false;
     // Stores which tile IDs are "terrain A" vs "terrain B" for auto-transitions

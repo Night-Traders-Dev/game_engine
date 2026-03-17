@@ -430,6 +430,31 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     }
     batch.set_projection(proj);
 
+    // ── Parallax backgrounds (rendered behind everything) ──
+    for (auto& layer : game.parallax_layers) {
+        if (!layer.active || !layer.texture_desc) continue;
+        VkDescriptorSet desc = (VkDescriptorSet)layer.texture_desc;
+        batch.set_texture(desc);
+        // Camera offset * scroll factor = parallax offset
+        eb::Vec2 cam = game.camera.position();
+        float px = -cam.x * layer.scroll_x + layer.offset_x;
+        float py = -cam.y * layer.scroll_y + layer.offset_y;
+        float tw = (float)layer.tex_width;
+        float th = (float)layer.tex_height;
+        if (tw <= 0 || th <= 0) continue;
+        eb::Rect view = game.camera.visible_area();
+        if (layer.repeat_x) {
+            // Wrap horizontally
+            float mod_x = std::fmod(px, tw);
+            if (mod_x > 0) mod_x -= tw;
+            for (float dx = mod_x; dx < view.w + tw; dx += tw) {
+                batch.draw_quad({view.x + dx, view.y + py}, {tw, th}, {0,0}, {1,1});
+            }
+        } else {
+            batch.draw_quad({view.x + px, view.y + py}, {tw, th}, {0,0}, {1,1});
+        }
+    }
+
     // Tile map with water animation
     batch.set_texture(game.tileset_desc);
     game.tile_map.render(batch, game.camera, game.game_time);
@@ -921,6 +946,40 @@ static void sync_hud_values(GameState& game) {
         labels.erase(std::remove_if(labels.begin(), labels.end(),
             [](auto& l) { return l.id.size() > 8 && l.id.compare(0, 8, "lvl_sel_") == 0 && l.id != "lvl_sel_title"; }),
             labels.end());
+    }
+
+    // ── Settings sub-menu ──
+    {
+        auto& labels = game.script_ui.labels;
+        // Remove old settings labels each frame
+        labels.erase(std::remove_if(labels.begin(), labels.end(),
+            [](auto& l) { return l.id.size() > 5 && l.id.compare(0, 5, "sett_") == 0; }),
+            labels.end());
+
+        if (paused && game.settings_open) {
+            float cx = game.hud.screen_w / 2.0f;
+            float cy = game.hud.screen_h / 2.0f;
+            labels.push_back({"sett_title", "SETTINGS", {cx - 60, cy - 110}, {1, 0.9f, 0.5f, 1}, 1.2f, true});
+
+            static const char* setting_names[] = {"Music Volume", "SFX Volume", "Text Speed", "Back"};
+            char val_buf[32];
+            for (int i = 0; i < 4; i++) {
+                std::string display = setting_names[i];
+                if (i == 0) { std::snprintf(val_buf, sizeof(val_buf), ": %.0f%%", game.settings.music_volume * 100); display += val_buf; }
+                else if (i == 1) { std::snprintf(val_buf, sizeof(val_buf), ": %.0f%%", game.settings.sfx_volume * 100); display += val_buf; }
+                else if (i == 2) {
+                    const char* speeds[] = {"", "Slow", "Normal", "Fast"};
+                    display += std::string(": ") + speeds[game.settings.text_speed];
+                }
+                eb::Vec4 color = (i == game.settings_cursor)
+                    ? eb::Vec4{1.0f, 1.0f, 0.9f, 1.0f}
+                    : eb::Vec4{0.85f, 0.82f, 0.75f, 1.0f};
+                std::string lid = "sett_" + std::to_string(i);
+                labels.push_back({lid, display, {cx - 80, cy - 70 + i * 36.0f}, color, 1.0f, true});
+            }
+            // Hint
+            labels.push_back({"sett_hint", "Left/Right to adjust", {cx - 70, cy + 80}, {0.6f, 0.6f, 0.7f, 0.8f}, 0.6f, true});
+        }
     }
 }
 
