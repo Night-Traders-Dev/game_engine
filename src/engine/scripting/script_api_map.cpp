@@ -201,6 +201,55 @@ static Value native_remove_portal(int argc, Value* args) {
     return val_nil();
 }
 
+// new_map(width, height, tile_size, mode) — create empty map. mode: 0=topdown, 1=platformer
+static Value native_new_map(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    int w = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 30;
+    int h = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 22;
+    int tsz = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 32;
+    int mode = (argc > 3 && args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    bool plat = (mode == 1);
+
+    w = std::max(4, std::min(200, w));
+    h = std::max(4, std::min(200, h));
+    tsz = std::max(8, std::min(128, tsz));
+
+    gs->tile_map.create(w, h, tsz);
+
+    std::vector<int> ground(w * h, 0);
+    std::vector<int> collision(w * h, 0);
+
+    if (plat) {
+        // Platformer: solid ground at bottom 2 rows
+        for (int y = h - 2; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                ground[y * w + x] = 1;
+                collision[y * w + x] = 1; // Solid
+            }
+        gs->game_type = GameType::Platformer;
+        gs->player_pos = {(float)(w * tsz) * 0.5f, (float)((h - 3) * tsz)};
+    } else {
+        gs->game_type = GameType::TopDown;
+        gs->player_pos = {(float)(w * tsz) * 0.5f, (float)(h * tsz) * 0.5f};
+    }
+
+    gs->tile_map.add_layer("ground", ground);
+    gs->tile_map.set_collision(collision);
+    gs->camera.set_bounds(0, 0, (float)(w * tsz), (float)(h * tsz));
+
+    // Clear entities
+    gs->npcs.clear();
+    gs->world_objects.clear();
+    gs->world_drops.clear();
+    gs->trigger_zones.clear();
+    gs->trails.clear();
+    gs->moving_platforms.clear();
+
+    std::printf("[Script] Created new %s map %dx%d\n", plat ? "platformer" : "topdown", w, h);
+    return val_nil();
+}
+
 // set_collision(tx, ty, type) — type: 0=None, 1=Solid, 2=Portal
 static Value native_set_collision(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
@@ -885,6 +934,7 @@ void ScriptEngine::register_daynight_api() {
 
 void ScriptEngine::register_map_api() {
     if (!env_) return;
+    env_define(env_, "new_map", 7, val_native(native_new_map));
     env_define(env_, "spawn_npc", 9, val_native(native_spawn_npc_map));
     env_define(env_, "place_object", 12, val_native(native_place_object));
     env_define(env_, "remove_object", 13, val_native(native_remove_object));

@@ -444,6 +444,7 @@ bool init_game(GameState& game, eb::Renderer& renderer, eb::ResourceManager& res
         game.tile_map.add_layer("ground", generate_town_map(MAP_W, MAP_H));
         game.tile_map.set_collision(generate_town_collision(MAP_W, MAP_H));
         game.tile_map.set_animated_tiles(TILE_WATER_DEEP, TILE_WATER_SHORE_L);
+        auto_mark_reflective_tiles(game);
 
         // Objects & NPCs (only if tileset loaded)
         if (tileset_tex) {
@@ -730,6 +731,7 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
             for (int x = 0; x < MAP_W; x++)
                 if (x == 0 || x == MAP_W-1 || y == 0 || y == MAP_H-1) col[y*MAP_W+x] = 1;
         game.tile_map.set_collision(col);
+        auto_mark_reflective_tiles(game);
 
         // NPCs from manifest
         for (auto& npc_def : manifest.npcs) {

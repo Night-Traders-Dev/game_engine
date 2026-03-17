@@ -1521,6 +1521,9 @@ void TileEditor::render_imgui(GameState& game) {
     // ═══════════ MAIN MENU BAR ═══════════
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("New Map..."))
+                show_new_map_dialog_ = true;
+            ImGui::Separator();
             if (ImGui::MenuItem("Save Map...", "Ctrl+S"))
                 pending_dialog_ = PendingDialog::Save;
             if (ImGui::MenuItem("Load Map..."))
@@ -1570,6 +1573,47 @@ void TileEditor::render_imgui(GameState& game) {
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
+    }
+
+    // ═══════════ NEW MAP DIALOG ═══════════
+    if (show_new_map_dialog_) {
+        ImGui::OpenPopup("New Map##popup");
+        show_new_map_dialog_ = false;
+    }
+    if (ImGui::BeginPopupModal("New Map##popup", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Create a new empty map");
+        ImGui::Separator();
+
+        ImGui::InputInt("Width (tiles)", &new_map_w_);
+        ImGui::InputInt("Height (tiles)", &new_map_h_);
+        ImGui::InputInt("Tile Size (px)", &new_map_tile_size_);
+        new_map_w_ = std::max(4, std::min(200, new_map_w_));
+        new_map_h_ = std::max(4, std::min(200, new_map_h_));
+        new_map_tile_size_ = std::max(8, std::min(128, new_map_tile_size_));
+
+        const char* mode_items[] = { "Top-Down RPG", "Platformer" };
+        ImGui::Combo("Game Mode", &new_map_mode_, mode_items, 2);
+
+        if (new_map_mode_ == 1) {
+            ImGui::TextColored(ImVec4(0.6f,0.8f,1,1),
+                "Platformer: bottom 2 rows = solid ground,\n"
+                "gravity enabled, jump/wall-slide active.");
+        } else {
+            ImGui::TextColored(ImVec4(0.6f,0.8f,1,1),
+                "Top-Down: empty open area,\n"
+                "free movement in all directions.");
+        }
+
+        ImGui::Separator();
+        if (ImGui::Button("Create", ImVec2(120, 0))) {
+            create_empty_map(new_map_w_, new_map_h_, new_map_tile_size_, new_map_mode_ == 1);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 
     // ═══════════ TOOLS WINDOW ═══════════
@@ -2035,6 +2079,79 @@ void TileEditor::paste_prefab(int tx, int ty, int prefab_index) {
     }
     commit_action();
     set_status("Pasted prefab: " + p.name);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// New Empty Map
+// ═══════════════════════════════════════════════════════════════
+
+void TileEditor::create_empty_map(int width, int height, int tile_size, bool platformer) {
+    if (!map_) return;
+
+    // Reset the tile map
+    map_->create(width, height, tile_size);
+
+    // Preserve tileset if one is already loaded
+    if (tileset_) {
+        map_->set_tileset(tileset_);
+    }
+
+    // Create empty ground layer (all tile 0 = empty)
+    std::vector<int> ground(width * height, TILE_EMPTY);
+
+    if (platformer) {
+        // Platformer: fill bottom 2 rows with first solid tile
+        int ground_tile = 1; // TILE_GRASS_PURE or first available tile
+        for (int y = height - 2; y < height; y++)
+            for (int x = 0; x < width; x++)
+                ground[y * width + x] = ground_tile;
+    }
+
+    map_->add_layer("ground", ground);
+
+    // Set collision
+    std::vector<int> collision(width * height, 0);
+    if (platformer) {
+        // Solid ground at bottom 2 rows
+        for (int y = height - 2; y < height; y++)
+            for (int x = 0; x < width; x++)
+                collision[y * width + x] = static_cast<int>(CollisionType::Solid);
+    }
+    map_->set_collision(collision);
+
+    // Set game type
+    if (game_state_) {
+        game_state_->game_type = platformer ? GameType::Platformer : GameType::TopDown;
+
+        // Reset player position to a sensible default
+        float px = (width * tile_size) * 0.5f;
+        float py = platformer ? (height - 3) * tile_size : (height * tile_size) * 0.5f;
+        game_state_->player_pos = {px, py};
+
+        // Update camera bounds
+        game_state_->camera.set_bounds(0, 0, (float)(width * tile_size), (float)(height * tile_size));
+
+        // Clear existing entities for fresh map
+        game_state_->npcs.clear();
+        game_state_->world_objects.clear();
+        game_state_->world_drops.clear();
+        game_state_->trigger_zones.clear();
+        game_state_->trails.clear();
+        game_state_->moving_platforms.clear();
+    }
+
+    // Clear undo history
+    undo_stack_.clear();
+    redo_stack_.clear();
+
+    // Clear map script
+    map_script_body_.clear();
+    map_script_dirty_ = false;
+
+    std::string mode_str = platformer ? "Platformer" : "TopDown";
+    set_status("New " + mode_str + " map: " + std::to_string(width) + "x" + std::to_string(height));
+    std::printf("[Editor] Created empty %s map %dx%d (tile %dpx)\n",
+                mode_str.c_str(), width, height, tile_size);
 }
 
 } // namespace eb

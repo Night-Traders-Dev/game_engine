@@ -195,6 +195,38 @@ static void mskipval(const std::string& s, size_t& i) {
     else while(i<s.size()&&s[i]!=','&&s[i]!='}'&&s[i]!=']'&&s[i]!=' '&&s[i]!='\n') i++;
 }
 
+// Auto-mark water/ice tiles as reflective so reflections work without manual painting
+void auto_mark_reflective_tiles(GameState& game) {
+    int w = game.tile_map.width(), h = game.tile_map.height();
+    if (w <= 0 || h <= 0) return;
+    int count = 0;
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            // Check all layers for water tiles
+            bool is_water = false;
+            for (int layer = 0; layer < game.tile_map.layer_count(); layer++) {
+                int raw = game.tile_map.tile_at(layer, x, y);
+                int tile_id = raw & 0xFFFF;  // Extract tile ID (strip rotation/flip bits)
+                if (tile_id >= TILE_WATER_DEEP && tile_id <= TILE_WATER_BLOOD) {
+                    is_water = true;
+                    break;
+                }
+                // Also check for shallow water and water objects
+                if (tile_id >= TILE_BENCH_WATER && tile_id <= TILE_ROCK_WATER3) {
+                    is_water = true;
+                    break;
+                }
+            }
+            if (is_water && !game.tile_map.is_reflective(x, y)) {
+                game.tile_map.set_reflective_at(x, y, true);
+                count++;
+            }
+        }
+    }
+    if (count > 0)
+        std::printf("[Map] Auto-marked %d water tiles as reflective\n", count);
+}
+
 bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& path) {
     std::ifstream f(path);
     if (!f.is_open()) {
@@ -205,6 +237,9 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
 
     // Load tiles/collision/portals via existing TileMap loader
     game.tile_map.load_json(path);
+
+    // Auto-mark water tiles as reflective if no reflection data in map file
+    auto_mark_reflective_tiles(game);
 
     // Clear existing objects for reload
     game.world_objects.clear();
