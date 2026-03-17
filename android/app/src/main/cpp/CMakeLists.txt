@@ -48,7 +48,14 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/game/overworld/camera.cpp
     ${ENGINE_ROOT}/src/game/overworld/tile_map.cpp
     ${ENGINE_ROOT}/src/game/game.cpp
+    ${ENGINE_ROOT}/src/game/game_io.cpp
+    ${ENGINE_ROOT}/src/game/game_init.cpp
+    ${ENGINE_ROOT}/src/game/game_battle.cpp
+    ${ENGINE_ROOT}/src/game/game_render.cpp
+    ${ENGINE_ROOT}/src/game/game_platformer.cpp
+    ${ENGINE_ROOT}/src/game/systems/moving_platform.cpp
     ${ENGINE_ROOT}/src/engine/scripting/script_engine.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_api_new.cpp
     ${ENGINE_ROOT}/src/engine/scripting/script_api_player.cpp
     ${ENGINE_ROOT}/src/engine/scripting/script_api_npc.cpp
     ${ENGINE_ROOT}/src/engine/scripting/script_api_map.cpp

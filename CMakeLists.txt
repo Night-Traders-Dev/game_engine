@@ -152,6 +152,8 @@ if(UNIX AND NOT APPLE AND NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(sagelang PUBLIC dl pthread m)
 elseif(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_compile_definitions(sagelang PRIVATE SAGE_NO_FFI=1 SAGE_NO_THREADS=1 SAGE_NO_NET=1)
+    # Provide mkstemps implementation for mingw (SageLang asm_compile uses it outside FFI guard)
+    target_sources(sagelang PRIVATE src/third_party/mingw_compat.c)
 endif()
 
 if(NOT EB_ANDROID)

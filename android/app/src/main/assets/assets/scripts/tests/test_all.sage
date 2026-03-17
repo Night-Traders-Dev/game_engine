@@ -498,5 +498,13 @@ proc run_all_tests():
     anim_play("Elder", "idle")
     anim_stop("Elder")
 
+    # ── Visual Effects ──
+    log("Testing: Visual Effects")
+    set_water_reflections(true)
+    set_water_reflections(false)
+    set_water_reflections(true)
+    set_bloom(true, 0.5, 0.7)
+    set_bloom(false)
+
     log("═══ All API Tests Complete ═══")
     info("TEST SUITE PASSED")
