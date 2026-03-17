@@ -1584,19 +1584,31 @@ void TileEditor::render_imgui(GameState& game) {
         ImGui::Text("Create a new empty map");
         ImGui::Separator();
 
+        const char* mode_items[] = { "Top-Down RPG", "Platformer" };
+        int prev_mode = new_map_mode_;
+        ImGui::Combo("Game Mode", &new_map_mode_, mode_items, 2);
+        // Auto-adjust dimensions when switching modes
+        if (new_map_mode_ != prev_mode) {
+            if (new_map_mode_ == 1) { new_map_w_ = 60; new_map_h_ = 15; }
+            else                    { new_map_w_ = 40; new_map_h_ = 30; }
+        }
+
         ImGui::InputInt("Width (tiles)", &new_map_w_);
         ImGui::InputInt("Height (tiles)", &new_map_h_);
         ImGui::InputInt("Tile Size (px)", &new_map_tile_size_);
-        new_map_w_ = std::max(4, std::min(200, new_map_w_));
-        new_map_h_ = std::max(4, std::min(200, new_map_h_));
+        new_map_w_ = std::max(4, std::min(500, new_map_w_));
+        new_map_h_ = std::max(4, std::min(500, new_map_h_));
         new_map_tile_size_ = std::max(8, std::min(128, new_map_tile_size_));
 
-        const char* mode_items[] = { "Top-Down RPG", "Platformer" };
-        ImGui::Combo("Game Mode", &new_map_mode_, mode_items, 2);
+        // Show map size in pixels and screens
+        float pw = (float)(new_map_w_ * new_map_tile_size_);
+        float ph = (float)(new_map_h_ * new_map_tile_size_);
+        ImGui::TextColored(ImVec4(0.7f,0.7f,0.7f,1), "%.0f x %.0f px  (%.1f x %.1f screens)",
+            pw, ph, pw / 960.0f, ph / 720.0f);
 
         if (new_map_mode_ == 1) {
             ImGui::TextColored(ImVec4(0.6f,0.8f,1,1),
-                "Platformer: bottom 2 rows = solid ground,\n"
+                "Platformer: bottom row = solid ground,\n"
                 "gravity enabled, jump/wall-slide active.");
         } else {
             ImGui::TextColored(ImVec4(0.6f,0.8f,1,1),
@@ -2100,11 +2112,10 @@ void TileEditor::create_empty_map(int width, int height, int tile_size, bool pla
     std::vector<int> ground(width * height, TILE_EMPTY);
 
     if (platformer) {
-        // Platformer: fill bottom 2 rows with first solid tile
+        // Platformer: fill bottom row with solid ground tile
         int ground_tile = 1; // TILE_GRASS_PURE or first available tile
-        for (int y = height - 2; y < height; y++)
-            for (int x = 0; x < width; x++)
-                ground[y * width + x] = ground_tile;
+        for (int x = 0; x < width; x++)
+            ground[(height - 1) * width + x] = ground_tile;
     }
 
     map_->add_layer("ground", ground);
@@ -2112,10 +2123,9 @@ void TileEditor::create_empty_map(int width, int height, int tile_size, bool pla
     // Set collision
     std::vector<int> collision(width * height, 0);
     if (platformer) {
-        // Solid ground at bottom 2 rows
-        for (int y = height - 2; y < height; y++)
-            for (int x = 0; x < width; x++)
-                collision[y * width + x] = static_cast<int>(CollisionType::Solid);
+        // Solid ground at bottom row only
+        for (int x = 0; x < width; x++)
+            collision[(height - 1) * width + x] = static_cast<int>(CollisionType::Solid);
     }
     map_->set_collision(collision);
 
@@ -2123,9 +2133,16 @@ void TileEditor::create_empty_map(int width, int height, int tile_size, bool pla
     if (game_state_) {
         game_state_->game_type = platformer ? GameType::Platformer : GameType::TopDown;
 
-        // Reset player position to a sensible default
-        float px = (width * tile_size) * 0.5f;
-        float py = platformer ? (height - 3) * tile_size : (height * tile_size) * 0.5f;
+        // Reset player position
+        float ts = (float)tile_size;
+        float px = 3.0f * ts;  // Near left edge for platformer, or center for top-down
+        float py;
+        if (platformer) {
+            py = (height - 2) * ts;  // One tile above ground
+        } else {
+            px = (width * ts) * 0.5f;
+            py = (height * ts) * 0.5f;
+        }
         game_state_->player_pos = {px, py};
 
         // Update camera bounds

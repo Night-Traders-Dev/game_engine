@@ -177,7 +177,7 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
 
                 if (ImGui::CollapsingHeader("Map")) {
                     ImGui::Text("Size: %dx%d", map_ ? map_->width() : 0, map_ ? map_->height() : 0);
-                    static int new_w = 30, new_h = 22;
+                    static int new_w = 40, new_h = 30;
                     ImGui::InputInt("New Width", &new_w);
                     ImGui::InputInt("New Height", &new_h);
                     new_w = std::max(4, std::min(200, new_w));

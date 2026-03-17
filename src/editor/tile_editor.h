@@ -339,8 +339,8 @@ private:
 
     // New Map dialog
     bool show_new_map_dialog_ = false;
-    int new_map_w_ = 30;
-    int new_map_h_ = 22;
+    int new_map_w_ = 40;
+    int new_map_h_ = 30;
     int new_map_tile_size_ = 32;
     int new_map_mode_ = 0;  // 0=TopDown, 1=Platformer
     void create_empty_map(int width, int height, int tile_size, bool platformer);

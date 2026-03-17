@@ -202,17 +202,18 @@ static Value native_remove_portal(int argc, Value* args) {
 }
 
 // new_map(width, height, tile_size, mode) — create empty map. mode: 0=topdown, 1=platformer
+// Platformer default: 60x15. Top-down default: 40x30.
 static Value native_new_map(int argc, Value* args) {
-    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
     auto* gs = s_active_engine->game_state_;
-    int w = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 30;
-    int h = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 22;
-    int tsz = (args[2].type == VAL_NUMBER) ? (int)args[2].as.number : 32;
-    int mode = (argc > 3 && args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 0;
+    int mode = (argc > 0 && args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
     bool plat = (mode == 1);
+    int w   = (argc > 1 && args[1].type == VAL_NUMBER) ? (int)args[1].as.number : (plat ? 60 : 40);
+    int h   = (argc > 2 && args[2].type == VAL_NUMBER) ? (int)args[2].as.number : (plat ? 15 : 30);
+    int tsz = (argc > 3 && args[3].type == VAL_NUMBER) ? (int)args[3].as.number : 32;
 
-    w = std::max(4, std::min(200, w));
-    h = std::max(4, std::min(200, h));
+    w = std::max(4, std::min(500, w));
+    h = std::max(4, std::min(500, h));
     tsz = std::max(8, std::min(128, tsz));
 
     gs->tile_map.create(w, h, tsz);
@@ -221,14 +222,13 @@ static Value native_new_map(int argc, Value* args) {
     std::vector<int> collision(w * h, 0);
 
     if (plat) {
-        // Platformer: solid ground at bottom 2 rows
-        for (int y = h - 2; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                ground[y * w + x] = 1;
-                collision[y * w + x] = 1; // Solid
-            }
+        // Platformer: solid ground at bottom row
+        for (int x = 0; x < w; x++) {
+            ground[(h - 1) * w + x] = 1;
+            collision[(h - 1) * w + x] = 1; // Solid
+        }
         gs->game_type = GameType::Platformer;
-        gs->player_pos = {(float)(w * tsz) * 0.5f, (float)((h - 3) * tsz)};
+        gs->player_pos = {3.0f * tsz, (float)((h - 2) * tsz)};
     } else {
         gs->game_type = GameType::TopDown;
         gs->player_pos = {(float)(w * tsz) * 0.5f, (float)(h * tsz) * 0.5f};
@@ -246,7 +246,8 @@ static Value native_new_map(int argc, Value* args) {
     gs->trails.clear();
     gs->moving_platforms.clear();
 
-    std::printf("[Script] Created new %s map %dx%d\n", plat ? "platformer" : "topdown", w, h);
+    std::printf("[Script] Created new %s map %dx%d (%dx%d px)\n",
+                plat ? "platformer" : "topdown", w, h, w * tsz, h * tsz);
     return val_nil();
 }
 
