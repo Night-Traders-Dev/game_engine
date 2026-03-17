@@ -40,6 +40,15 @@ public:
     // Crossfade to new music track
     void crossfade_music(const std::string& path, float duration_sec = 1.0f, bool loop = true);
 
+    // Audio bus volume control
+    void set_bus_volume(const std::string& bus, float volume);
+
+    // Audio effects (requires miniaudio node graph — currently stub)
+    void set_reverb(float decay, float mix);
+    void set_lowpass(float cutoff);
+    void set_echo(float delay, float feedback);
+    void clear_effects();
+
     // Update (call each frame for crossfade support)
     void update(float dt);
 
@@ -55,6 +64,11 @@ private:
     bool crossfading_ = false;
 
     std::string current_music_path_;
+
+    float bus_music_vol_ = 0.8f;
+    float bus_sfx_vol_ = 1.0f;
+    float bus_ambience_vol_ = 0.6f;
+    float bus_voice_vol_ = 1.0f;
 
     void cleanup_sound(ma_sound*& sound);
 };

@@ -407,6 +407,19 @@ ScriptEngine::ScriptEngine() {
         register_visual_fx_api();
         register_parallax_api();
         register_platformer_api();
+        register_collision_api();
+        register_raycast_api();
+        register_trigger_api();
+        register_fsm_api();
+        register_checkpoint_api();
+        register_combo_api();
+        register_trail_api();
+        register_dungeon_api();
+        register_skeleton_api();
+        register_replay_api();
+        register_postprocess_api();
+        register_audio_bus_api();
+        register_coroutine_api();
         s_active_engine = this;
     }
 }

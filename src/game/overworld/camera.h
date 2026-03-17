@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/core/types.h"
+#include "engine/core/noise.h"
 
 namespace eb {
 
@@ -21,6 +22,16 @@ public:
     void follow(Vec2 target, float speed = 5.0f);
     void follow_platformer(Vec2 target, int facing_dir, bool on_ground, float speed = 5.0f);
     void center_on(Vec2 target);
+
+    // Smooth zoom
+    void zoom_to(float target, float speed = 3.0f);
+    void set_zoom(float z);
+    float zoom() const { return zoom_; }
+    float target_zoom() const { return target_zoom_; }
+
+    // Perlin noise-based camera shake (smoother than random offset)
+    void shake_perlin(float intensity, float duration, float frequency = 10.0f);
+    Vec2 shake_offset() const { return shake_offset_; }
 
     void update(float dt);
 
@@ -59,6 +70,19 @@ private:
     float vertical_snap_speed_ = 8.0f;
     float current_lookahead_ = 0.0f;
     bool platformer_mode_ = false;
+
+    // Smooth zoom
+    float zoom_ = 1.0f;
+    float target_zoom_ = 1.0f;
+    float zoom_speed_ = 3.0f;
+
+    // Perlin shake
+    float perlin_shake_intensity_ = 0.0f;
+    float perlin_shake_timer_ = 0.0f;
+    float perlin_shake_duration_ = 0.0f;
+    float perlin_shake_freq_ = 10.0f;
+    float perlin_shake_time_ = 0.0f;  // Accumulated time for noise sampling
+    Vec2 shake_offset_ = {0, 0};
 };
 
 } // namespace eb

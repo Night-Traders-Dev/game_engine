@@ -2,6 +2,7 @@
 
 #include "engine/core/types.h"
 #include "game/overworld/tile_map.h"
+#include "editor/particle_editor.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
@@ -241,6 +242,10 @@ private:
     TileSelection selection_;
     Clipboard clipboard_;
 
+    // Multi-select
+    std::vector<Vec2i> multi_selected_tiles_;
+    bool multi_select_mode_ = false;  // Shift held = additive selection
+
     // Camera pan state
     bool panning_ = false;
     Vec2 pan_start_ = {0, 0};
@@ -331,6 +336,9 @@ private:
     bool pending_resize_ = false;
     int resize_new_w_ = 0;
     int resize_new_h_ = 0;
+
+    // Particle editor
+    ParticleEditor particle_editor_;
 
     // Deferred file dialog (must not run during Vulkan rendering)
     enum class PendingDialog { None, Save, Load, ImportAsset };

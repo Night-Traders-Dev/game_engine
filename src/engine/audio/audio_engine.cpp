@@ -193,4 +193,21 @@ void AudioEngine::update(float dt) {
     }
 }
 
+// ─── Bus Volume ───
+
+void AudioEngine::set_bus_volume(const std::string& bus, float volume) {
+    volume = std::max(0.0f, std::min(1.0f, volume));
+    if (bus == "music") { bus_music_vol_ = volume; /* TODO: apply to ma_sound_group */ }
+    else if (bus == "sfx") bus_sfx_vol_ = volume;
+    else if (bus == "ambience") bus_ambience_vol_ = volume;
+    else if (bus == "voice") bus_voice_vol_ = volume;
+}
+
+// ─── Audio Effects (stubs) ───
+
+void AudioEngine::set_reverb(float, float) { /* TODO: miniaudio node graph */ }
+void AudioEngine::set_lowpass(float) { /* TODO: miniaudio node graph */ }
+void AudioEngine::set_echo(float, float) { /* TODO: miniaudio node graph */ }
+void AudioEngine::clear_effects() { /* TODO: miniaudio node graph */ }
+
 } // namespace eb

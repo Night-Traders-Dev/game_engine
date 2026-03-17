@@ -17,6 +17,7 @@
 #include "game/systems/particles.h"
 #include "game/systems/save_system.h"
 #include "game/systems/sprite_anim.h"
+#include "game/systems/coroutine.h"
 
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -34,6 +35,20 @@ namespace eb { class ScriptEngine; class AudioEngine; class Renderer; }
 #include "game/systems/level_manager.h"
 #include "game/systems/platformer_physics.h"
 #include "game/systems/moving_platform.h"
+#include "engine/physics/collision.h"
+#include "engine/physics/raycast.h"
+#include "engine/core/noise.h"
+#include "game/systems/trigger_zone.h"
+#include "game/systems/state_machine.h"
+#include "game/systems/object_pool.h"
+#include "game/systems/checkpoint.h"
+#include "game/systems/combo_detector.h"
+#include "game/systems/input_replay.h"
+#include "game/systems/trail_renderer.h"
+#include "game/systems/rule_tiles.h"
+#include "game/systems/dungeon_gen.h"
+#include "game/ai/behavior_tree.h"
+#include "game/systems/skeleton_anim.h"
 
 // ─── Game Type ───
 enum class GameType : uint8_t { TopDown = 0, Platformer = 1 };
@@ -448,6 +463,7 @@ struct NPC {
     bool stompable = true;
     std::string on_stomp_func;
     std::string on_contact_func;
+    eb::Collider collider;  // Collision shape (defaults to None, set via script)
 };
 
 // ─── Battle state ───
@@ -814,6 +830,74 @@ struct GameState {
     std::vector<Light2D> lights;
     float ambient_light = 1.0f;   // 0 = pitch black, 1 = full bright
     bool lighting_enabled = false;
+
+    // ─── Phase 4 Systems ───
+
+    // Collision shapes (per-entity)
+    eb::Collider player_collider;  // Auto-updated from player position
+
+    // Trigger zones
+    std::vector<eb::TriggerZone> trigger_zones;
+
+    // State machines (keyed by entity/name)
+    std::unordered_map<std::string, eb::StateMachine> state_machines;
+
+    // Checkpoint / respawn
+    eb::CheckpointSystem checkpoint_system;
+
+    // Combo detection
+    eb::ComboDetector combo_detector;
+
+    // Input recording / replay
+    eb::InputRecorder input_recorder;
+    eb::InputReplayer input_replayer;
+
+    // Trail rendering
+    std::vector<eb::Trail> trails;
+
+    // Skeleton animation entities
+    std::unordered_map<std::string, eb::SkeletonAnimPlayer> skeleton_entities;
+
+    // Behavior trees (keyed by NPC name)
+    std::unordered_map<std::string, eb::BehaviorTree> behavior_trees;
+
+    // Rule tile sets
+    std::vector<eb::RuleTileSet> rule_tile_sets;
+
+    // Post-processing settings
+    struct PostProcessSettings {
+        bool enabled = false;
+        bool crt = false;
+        bool bloom = false;
+        bool vignette = false;
+        bool blur = false;
+        bool color_grade = false;
+        float bloom_threshold = 0.7f;
+        float bloom_intensity = 0.5f;
+        float vignette_strength = 0.5f;
+        float blur_strength = 0.0f;
+        eb::Vec4 color_tint = {1, 1, 1, 1};
+        float contrast = 1.0f;
+        float brightness = 0.0f;
+        float saturation = 1.0f;
+        float crt_curvature = 0.03f;
+        float crt_scanline_intensity = 0.15f;
+    } post_process;
+
+    // Audio buses
+    struct AudioBusConfig {
+        float music_volume = 0.8f;
+        float sfx_volume = 1.0f;
+        float ambience_volume = 0.6f;
+        float voice_volume = 1.0f;
+    } audio_buses;
+
+    // Coroutine system (step-based sequencer for scripted cutscenes/sequences)
+    eb::CoroutineManager coroutine_manager;
+
+    // Networking state
+    bool net_active = false;
+    bool net_is_server = false;
 };
 
 // ─── Map file I/O ───

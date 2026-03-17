@@ -1309,6 +1309,46 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
                        {nx, ny}, {1, 1, 1, alpha}, ns);
     }
 
+    // ── Trail Rendering ──
+    for (auto& trail : game.trails) {
+        if (!trail.active || trail.points.size() < 2) continue;
+        auto quads = eb::trail_build_mesh(trail, game.game_time);
+        batch.set_texture(game.white_desc);
+        for (auto& q : quads) {
+            // Draw quad as two triangles using the 4 corners
+            // Use draw_quad with the average position and size, tinted
+            eb::Vec2 min_p = {std::min({q.p0.x, q.p1.x, q.p2.x, q.p3.x}),
+                              std::min({q.p0.y, q.p1.y, q.p2.y, q.p3.y})};
+            eb::Vec2 max_p = {std::max({q.p0.x, q.p1.x, q.p2.x, q.p3.x}),
+                              std::max({q.p0.y, q.p1.y, q.p2.y, q.p3.y})};
+            eb::Vec4 avg_c = {(q.c0.x+q.c1.x)*0.5f, (q.c0.y+q.c1.y)*0.5f,
+                              (q.c0.z+q.c1.z)*0.5f, (q.c0.w+q.c1.w)*0.5f};
+            batch.draw_quad(min_p, max_p - min_p, {0,0}, {1,1}, avg_c);
+        }
+    }
+
+    // ── Skeleton Rendering ──
+    for (auto& [id, skel] : game.skeleton_entities) {
+        if (!skel.playing) continue;
+        for (auto& bone : skel.skeleton.bones) {
+            if (bone.sprite_atlas_idx >= 0 && game.tileset_atlas) {
+                auto region = game.tileset_atlas->region(bone.sprite_atlas_idx);
+                batch.set_texture(game.tileset_desc);
+                float sz = 32.0f * bone.world_scale;
+                batch.draw_quad_rotated(bone.world_pos, {sz, sz},
+                    region.uv_min, region.uv_max, bone.world_rotation);
+            } else if (!bone.sprite_region.empty() && game.ui_atlas) {
+                auto* r = game.ui_atlas->find_region(bone.sprite_region);
+                if (r) {
+                    batch.set_texture(game.ui_desc);
+                    float sz = 32.0f * bone.world_scale;
+                    batch.draw_quad_rotated(bone.world_pos, {sz, sz},
+                        r->uv_min, r->uv_max, bone.world_rotation);
+                }
+            }
+        }
+    }
+
     // ── Weather Rendering ──
     {
         auto& w = game.weather;

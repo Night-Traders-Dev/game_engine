@@ -1005,6 +1005,76 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
         game.level_manager->tick_background(game, dt);
     }
 
+    // ─── Phase 4 Systems Update ───
+
+    // Update trigger zones
+    {
+        std::vector<std::pair<int, eb::Vec2>> entities;
+        entities.push_back({0, game.player_pos}); // Player = entity 0
+        for (int i = 0; i < (int)game.npcs.size(); i++)
+            entities.push_back({i + 1, game.npcs[i].position});
+        auto events = eb::update_triggers(game.trigger_zones, entities);
+        for (auto& ev : events) {
+            if (!ev.callback.empty() && game.script_engine) {
+                game.script_engine->set_number("trigger_entity", ev.entity_id);
+                game.script_engine->set_string("trigger_zone", ev.zone_id);
+                game.script_engine->call_function(ev.callback);
+            }
+        }
+    }
+
+    // Update state machines
+    for (auto& [id, fsm] : game.state_machines) {
+        std::string exit_cb = fsm.check_exit();
+        if (!exit_cb.empty() && game.script_engine) game.script_engine->call_function(exit_cb);
+        std::string enter_cb = fsm.check_enter();
+        if (!enter_cb.empty() && game.script_engine) game.script_engine->call_function(enter_cb);
+        std::string update_cb = fsm.update();
+        if (!update_cb.empty() && game.script_engine) game.script_engine->call_function(update_cb);
+    }
+
+    // Update combo detector
+    if (game.current_input && game.script_engine) {
+        // Feed pressed actions into combo detector
+        for (int a = 0; a < 10; a++) {
+            if (game.current_input->is_pressed((eb::InputAction)a))
+                game.combo_detector.record_input(a, game.game_time);
+        }
+        auto combos = game.combo_detector.check(game.game_time);
+        for (auto& cb : combos) game.script_engine->call_function(cb);
+    }
+
+    // Update trails
+    for (auto& trail : game.trails) {
+        if (trail.active) eb::trail_update(trail, game.game_time);
+    }
+
+    // Update skeleton animations
+    for (auto& [id, skel] : game.skeleton_entities) {
+        skel.update(dt);
+    }
+
+    // Update player collider position
+    game.player_collider.aabb = {game.player_pos.x - 12, game.player_pos.y - 12, 24, 24};
+    if (game.player_collider.type == eb::ColliderType::None)
+        game.player_collider.type = eb::ColliderType::AABB;
+
+    // Update coroutines
+    {
+        auto callbacks = game.coroutine_manager.update(dt);
+        for (auto& cb : callbacks) {
+            if (game.script_engine) game.script_engine->call_function(cb);
+        }
+    }
+
+    // Dispatch animation events for NPCs
+    for (auto& npc : game.npcs) {
+        if (!npc.anim_player.last_event.empty() && game.script_engine) {
+            game.script_engine->set_string("anim_npc", npc.name);
+            game.script_engine->call_function(npc.anim_player.last_event);
+        }
+    }
+
     game.camera.follow(game.player_pos, 4.0f);
     game.camera.update(dt);
 }

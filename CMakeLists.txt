@@ -102,6 +102,8 @@ add_library(tw_engine STATIC
     src/engine/scripting/script_api_map.cpp
     src/engine/scripting/script_api_ui.cpp
     src/engine/scripting/script_api_platformer.cpp
+    src/engine/scripting/script_api_physics.cpp
+    src/engine/scripting/script_api_systems.cpp
     src/engine/graphics/text_renderer.cpp
     src/engine/audio/audio_engine.cpp
     src/third_party/miniaudio_impl.cpp

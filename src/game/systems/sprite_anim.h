@@ -9,6 +9,7 @@ namespace eb {
 struct AnimFrame {
     int atlas_index;    // Index into sprite atlas
     float duration;     // Seconds this frame displays
+    std::string event;  // Callback function name (empty = no event on this frame)
 };
 
 struct Animation {
@@ -24,6 +25,7 @@ struct AnimPlayer {
     bool playing = false;
     bool finished = false;
     std::unordered_map<std::string, Animation> animations;
+    std::string last_event;  // Set during update when a frame with an event is entered; cleared each frame
 
     void define(const std::string& name, const std::vector<AnimFrame>& frames, bool loop = true) {
         animations[name] = {name, frames, loop};
@@ -44,6 +46,7 @@ struct AnimPlayer {
     }
 
     int update(float dt) {
+        last_event.clear();
         if (!playing || finished) return frame_index();
 
         timer += dt;
@@ -64,6 +67,10 @@ struct AnimPlayer {
                     break;
                 }
             }
+            // Check for frame event on the new frame
+            if (!anim.frames[current_frame].event.empty()) {
+                last_event = anim.frames[current_frame].event;
+            }
         }
         return frame_index();
     }
@@ -76,6 +83,14 @@ struct AnimPlayer {
     }
 
     bool is_playing() const { return playing && !finished; }
+
+    void add_event(const std::string& anim, int frame, const std::string& cb) {
+        auto it = animations.find(anim);
+        if (it == animations.end()) return;
+        if (frame >= 0 && frame < (int)it->second.frames.size()) {
+            it->second.frames[frame].event = cb;
+        }
+    }
 };
 
 // ─── Screen Transitions ───

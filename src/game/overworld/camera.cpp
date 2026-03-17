@@ -86,8 +86,46 @@ void Camera::update(float dt) {
         float t = 1.0f - std::exp(-follow_speed_ * dt);
         position_.x += (target_.x - position_.x) * t;
         position_.y += (target_.y - position_.y) * t;
+
+        // Smooth zoom
+        if (std::abs(zoom_ - target_zoom_) > 0.001f) {
+            zoom_ += (target_zoom_ - zoom_) * std::min(1.0f, zoom_speed_ * dt);
+        } else {
+            zoom_ = target_zoom_;
+        }
+
+        // Perlin shake
+        if (perlin_shake_timer_ > 0) {
+            perlin_shake_timer_ -= dt;
+            perlin_shake_time_ += dt;
+            float t = perlin_shake_time_ * perlin_shake_freq_;
+            float fade = std::min(1.0f, perlin_shake_timer_ / std::max(0.1f, perlin_shake_duration_ * 0.3f));
+            shake_offset_.x = eb::perlin2d(t, 0.0f) * perlin_shake_intensity_ * fade;
+            shake_offset_.y = eb::perlin2d(0.0f, t) * perlin_shake_intensity_ * fade;
+            position_ += shake_offset_;
+        } else {
+            shake_offset_ = {0, 0};
+        }
+
         clamp_to_bounds();
     }
+}
+
+void Camera::zoom_to(float target, float speed) {
+    target_zoom_ = std::max(0.1f, target);
+    zoom_speed_ = speed;
+}
+
+void Camera::set_zoom(float z) {
+    zoom_ = target_zoom_ = std::max(0.1f, z);
+}
+
+void Camera::shake_perlin(float intensity, float duration, float frequency) {
+    perlin_shake_intensity_ = intensity;
+    perlin_shake_duration_ = duration;
+    perlin_shake_timer_ = duration;
+    perlin_shake_freq_ = frequency;
+    perlin_shake_time_ = 0;
 }
 
 Vec2 Camera::offset() const {
@@ -103,8 +141,11 @@ Mat4 Camera::projection_matrix() const {
     Vec2 off = offset();
     // Vulkan clip space has Y going down (+Y = bottom of screen)
     // so bottom < top to get correct orientation
-    return glm::ortho(off.x, off.x + viewport_.x,
-                      off.y, off.y + viewport_.y,
+    float vw = viewport_.x / zoom_;
+    float vh = viewport_.y / zoom_;
+    Vec2 zoom_off = {position_.x - vw * 0.5f, position_.y - vh * 0.5f};
+    return glm::ortho(zoom_off.x, zoom_off.x + vw,
+                      zoom_off.y, zoom_off.y + vh,
                       -1.0f, 1.0f);
 }
 

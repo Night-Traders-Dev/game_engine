@@ -98,6 +98,19 @@ private:
     void register_visual_fx_api();
     void register_parallax_api();
     void register_platformer_api();
+    void register_collision_api();
+    void register_raycast_api();
+    void register_trigger_api();
+    void register_fsm_api();
+    void register_checkpoint_api();
+    void register_combo_api();
+    void register_trail_api();
+    void register_dungeon_api();
+    void register_skeleton_api();
+    void register_replay_api();
+    void register_postprocess_api();
+    void register_audio_bus_api();
+    void register_coroutine_api();
 
     Env* env_ = nullptr;
 
