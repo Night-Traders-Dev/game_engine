@@ -1,5 +1,67 @@
 # Twilight Engine Updates
 
+## v3.2.0 — March 17, 2026
+
+### 27 New Engine Systems (Tier 1–4 Feature Sweep)
+- **AABB / Shape Collision** — Rect, circle, convex polygon with SAT. `CollisionResult` with normal+depth for push-out. `Collider` tagged union per entity. 8 script functions
+- **Raycasting** — Ray vs rect/circle/tilemap (DDA grid traversal). `line_of_sight()`. 4 script functions
+- **Trigger Zones** — Rect/circle areas with `on_enter`/`on_exit`/`on_stay` callbacks. One-shot support. Updated each frame for player + all NPCs. 4 script functions
+- **Coroutines** — Step-based coroutine manager: define sequences of (function, delay) pairs, start/stop/loop. Powers cutscenes and boss patterns. 6 script functions
+- **Post-Processing Pipeline** — Data model + API for CRT, bloom, vignette, blur, color grading. Vulkan framebuffer backend stubbed for render-to-texture. 2 script functions
+- **Sprite Animation Events** — `event` field on `AnimFrame`, `last_event` on `AnimPlayer`. Fire script callbacks on specific animation frames (e.g. frame 3 = spawn hitbox)
+- **Generic State Machine** — Reusable FSM with script-driven `on_enter`/`on_update`/`on_exit` per state. 5 script functions
+- **Object Pooling** — `ObjectPool<T>` template with freelist for O(1) acquire/release
+- **Checkpoint / Respawn** — Named checkpoints with map ID, activate/respawn. 4 script functions
+- **Combo / Input Sequence Detection** — Ring buffer of timestamped inputs, configurable timing windows. 1 script function
+- **Camera Smooth Zoom** — Lerped `zoom_to(target, speed)`. Zoom-aware orthographic projection
+- **Camera Perlin Shake** — Smooth noise-based shake replacing random offset. Configurable frequency and fade-out
+- **Audio Bus / Mixer** — Separate volume for music, SFX, ambience, voice channels. 1 script function
+- **Audio Effects** — Reverb, echo, low-pass stubs (miniaudio node graph ready). 4 script functions
+- **Procedural Dungeon Generation** — BSP tree + cellular automata generators. Output feeds directly into TileMap. 4 script functions
+- **Trail / Ribbon Rendering** — Polyline trail mesh with age-based width/alpha interpolation. 5 script functions
+- **8-Bit Blob Auto-Tiling** — 256→47 LUT for proper corner-aware transitions (replaces 4-bit)
+- **Skeleton / Bone Animation** — 2D forward kinematics: bones with parent transforms, keyframe interpolation. 5 script functions
+- **Behavior Trees** — Sequence/Selector/Parallel composites, Inverter/Repeater/Cooldown decorators, Action/Condition leaves
+- **Input Recording / Replay** — Binary record/playback with timestamps. 4 script functions
+- **Editor Multi-Select** — Data model for multi-tile selection (Shift+click additive)
+- **Visual Particle Editor** — Preview emitter + preset management stub
+- **Networking** — Packet types, UDP socket stub (client/server architecture defined)
+- **ECS** — Lightweight `SparseSet<T>` storage + `World` class with create/destroy/add/get/each
+- **Plugin / Mod System** — `ModLoader` with directory scanning + manifest format
+- **Isometric Tiles** — `iso_to_screen`/`screen_to_iso` coordinate conversion + sort key
+- **Hex Tiles** — Pointy-top offset coordinates, 6-neighbor lookup, hex distance
+
+### Platformer Backgrounds
+- **Enhanced ParallaxLayer**: Per-layer tint (Vec4), auto-scroll (px/s drift), scale, pin-bottom (Y-anchor to viewport), fill-viewport (stretch sky), z-order sorting
+- **8 biome presets**: forest, cave, night, sunset, snow, desert + forest_sunset, forest_trees (processed from Glitch CC0 HD assets)
+- **45 parallax PNG assets** (1.4 MB) across 8 biome folders
+- **Procedural generator tool** (`tools/generate_parallax_bg.py`): 6 biomes, 5 layers each, horizontally tileable, value noise mountains/trees, biome-specific features (stalactites, stars, snow caps, cacti)
+- **Editor: Systems > Parallax Backgrounds**: Preset dropdown with one-click load, per-layer controls (scroll, auto-scroll, scale, tint, pin/fill/repeat), add custom layer, clear all
+- **Script API**: `load_parallax_preset(biome)`, `clear_parallax()`, `parallax_count()` + 10 new `set_parallax` properties (tint, auto_scroll, scale, pin_bottom, fill_viewport, z_order)
+- **Rendering rewrite**: Z-order sorted draw, pin-bottom Y calculation, fill-viewport stretching, auto-scroll accumulation, per-layer tint
+
+### New Map Creation
+- **Editor: File > New Map...** — Modal dialog with width/height/tile size + game mode dropdown (Top-Down RPG / Platformer)
+- **Platformer mode**: Bottom 2 rows pre-filled with solid ground, player spawns above ground, GameType set to Platformer
+- **Top-Down mode**: Completely empty map, player at center
+- **Script API**: `new_map(width, height, tile_size, mode)` — mode 0=topdown, 1=platformer
+
+### Water Reflection Fix
+- **Auto-detect water tiles** (IDs 42-54) and mark reflective on every map load
+- Called from `load_map_file()`, `init_game()`, and `init_game_from_manifest()`
+- Previously: maps had no reflection data, so `is_reflective()` always returned false
+
+### Stats
+- 28,038 lines C++ (109 source files, excluding third-party)
+- 323 API functions across 56 modules (9 script files)
+- 5,277 lines scripting engine, 6,107 lines game framework
+- 5,071 lines editor (11 files), 2,725 lines new system headers
+- 22 new header files, 2 new script API files
+- 45 parallax background PNGs across 8 biomes
+- 13 Python tools
+
+---
+
 ## v3.1.0 — March 17, 2026
 
 ### 9-Slice Panel Rendering

@@ -1,6 +1,6 @@
 # Twilight Engine
 
-A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-down RPG** and **2D platformer** modes. Ships with platformer physics (gravity, jumping, coyote time, wall slide, dash), moving platforms, stomping enemies, a tween engine, particle system, save/load, quests, equipment, 2D lighting, an integrated tile editor with visual UI/HUD builder, SageLang scripting (266 API functions across 48 modules), and procedural tileset generation for 10 biome types.
+A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-down RPG** and **2D platformer** modes. Ships with AABB/circle/polygon collision, raycasting, trigger zones, behavior trees, coroutines, procedural dungeon generation, platformer physics (gravity, jumping, coyote time, wall slide, dash), moving platforms, stomping enemies, parallax backgrounds (8 biome presets + procedural generator), trail rendering, skeleton animation, a tween engine, particle system, save/load, quests, equipment, 2D lighting, an integrated tile editor with visual UI/HUD builder (18 templates, 9-slice panels), SageLang scripting (323 API functions across 56 modules), and procedural tileset generation for 10 biome types.
 
 ## Features
 
@@ -48,11 +48,11 @@ A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-dow
 - **Procedural Tileset Generator** — `tools/generate_tileset.py` creates complete pixel-art tilesets for 10 biome types with noise-based terrain, autotile transitions, decorations, water animations, and object stamps
 - **Sprite Animation** — Multi-frame animation player per NPC with define/play/stop, loop and one-shot modes
 - **Dialogue History** — Track conversations, remember who player has talked to, branch on past choices
-- **Parallax Backgrounds** — Multi-layer scrolling with configurable scroll speed per layer, horizontal tiling, runtime texture loading. Script API: `add_parallax()`, `set_parallax()`, `remove_parallax()`
+- **Parallax Backgrounds** — Multi-layer scrolling with per-layer scroll speed, tint, auto-scroll, scale, pin-bottom, fill-viewport. Z-order sorted rendering. 8 biome presets. Script API: `add_parallax()`, `set_parallax()`, `load_parallax_preset()`, `clear_parallax()`
 - **Spatial Audio** — Distance-based SFX volume falloff from camera center
 - **Settings Menu** — In-game settings accessible from pause menu: music volume, SFX volume, text speed. Left/Right to adjust, changes apply immediately
 - **Debug Overlay** — F1 toggle shows FPS, particle count, NPC count, tween count
-- **SageLang Scripting** — 266 API functions across 48 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
+- **SageLang Scripting** — 323 API functions across 56 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
 - **Asset Pipeline** — Multi-resolution asset generator; procedural tileset generator (10 biomes); auto-discovery of biome stamps; 1,080 base tiles, 88+ stamps, 432 fantasy icons, 3 UI spritesheets
 - **Test Automation Tool** — `tools/tw_test/` Python package for automated game testing via XTest keyboard injection and X11 screenshot capture
 - **String-Keyed Atlas Cache** — Shared texture atlas cache keyed by path+grid-size; runtime sprite loading from scripts
@@ -61,6 +61,31 @@ A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-dow
 - **Map Scripting** — Visual Basic-style editor: every editor action auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
 - **9-Slice Panel Rendering** — Corners stay fixed-size, edges stretch in one axis, center stretches both. Configurable border inset per panel. Works with any atlas region
+- **AABB / Shape Collision** — Rect vs rect, rect vs circle, circle vs circle, convex polygon (SAT). `CollisionResult` with overlap normal + depth. Per-entity `Collider` on player and NPCs
+- **Raycasting** — Ray vs rect, circle, tilemap (DDA grid traversal). `line_of_sight()` for LOS checks between two points
+- **Trigger Zones** — Scriptable rectangular/circular areas with `on_enter`/`on_exit`/`on_stay` callbacks. One-shot triggers, per-entity tracking
+- **Coroutines** — Step-based coroutine manager for cutscenes and boss patterns: define sequences of (function, delay) pairs, start/stop/loop
+- **Generic State Machine** — Reusable FSM per entity with script-driven `on_enter`/`on_update`/`on_exit` callbacks per state
+- **Behavior Trees** — Sequence/Selector/Parallel composites, Inverter/Repeater/Cooldown decorators, Action/Condition leaves for NPC AI
+- **Trail / Ribbon Rendering** — Polyline trails with age-based width/alpha interpolation for sword swings, dash effects, bullet paths
+- **Skeleton / Bone Animation** — 2D forward kinematics with parent-child bone transforms, keyframe interpolation, sprite attachments per bone
+- **Procedural Dungeon Generation** — BSP tree + cellular automata generators output tile + collision data directly into TileMap
+- **8-Bit Blob Auto-Tiling** — 256→47 LUT for corner-aware tile transitions (upgrade from 4-bit)
+- **Platformer Backgrounds** — 8 biome parallax presets (45 PNGs), per-layer tint/auto-scroll/scale/pin-bottom/fill-viewport, z-order sorting. Procedural generator tool. Editor panel with preset loader
+- **Camera Smooth Zoom** — Lerped zoom transitions with `zoom_to(target, speed)`, zoom-aware orthographic projection
+- **Camera Perlin Shake** — Smooth noise-based camera shake with configurable frequency and fade-out
+- **Combo / Input Sequence Detection** — Ring buffer of timestamped inputs with configurable timing windows for fighting game inputs
+- **Checkpoint / Respawn** — Named checkpoints per map, activate/respawn system for platformer death
+- **Object Pooling** — Generic `ObjectPool<T>` template with freelist for O(1) acquire/release
+- **Input Recording / Replay** — Binary record/playback of all input actions with timestamps
+- **Audio Bus / Mixer** — Separate volume channels for music, SFX, ambience, voice
+- **Post-Processing** — Data model + API for CRT, bloom, vignette, blur, color grading effects (Vulkan framebuffer backend ready)
+- **ECS** — Lightweight Entity-Component-System with `SparseSet<T>` storage, opt-in alongside existing struct-based entities
+- **Networking** — Packet protocol + UDP socket architecture defined (client/server stubs)
+- **Plugin / Mod System** — `ModLoader` with manifest-driven .sage module loading from game directories
+- **Isometric Tiles** — Diamond-grid coordinate conversion + draw-order sorting utilities
+- **Hex Tiles** — Pointy-top offset coordinates, 6-neighbor lookup, hex distance calculation
+- **New Map Creation** — Editor File > New Map dialog + `new_map()` script API. Top-Down or Platformer presets with auto-configured ground/collision
 
 ### Editor
 
@@ -353,13 +378,14 @@ android/                     # Android build (Gradle, manifest, native glue)
 | `tools/extract_tileset.py` | Removes background color from tileset PNGs |
 | `tools/fuzz_engine.py` | Security fuzzer: boundary values, type confusion, resource exhaustion, division edge cases, string injection. 7 fuzz categories |
 | `tools/generate_ui_pack.py` | Procedural UI/HUD sprite sheet generator. 4 themes (fantasy, dark, medieval, cute), 47 components each: panels, buttons, bars, checkboxes, sliders, 9-slice tiles, arrows |
+| `tools/generate_parallax_bg.py` | Procedural parallax background generator. 6 biomes (forest, cave, night, sunset, snow, desert), 5 layers each, horizontally tileable, pixel-art style |
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [Engine Guide](docs/Twilight_Engine_Guide.md) | Comprehensive engine guide with all systems |
-| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (266 functions, 48 modules) |
+| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (323 functions, 56 modules) |
 | [Architecture](docs/ARCHITECTURE.md) | Engine architecture and module breakdown |
 | [Map Design Guide](docs/MAP_DESIGN_GUIDE.md) | Map creation with biome portals and scripting |
 | [Tile Reference](docs/TILE_REFERENCE.md) | Tileset format, procedural generator, stamp system |
@@ -371,7 +397,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 266 API functions, 48 modules, multi-grid atlas cache, tracks latest main branch)
+- SageLang (scripting — 323 API functions, 56 modules, multi-grid atlas cache, tracks latest main branch)
 - tinyfiledialogs (native file dialogs, desktop only)
 - Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
@@ -385,43 +411,58 @@ MIT
 
 ```text
                     ┌─────────────────────────────────────┐
-                    │     TWILIGHT ENGINE v3.1.0           │
+                    │     TWILIGHT ENGINE v3.2.0           │
                     └─────────────────────────────────────┘
 
-  C++ Source Code          23,486 lines across 85 files (excl. third-party)
-  Total with Third-Party   ~244,000 lines across 206 files
+  C++ Source Code          28,038 lines across 109 files (excl. third-party)
+  Total with Third-Party   ~248,000 lines across 230 files
 
-  ┌─ Game Framework (6 files) ──────────────────────────────────────┐
-  │  game_render.cpp  1,475 lines   World, parallax, HUD, UI, 9s  │
-  │  game.cpp         1,011 lines   Core update loop + settings    │
-  │  game_init.cpp      891 lines   Init, tilesets, NPCs           │
+  ┌─ Game Framework (7 files) ──────────────────────────────────────┐
+  │  game_render.cpp  1,552 lines   World, parallax, HUD, UI, 9s  │
+  │  game.cpp         1,087 lines   Core update + phase 4 systems │
+  │  game.h             950 lines   All data structs + GameState   │
+  │  game_init.cpp      893 lines   Init, tilesets, NPCs           │
+  │  game_io.cpp        572 lines   Map I/O + auto-reflect         │
   │  game_platformer.cpp 537 lines  Platformer physics + enemies   │
-  │  game_io.cpp        537 lines   Map/dialogue I/O, JSON         │
   │  game_battle.cpp    516 lines   Turn-based battle system       │
-  │  Total            4,967 lines                                  │
+  │  Total            6,107 lines                                  │
   └────────────────────────────────────────────────────────────────┘
 
-  ┌─ Script Engine (7 files) ────────────────────────────────────────┐
-  │  script_api_map.cpp   984 lines  Map, camera, weather, levels   │
-  │  script_api_new.cpp   717 lines  Tween, particle, save, etc.    │
-  │  script_engine.cpp    642 lines  Core + battle + inventory      │
-  │  script_api_ui.cpp    534 lines  UI, HUD, effects, renderer     │
-  │  script_api_npc.cpp   452 lines  NPC runtime, routes, spawn     │
-  │  script_api_platformer 397 lines Platformer physics + enemies   │
-  │  script_api_player.cpp 345 lines Player, skills, input          │
-  │  Total              4,071 lines  266 API functions, 48 modules  │
-  └────────────────────────────────────────────────────────────────┘
+  ┌─ Script Engine (9 files) ────────────────────────────────────────┐
+  │  script_api_map.cpp  1,034 lines  Map, camera, weather, levels  │
+  │  script_api_new.cpp    814 lines  Tween, particle, parallax     │
+  │  script_api_systems.cpp 668 lines FSM, checkpoint, trail, etc.  │
+  │  script_engine.cpp     655 lines  Core + battle + inventory     │
+  │  script_api_ui.cpp     534 lines  UI, HUD, effects, renderer   │
+  │  script_api_npc.cpp    452 lines  NPC runtime, routes, spawn    │
+  │  script_api_platformer 397 lines  Platformer physics + enemies  │
+  │  script_api_physics.cpp 378 lines Collision, raycast, triggers  │
+  │  script_api_player.cpp 345 lines  Player, skills, input         │
+  │  Total               5,277 lines  323 API functions, 56 modules │
+  └─────────────────────────────────────────────────────────────────┘
 
-  ┌─ Editor (9 files) ─────────────────────────────────────────────┐
-  │  tile_editor.cpp          2,040 lines  Core, tools, assets     │
+  ┌─ Editor (11 files) ────────────────────────────────────────────┐
+  │  tile_editor.cpp          2,157 lines  Core, tools, new map   │
   │  tile_editor_ui.cpp       1,356 lines  UI/HUD editor, 18 tmpls│
   │  tile_editor_script_ide.cpp 410 lines  Script IDE + highlight  │
-  │  tile_editor.h              361 lines  Editor class definition │
-  │  tile_editor_systems.cpp    242 lines  Game systems panel      │
+  │  tile_editor.h              377 lines  Editor class definition │
+  │  tile_editor_systems.cpp    319 lines  Systems + parallax mgr  │
   │  imgui_integration.cpp/h    193 lines  Vulkan ImGui bridge     │
   │  tile_editor_npc_spawner.cpp 147 lines NPC spawner             │
   │  tile_editor_debug.cpp       83 lines  Debug console           │
-  │  Total                    4,832 lines  10 ImGui panels         │
+  │  particle_editor.h           29 lines  Particle editor stub    │
+  │  Total                    5,071 lines  11 ImGui panels         │
+  └────────────────────────────────────────────────────────────────┘
+
+  ┌─ New Systems (22 headers, 2,725 lines) ────────────────────────┐
+  │  Physics: collision.h, raycast.h           (AABB/circle/SAT)  │
+  │  Core: noise.h, post_process.h, ecs.h      (Perlin, ECS)     │
+  │  Systems: trigger_zone, state_machine, object_pool, checkpoint│
+  │    combo_detector, input_replay, trail_renderer, rule_tiles   │
+  │    dungeon_gen, skeleton_anim, coroutine                      │
+  │  AI: behavior_tree.h                       (BT composites)   │
+  │  Overworld: iso_utils.h, hex_utils.h       (Iso/hex grids)   │
+  │  Net: net_common.h  Scripting: mod_loader.h                   │
   └────────────────────────────────────────────────────────────────┘
 
   ┌─ Engine Subsystems ────────────────────────────────────────────┐
@@ -431,9 +472,9 @@ MIT
   │  Overworld (camera, tile_map + reflection grid)       880 lines│
   │  UI (merchant store + atlas regions)                  673 lines│
   │  Resource (file I/O, manifest, textures)              581 lines│
-  │  Audio (miniaudio, spatial, crossfade)                258 lines│
+  │  Audio (miniaudio, spatial, crossfade, buses)         258 lines│
   │  Dialogue (typewriter, portraits, choices)            277 lines│
-  │  AI (A* pathfinding)                                  119 lines│
+  │  AI (A* pathfinding + behavior trees)                 119 lines│
   │  Core (engine loop, timer, types, debug log)          274 lines│
   └────────────────────────────────────────────────────────────────┘
 
@@ -442,21 +483,26 @@ MIT
   │  Tilesets         16   cf_tileset (1,080) + biome + legacy     │
   │  Object Stamps    88   Trees, buildings, props, biome-specific │
   │  Fantasy Icons   432   16x27 grid at 32x32                    │
+  │  Parallax BGs     45   8 biome presets (6 procedural + 2 CC0) │
   │  UI Regions      113   57 (main) + 56 (flat/theme packs)      │
   │  UI Themes         4   Fantasy, Dark, Medieval, Cute (47 each)│
   │  UI Templates     18   Dialogs, HUD, stats, menus, tooltips   │
   │  Sage Scripts     20   Game logic, weather, tests, map scripts │
   │  Biome Presets    10   Grasslands → Farmland                   │
-  │  Python Tools      7   + tw_test package (11 modules)          │
+  │  Python Tools     13   + tw_test package (11 modules)          │
   │  Fuzz Categories   7   boundary, division, string, type, etc.  │
   └────────────────────────────────────────────────────────────────┘
 
   ┌─ Engine Features ──────────────────────────────────────────────┐
   │  Easing Types      19   Linear, Sine, Quad, Cubic, Back, etc.  │
   │  Particle Presets   9   fire, smoke, sparkle, blood, dust, etc.│
+  │  Collision Shapes   3   AABB, Circle, Convex Polygon (SAT)    │
   │  Tile Properties    2   Collision grid + Reflection grid       │
+  │  Tile Grid Types    3   Orthogonal + Isometric + Hex           │
   │  Screen Transitions 5   Fade, Iris, Wipe, Pixelate, Slide     │
   │  Panel Rendering    2   Stretch + 9-Slice (configurable border)│
+  │  Dungeon Generators 2   BSP Tree + Cellular Automata           │
+  │  Parallax Biomes    8   forest, cave, night, sunset, snow, etc.│
   │  Platforms          4   Linux, Windows, Android, Meta Quest    │
   │  Input Modes        4   Keyboard, Gamepad, Touch, Quest Ctrl   │
   └────────────────────────────────────────────────────────────────┘

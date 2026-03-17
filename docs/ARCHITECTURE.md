@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v3.1                       |
+|                        TWILIGHT ENGINE v3.2                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -164,19 +164,20 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v3.1.0)
+## File Counts (v3.2.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 23,486 lines (85 files) | Engine + game framework (excl. third-party) |
-| With Third-Party | ~244,000 lines (206 files) | Including ImGui, SageLang, stb, miniaudio |
-| Game Framework | 6 files, 4,967 lines | game_render.cpp (1,475), game.cpp (1,011), game_init.cpp (891), game_platformer.cpp (537), game_io.cpp (537), game_battle.cpp (516) |
-| Script Engine | 7 files, 4,071 lines | script_api_map.cpp (984), script_api_new.cpp (717), script_engine.cpp (642), script_api_ui.cpp (534), script_api_npc.cpp (452), script_api_platformer.cpp (397), script_api_player.cpp (345) |
-| Script API | 266 functions | 48 modules across 7 files (266 env_define total) |
-| Editor | 9 files, 4,832 lines | tile_editor.cpp (2,040), tile_editor_ui.cpp (1,356), script_ide (410), tile_editor.h (361), systems (242), imgui (150+43), npc_spawner (147), debug (83) |
-| Graphics | 14 files, 2,493 lines | Vulkan context, renderer, sprite batch, pipeline, text, texture, atlas |
+| C++ Source | 28,038 lines (109 files) | Engine + game framework (excl. third-party) |
+| With Third-Party | ~248,000 lines (230 files) | Including ImGui, SageLang, stb, miniaudio |
+| Game Framework | 7 files, 6,107 lines | game_render.cpp (1,552), game.cpp (1,087), game.h (950), game_init.cpp (893), game_io.cpp (572), game_platformer.cpp (537), game_battle.cpp (516) |
+| Script Engine | 9 files, 5,277 lines | script_api_map (1,034), script_api_new (814), script_api_systems (668), script_engine (655), script_api_ui (534), script_api_npc (452), script_api_platformer (397), script_api_physics (378), script_api_player (345) |
+| Script API | 323 functions | 56 modules across 9 files |
+| Editor | 11 files, 5,071 lines | tile_editor.cpp (2,157), tile_editor_ui.cpp (1,356), script_ide (410), tile_editor.h (377), systems (319), imgui (193), npc_spawner (147), debug (83), particle_editor (29) |
+| New Systems | 22 headers, 2,725 lines | Collision, raycast, noise, triggers, FSM, pool, checkpoint, combo, replay, trails, rule tiles, dungeon gen, skeleton, coroutine, behavior tree, iso/hex, ECS, net, post-process, mod loader |
+| Graphics | 14 files, 2,493 lines | Vulkan context, renderer, sprite batch, pipeline, text, texture, atlas, post-process stub |
 | Platform | 8 files, 1,151 lines | Desktop (232), Android (246), Quest, input (171), touch (277) |
-| Systems | 8 headers, 965 lines | Tween (213), particles (244), save (257), spawn, level_manager, day_night, survival, sprite_anim |
+| Systems | 8+ headers, 965+ lines | Tween, particles, save, spawn, level_manager, day_night, survival, sprite_anim (+ 22 new system headers) |
 | Overworld | 4 files, 880 lines | Camera (149), TileMap (731) with collision + reflection grids |
 | Audio | 2 files, 258 lines | miniaudio backend, spatial audio, crossfade |
 | AI | 2 files, 119 lines | A* pathfinding with grid-based navigation |

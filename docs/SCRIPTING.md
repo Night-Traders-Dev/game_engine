@@ -950,19 +950,34 @@ proc map_init():
 | `add_parallax(path, scroll_x, scroll_y)` | Add a parallax layer. Returns layer index. Lower scroll = further away |
 | `remove_parallax(index)` | Remove a parallax layer |
 | `set_parallax(index, property, value)` | Set layer property |
+| `load_parallax_preset(biome)` | Load all layers for a biome preset. Returns number of layers loaded |
+| `clear_parallax()` | Remove all parallax layers |
+| `parallax_count()` | Get current number of parallax layers |
 
-**Properties:** `"scroll_x"`, `"scroll_y"`, `"offset_x"`, `"offset_y"`, `"repeat_x"`, `"repeat_y"`, `"active"`
+**Properties:** `"scroll_x"`, `"scroll_y"`, `"offset_x"`, `"offset_y"`, `"repeat_x"`, `"repeat_y"`, `"active"`, `"tint_r"`, `"tint_g"`, `"tint_b"`, `"tint_a"`, `"auto_scroll_x"`, `"auto_scroll_y"`, `"scale"`, `"pin_bottom"`, `"fill_viewport"`, `"z_order"`
+
+**Biome Presets:** `"forest"`, `"cave"`, `"night"`, `"sunset"`, `"snow"`, `"desert"`, `"forest_sunset"`, `"forest_trees"`
 
 ```sage
-# Add a far background (scrolls at 20% of camera speed)
-add_parallax("assets/textures/sky.png", 0.2, 0.1)
+# One-line biome background setup for platformer maps
+load_parallax_preset("forest")
 
-# Add a mid-ground layer (scrolls at 50%)
-let trees = add_parallax("assets/textures/trees.png", 0.5, 0.3)
+# Or build layers manually
+add_parallax("assets/textures/sky.png", 0.0, 0.0)
+set_parallax(0, "fill_viewport", true)   # Sky stretches to fill screen
 
-# Adjust at runtime
-set_parallax(trees, "offset_y", -40)
-set_parallax(trees, "repeat_x", true)
+let mtns = add_parallax("assets/textures/mountains.png", 0.15, 0.05)
+set_parallax(mtns, "pin_bottom", true)    # Anchor to viewport bottom
+
+let trees = add_parallax("assets/textures/trees.png", 0.4, 0.1)
+set_parallax(trees, "pin_bottom", true)
+set_parallax(trees, "auto_scroll_x", 5)  # Gentle wind drift
+
+# Tint all layers for sunset mood
+for i in range(parallax_count()):
+    set_parallax(i, "tint_r", 1.0)
+    set_parallax(i, "tint_g", 0.85)
+    set_parallax(i, "tint_b", 0.7)
 ```
 
 ---
@@ -1057,6 +1072,143 @@ proc check_weather():
 ```
 
 See `weather.sage` for a complete library of presets (forest, desert, mountain, haunted, cave, etc.).
+
+---
+
+## Collision & Physics
+
+| Function | Description |
+|----------|-------------|
+| `collide_rects(x1,y1,w1,h1, x2,y2,w2,h2)` | AABB overlap test → bool |
+| `collide_circles(cx1,cy1,r1, cx2,cy2,r2)` | Circle overlap test → bool |
+| `collide_rect_circle(rx,ry,rw,rh, cx,cy,cr)` | Rect vs circle → bool |
+| `point_in_rect(px,py, rx,ry,rw,rh)` | Point containment → bool |
+| `point_in_circle(px,py, cx,cy,cr)` | Point in circle → bool |
+| `set_collider_rect(entity, xoff, yoff, w, h)` | Set AABB collider on entity ("player" or NPC name) |
+| `set_collider_circle(entity, xoff, yoff, radius)` | Set circle collider on entity |
+| `check_collision(entity1, entity2)` | Check collision between two named entities → bool |
+| `raycast(x,y,dx,dy,max_dist)` | Cast ray against tilemap → hit distance (0 = miss) |
+| `raycast_hit_x()` / `raycast_hit_y()` | Last raycast hit point coordinates |
+| `line_of_sight(x1,y1,x2,y2)` | Check if clear path between two points → bool |
+
+---
+
+## Trigger Zones
+
+| Function | Description |
+|----------|-------------|
+| `add_trigger(id, x, y, w, h, on_enter, on_exit, on_stay)` | Add rectangular trigger zone |
+| `add_trigger_circle(id, cx, cy, r, on_enter, on_exit, on_stay)` | Add circular trigger zone |
+| `remove_trigger(id)` | Remove trigger by ID |
+| `set_trigger_active(id, bool)` | Enable/disable a trigger |
+
+Callbacks receive `trigger_entity` (0=player, 1+=NPC index) and `trigger_zone` (zone ID) as script variables.
+
+```sage
+add_trigger("boss_room", 400, 200, 200, 150, "enter_boss", "", "")
+proc enter_boss():
+    if trigger_entity == 0:
+        start_battle("Dragon", 200, 25, "fi_100")
+```
+
+---
+
+## Coroutines
+
+| Function | Description |
+|----------|-------------|
+| `coroutine_create(id)` | Create a named coroutine |
+| `coroutine_step(id, func, delay)` | Add step: call `func`, wait `delay` seconds before next |
+| `coroutine_start(id)` | Begin executing steps |
+| `coroutine_stop(id)` | Pause execution |
+| `coroutine_loop(id, bool)` | Set whether coroutine loops |
+| `coroutine_remove(id)` | Delete coroutine |
+
+```sage
+# Cutscene: walk, talk, wait, walk
+coroutine_create("intro")
+coroutine_step("intro", "intro_walk_to_npc", 0)
+coroutine_step("intro", "intro_dialogue", 2.0)
+coroutine_step("intro", "intro_walk_away", 3.0)
+coroutine_step("intro", "intro_done", 2.0)
+coroutine_start("intro")
+```
+
+---
+
+## State Machines
+
+| Function | Description |
+|----------|-------------|
+| `fsm_create(id)` | Create a named state machine |
+| `fsm_add_state(id, name, on_enter, on_update, on_exit)` | Add state with callbacks |
+| `fsm_transition(id, state_name)` | Transition to a state |
+| `fsm_current(id)` | Get current state name → string |
+| `fsm_remove(id)` | Remove state machine |
+
+```sage
+fsm_create("boss")
+fsm_add_state("boss", "idle", "boss_idle_enter", "boss_idle_update", "")
+fsm_add_state("boss", "attack", "boss_attack_enter", "boss_attack_update", "boss_attack_exit")
+fsm_add_state("boss", "rage", "boss_rage_enter", "boss_rage_update", "")
+fsm_transition("boss", "idle")
+```
+
+---
+
+## Trails
+
+| Function | Description |
+|----------|-------------|
+| `trail_create(id, max_points, lifetime, width)` | Create a trail |
+| `trail_add_point(id, x, y)` | Add a point to the trail |
+| `trail_set_color(id, r1,g1,b1,a1, r2,g2,b2,a2)` | Set start/end colors |
+| `trail_set_emitting(id, bool)` | Pause/resume adding points |
+| `trail_destroy(id)` | Remove trail |
+
+---
+
+## Checkpoints
+
+| Function | Description |
+|----------|-------------|
+| `add_checkpoint(id, x, y, map_id)` | Register a checkpoint location |
+| `activate_checkpoint(id)` | Set as active respawn point |
+| `get_checkpoint_id()` | Get active checkpoint ID → string |
+| `respawn()` | Respawn player at active checkpoint |
+
+---
+
+## Dungeon Generation
+
+| Function | Description |
+|----------|-------------|
+| `generate_dungeon(width, height, method, seed)` | Generate dungeon (0=BSP, 1=cellular). Applies to current tilemap |
+| `dungeon_room_count()` | Number of rooms from last generation → int |
+| `dungeon_room_x(index)` / `dungeon_room_y(index)` | Room center coordinates |
+
+```sage
+generate_dungeon(40, 30, 0, 12345)  # BSP dungeon
+let rooms = dungeon_room_count()
+set_player_pos(dungeon_room_x(0), dungeon_room_y(0))  # Spawn in first room
+```
+
+---
+
+## Post-Processing
+
+| Function | Description |
+|----------|-------------|
+| `set_postprocess(effect, enabled)` | Toggle effect: "crt", "bloom", "vignette", "blur", "color_grade" |
+| `set_postprocess_param(param, value)` | Set parameter: "bloom_threshold", "bloom_intensity", "vignette_strength", "crt_curvature", etc. |
+
+---
+
+## New Map Creation
+
+| Function | Description |
+|----------|-------------|
+| `new_map(width, height, tile_size, mode)` | Create empty map. mode: 0=top-down, 1=platformer (with ground) |
 
 ---
 
