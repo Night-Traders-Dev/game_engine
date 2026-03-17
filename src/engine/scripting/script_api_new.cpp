@@ -703,7 +703,101 @@ static Value native_set_parallax(int argc, Value* args) {
     else if (std::strcmp(prop, "repeat_x") == 0) l.repeat_x = bv;
     else if (std::strcmp(prop, "repeat_y") == 0) l.repeat_y = bv;
     else if (std::strcmp(prop, "active") == 0) l.active = bv;
+    else if (std::strcmp(prop, "tint_r") == 0) l.tint.x = nv;
+    else if (std::strcmp(prop, "tint_g") == 0) l.tint.y = nv;
+    else if (std::strcmp(prop, "tint_b") == 0) l.tint.z = nv;
+    else if (std::strcmp(prop, "tint_a") == 0) l.tint.w = nv;
+    else if (std::strcmp(prop, "auto_scroll_x") == 0) l.auto_scroll_x = nv;
+    else if (std::strcmp(prop, "auto_scroll_y") == 0) l.auto_scroll_y = nv;
+    else if (std::strcmp(prop, "scale") == 0) l.scale = nv;
+    else if (std::strcmp(prop, "pin_bottom") == 0) l.pin_bottom = bv;
+    else if (std::strcmp(prop, "fill_viewport") == 0) l.fill_viewport = bv;
+    else if (std::strcmp(prop, "z_order") == 0) l.z_order = (int)nv;
     return val_nil();
+}
+
+// clear_parallax() — remove all parallax layers
+static Value native_clear_parallax(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_nil();
+    s_active_engine->game_state_->parallax_layers.clear();
+    return val_nil();
+}
+
+// parallax_count() → number of layers
+static Value native_parallax_count(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_) return val_number(0);
+    return val_number((double)s_active_engine->game_state_->parallax_layers.size());
+}
+
+// load_parallax_preset(biome) — loads all layers for a biome from assets/textures/parallax/<biome>/
+// Biome presets: "forest", "cave", "night", "sunset", "snow", "desert", "forest_sunset", "forest_trees"
+static Value native_load_parallax_preset(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 1) return val_nil();
+    auto* gs = s_active_engine->game_state_;
+    const char* biome = (args[0].type == VAL_STRING) ? args[0].as.string : "";
+    if (!biome[0]) return val_nil();
+
+    // Clear existing layers
+    gs->parallax_layers.clear();
+
+    // Scroll speeds: layer 0 = slowest (sky), increasing toward foreground
+    // For a typical 5-layer setup: sky(0.0), far_mtns(0.1), near_mtns(0.2), trees(0.35), fg(0.5)
+    struct LayerPreset { const char* suffix; float scroll_x; float scroll_y; bool pin_bottom; bool fill_vp; };
+    // Try to load layers 0-9 sequentially (different biomes have different counts)
+    const char* layer_names[] = {
+        "sky", "stalactites", "mountains", "dunes", "rocks", "trees",
+        "snow_trees", "foreground", "gradient", "sky2", "bg2", "bg1",
+        "bg0", "middleground", "middleplus"
+    };
+
+    std::string base = "assets/textures/parallax/" + std::string(biome) + "/";
+    int loaded = 0;
+
+    // Scan layer_0 through layer_9
+    for (int i = 0; i < 10; i++) {
+        // Try each possible suffix for this layer index
+        bool found = false;
+        for (auto& name : layer_names) {
+            std::string path = base + "layer_" + std::to_string(i) + "_" + name + ".png";
+            if (gs->resource_manager && gs->renderer) {
+                try {
+                    auto* tex = gs->resource_manager->load_texture(path);
+                    if (tex) {
+                        eb::ParallaxLayer layer;
+                        layer.texture_path = path;
+                        layer.texture_desc = (void*)gs->renderer->get_texture_descriptor(*tex);
+                        layer.tex_width = tex->width();
+                        layer.tex_height = tex->height();
+                        layer.z_order = i;
+                        layer.repeat_x = true;
+
+                        // Configure scroll speed based on layer depth
+                        float depth_frac = (float)i / std::max(1.0f, 4.0f); // 0..1 from back to front
+                        layer.scroll_x = depth_frac * 0.5f;  // 0.0 for sky → 0.5 for foreground
+                        layer.scroll_y = depth_frac * 0.15f;  // Minimal vertical parallax
+
+                        // Sky layers (index 0): fill viewport, no scroll
+                        if (i == 0) {
+                            layer.fill_viewport = true;
+                            layer.scroll_x = 0;
+                            layer.scroll_y = 0;
+                        } else {
+                            // Content layers: pin to bottom
+                            layer.pin_bottom = true;
+                        }
+
+                        gs->parallax_layers.push_back(layer);
+                        loaded++;
+                        found = true;
+                        break;
+                    }
+                } catch (...) {}
+            }
+        }
+    }
+
+    std::printf("[Parallax] Loaded preset '%s': %d layers\n", biome, loaded);
+    return val_number(loaded);
 }
 
 void ScriptEngine::register_parallax_api() {
@@ -711,6 +805,9 @@ void ScriptEngine::register_parallax_api() {
     env_define(env_, "add_parallax", 12, val_native(native_add_parallax));
     env_define(env_, "remove_parallax", 15, val_native(native_remove_parallax));
     env_define(env_, "set_parallax", 12, val_native(native_set_parallax));
+    env_define(env_, "clear_parallax", 15, val_native(native_clear_parallax));
+    env_define(env_, "parallax_count", 14, val_native(native_parallax_count));
+    env_define(env_, "load_parallax_preset", 20, val_native(native_load_parallax_preset));
     std::printf("[ScriptEngine] Parallax API registered\n");
 }
 

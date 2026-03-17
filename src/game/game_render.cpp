@@ -505,27 +505,64 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     batch.set_projection(proj);
 
     // ── Parallax backgrounds (rendered behind everything) ──
-    for (auto& layer : game.parallax_layers) {
-        if (!layer.active || !layer.texture_desc) continue;
-        VkDescriptorSet desc = (VkDescriptorSet)layer.texture_desc;
-        batch.set_texture(desc);
-        // Camera offset * scroll factor = parallax offset
-        eb::Vec2 cam = game.camera.position();
-        float px = -cam.x * layer.scroll_x + layer.offset_x;
-        float py = -cam.y * layer.scroll_y + layer.offset_y;
-        float tw = (float)layer.tex_width;
-        float th = (float)layer.tex_height;
-        if (tw <= 0 || th <= 0) continue;
+    // Sort layers by z_order for correct draw ordering
+    {
+        // Build index list sorted by z_order
+        std::vector<int> layer_order;
+        layer_order.reserve(game.parallax_layers.size());
+        for (int i = 0; i < (int)game.parallax_layers.size(); i++)
+            if (game.parallax_layers[i].active && game.parallax_layers[i].texture_desc)
+                layer_order.push_back(i);
+        std::sort(layer_order.begin(), layer_order.end(), [&](int a, int b) {
+            return game.parallax_layers[a].z_order < game.parallax_layers[b].z_order;
+        });
+
         eb::Rect view = game.camera.visible_area();
-        if (layer.repeat_x) {
-            // Wrap horizontally
-            float mod_x = std::fmod(px, tw);
-            if (mod_x > 0) mod_x -= tw;
-            for (float dx = mod_x; dx < view.w + tw; dx += tw) {
-                batch.draw_quad({view.x + dx, view.y + py}, {tw, th}, {0,0}, {1,1});
+        eb::Vec2 cam = game.camera.position();
+        float zoom = game.camera.zoom();
+
+        for (int li : layer_order) {
+            auto& layer = game.parallax_layers[li];
+            VkDescriptorSet desc = (VkDescriptorSet)layer.texture_desc;
+            batch.set_texture(desc);
+
+            // Accumulate auto-scroll
+            // (auto_scroll_accum updated in game.cpp update loop)
+
+            // Scaled dimensions
+            float tw = (float)layer.tex_width * layer.scale;
+            float th = (float)layer.tex_height * layer.scale;
+            if (tw <= 0 || th <= 0) continue;
+
+            // Camera offset * scroll factor = parallax offset + auto scroll
+            float px = -cam.x * layer.scroll_x + layer.offset_x + layer.auto_scroll_accum_x;
+            float py = -cam.y * layer.scroll_y + layer.offset_y + layer.auto_scroll_accum_y;
+
+            // Y positioning for platformer backgrounds
+            float draw_y;
+            if (layer.fill_viewport) {
+                // Stretch to fill entire viewport height
+                draw_y = view.y;
+                th = view.h;
+            } else if (layer.pin_bottom) {
+                // Pin bottom of layer to bottom of viewport
+                draw_y = view.y + view.h - th + py;
+            } else {
+                draw_y = view.y + py;
             }
-        } else {
-            batch.draw_quad({view.x + px, view.y + py}, {tw, th}, {0,0}, {1,1});
+
+            eb::Vec4 tint = layer.tint;
+
+            if (layer.repeat_x) {
+                // Wrap horizontally with tiling
+                float mod_x = std::fmod(px, tw);
+                if (mod_x > 0) mod_x -= tw;
+                for (float dx = mod_x; dx < view.w + tw; dx += tw) {
+                    batch.draw_quad({view.x + dx, draw_y}, {tw, th}, {0,0}, {1,1}, tint);
+                }
+            } else {
+                batch.draw_quad({view.x + px, draw_y}, {tw, th}, {0,0}, {1,1}, tint);
+            }
         }
     }
 

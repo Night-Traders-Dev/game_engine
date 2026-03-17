@@ -193,6 +193,83 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                     }
                 }
 
+                if (ImGui::CollapsingHeader("Parallax Backgrounds")) {
+                    ImGui::Text("Layers: %d", (int)game.parallax_layers.size());
+
+                    // Preset loader
+                    static const char* bg_presets[] = {"forest", "cave", "night", "sunset", "snow", "desert", "forest_sunset", "forest_trees"};
+                    static int preset_idx = 0;
+                    ImGui::Combo("Preset", &preset_idx, bg_presets, IM_ARRAYSIZE(bg_presets));
+                    ImGui::SameLine();
+                    if (ImGui::Button("Load Preset")) {
+                        if (game.script_engine) {
+                            game.script_engine->set_string("_bg_preset", bg_presets[preset_idx]);
+                            game.script_engine->execute("load_parallax_preset(_bg_preset)");
+                            set_status(std::string("Loaded parallax: ") + bg_presets[preset_idx]);
+                        }
+                    }
+
+                    if (ImGui::Button("Clear All Backgrounds")) {
+                        game.parallax_layers.clear();
+                        set_status("Cleared parallax layers");
+                    }
+
+                    ImGui::Separator();
+
+                    // Per-layer properties
+                    for (int i = 0; i < (int)game.parallax_layers.size(); i++) {
+                        auto& l = game.parallax_layers[i];
+                        std::string label = "Layer " + std::to_string(i);
+                        if (!l.texture_path.empty()) {
+                            auto slash = l.texture_path.rfind('/');
+                            if (slash != std::string::npos) label += " (" + l.texture_path.substr(slash + 1) + ")";
+                        }
+                        if (ImGui::TreeNode(label.c_str())) {
+                            ImGui::Checkbox("Active", &l.active);
+                            ImGui::SliderFloat("Scroll X", &l.scroll_x, 0, 1.0f);
+                            ImGui::SliderFloat("Scroll Y", &l.scroll_y, 0, 0.5f);
+                            ImGui::DragFloat("Auto Scroll X", &l.auto_scroll_x, 0.5f, -100, 100, "%.1f px/s");
+                            ImGui::SliderFloat("Scale", &l.scale, 0.25f, 4.0f);
+                            ImGui::ColorEdit4("Tint", &l.tint.x);
+                            ImGui::Checkbox("Repeat X", &l.repeat_x);
+                            ImGui::SameLine();
+                            ImGui::Checkbox("Pin Bottom", &l.pin_bottom);
+                            ImGui::SameLine();
+                            ImGui::Checkbox("Fill VP", &l.fill_viewport);
+                            ImGui::InputInt("Z Order", &l.z_order);
+                            if (ImGui::Button(("Remove##plx" + std::to_string(i)).c_str())) {
+                                game.parallax_layers.erase(game.parallax_layers.begin() + i);
+                                i--;
+                            }
+                            ImGui::TreePop();
+                        }
+                    }
+
+                    // Add custom layer
+                    ImGui::Separator();
+                    static char new_bg_path[256] = "assets/textures/parallax/forest/layer_0_sky.png";
+                    ImGui::InputText("Texture Path", new_bg_path, sizeof(new_bg_path));
+                    if (ImGui::Button("+ Add Layer")) {
+                        if (game.resource_manager && game.renderer) {
+                            try {
+                                auto* tex = game.resource_manager->load_texture(new_bg_path);
+                                if (tex) {
+                                    eb::ParallaxLayer pl;
+                                    pl.texture_path = new_bg_path;
+                                    pl.texture_desc = (void*)game.renderer->get_texture_descriptor(*tex);
+                                    pl.tex_width = tex->width();
+                                    pl.tex_height = tex->height();
+                                    pl.z_order = (int)game.parallax_layers.size();
+                                    pl.repeat_x = true;
+                                    pl.pin_bottom = true;
+                                    game.parallax_layers.push_back(pl);
+                                    set_status("Added parallax layer: " + std::string(new_bg_path));
+                                }
+                            } catch (...) { set_status("Failed to load: " + std::string(new_bg_path)); }
+                        }
+                    }
+                }
+
                 if (ImGui::CollapsingHeader("Auto-Tiling")) {
                     ImGui::Checkbox("Enable Auto-Tile", &auto_tile_enabled_);
                     ImGui::InputInt("Terrain A Tile", &auto_tile_config_.terrain_a_tile);

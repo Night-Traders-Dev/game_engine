@@ -144,9 +144,21 @@ struct ParallaxLayer {
     bool repeat_x = true;
     bool repeat_y = false;
     bool active = true;
+
+    // Platformer background features
+    Vec4 tint = {1, 1, 1, 1};     // Per-layer color tint (multiply)
+    float auto_scroll_x = 0;       // Pixels per second of automatic horizontal drift (clouds, etc.)
+    float auto_scroll_y = 0;       // Vertical auto-scroll
+    float scale = 1.0f;            // Render scale (2.0 = double size for pixel-art upscale)
+    bool pin_bottom = false;        // Pin layer bottom to viewport bottom (platformer Y-anchor)
+    bool fill_viewport = false;     // Stretch to fill viewport height (for sky layers)
+    int z_order = 0;                // Sort order within layers (lower = further back)
+
     // Runtime (set during rendering)
     void* texture_desc = nullptr; // VkDescriptorSet, set by renderer
     int tex_width = 0, tex_height = 0;
+    float auto_scroll_accum_x = 0; // Accumulated auto-scroll offset
+    float auto_scroll_accum_y = 0;
 };
 
 } // namespace eb

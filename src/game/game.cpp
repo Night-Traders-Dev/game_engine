@@ -1007,6 +1007,12 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
 
     // ─── Phase 4 Systems Update ───
 
+    // Update parallax auto-scroll
+    for (auto& layer : game.parallax_layers) {
+        if (layer.auto_scroll_x != 0) layer.auto_scroll_accum_x += layer.auto_scroll_x * dt;
+        if (layer.auto_scroll_y != 0) layer.auto_scroll_accum_y += layer.auto_scroll_y * dt;
+    }
+
     // Update trigger zones
     {
         std::vector<std::pair<int, eb::Vec2>> entities;
