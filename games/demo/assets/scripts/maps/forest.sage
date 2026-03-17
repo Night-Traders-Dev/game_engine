@@ -80,6 +80,10 @@ proc forest_init():
     log("Forest ready")
     ui_remove("pause_div")
     ui_remove("pause_div")
+    ui_set("hud_player_bg", "sprite", "flat_blue")
+    ui_set("hud_time_bg", "sprite", "flat_blue")
+    ui_set("pause_bg", "sprite", "flat_orange")
+    ui_remove("pause_div")
 # Called EVERY time the player enters this level
 proc forest_enter():
     set_clouds(true, 0.35, 12, 60)

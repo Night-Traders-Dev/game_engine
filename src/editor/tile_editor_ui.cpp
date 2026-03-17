@@ -482,21 +482,51 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             ImGui::TextColored(ImVec4(1,0.9f,0.4f,1), "Selected: %s [%s]", ui_selected_id_.c_str(), ui_editor_type_.c_str());
             ImGui::Separator();
 
+            // Script generation helpers — emit ui_set() on widget commit
+            auto fmt_f = [](float v) -> std::string { char b[32]; std::snprintf(b, sizeof(b), "%.3f", v); return b; };
+            auto emit_f = [&](const std::string& prop, float val) {
+                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + fmt_f(val) + ")");
+            };
+            auto emit_i = [&](const std::string& prop, int val) {
+                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + std::to_string(val) + ")");
+            };
+            auto emit_s = [&](const std::string& prop, const std::string& val) {
+                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", \"" + val + "\")");
+            };
+            auto emit_b = [&](const std::string& prop, bool val) {
+                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + std::string(val ? "true" : "false") + ")");
+            };
+            auto emit_pos = [&](float x, float y) { emit_i("x", (int)x); emit_i("y", (int)y); };
+            auto emit_color = [&](const char* prefix, float r, float g, float b, float a) {
+                std::string p(prefix);
+                emit_f(p + "r", r); emit_f(p + "g", g); emit_f(p + "b", b); emit_f(p + "a", a);
+            };
+            // Shorthand: check last widget and emit on commit
+            #define EMIT_ON_COMMIT(code) if (ImGui::IsItemDeactivatedAfterEdit()) { code; }
+
             // Label properties
             for (auto& l : game.script_ui.labels) {
                 if (l.id != ui_selected_id_) continue;
                 char buf[256];
                 std::strncpy(buf, l.text.c_str(), sizeof(buf) - 1); buf[sizeof(buf)-1] = 0;
                 if (ImGui::InputText("Text", buf, sizeof(buf))) l.text = buf;
+                EMIT_ON_COMMIT(emit_s("text", l.text));
                 ImGui::DragFloat2("Position", &l.position.x, 1, 0, 2000);
+                EMIT_ON_COMMIT(emit_pos(l.position.x, l.position.y));
                 ImGui::SliderFloat("Scale", &l.scale, 0.3f, 3.0f);
+                EMIT_ON_COMMIT(emit_f("scale", l.scale));
                 ImGui::ColorEdit4("Color", &l.color.x);
+                EMIT_ON_COMMIT(emit_color("", l.color.x, l.color.y, l.color.z, l.color.w));
                 ImGui::SliderFloat("Opacity", &l.opacity, 0, 1);
+                EMIT_ON_COMMIT(emit_f("opacity", l.opacity));
                 ImGui::SliderFloat("Rotation", &l.rotation, 0, 360);
+                EMIT_ON_COMMIT(emit_f("rotation", l.rotation));
                 ImGui::SliderInt("Layer", &l.layer, 0, 20);
-                ImGui::Checkbox("Visible", &l.visible);
+                EMIT_ON_COMMIT(emit_i("layer", l.layer));
+                if (ImGui::Checkbox("Visible", &l.visible)) emit_b("visible", l.visible);
                 char cb[64] = {}; std::strncpy(cb, l.on_click.c_str(), sizeof(cb)-1);
                 if (ImGui::InputText("On Click", cb, sizeof(cb))) l.on_click = cb;
+                EMIT_ON_COMMIT(emit_s("on_click", l.on_click));
                 if (ImGui::Button("Delete")) {
                     append_map_script("ui_remove(\"" + l.id + "\")");
                     game.script_ui.labels.erase(std::find_if(game.script_ui.labels.begin(), game.script_ui.labels.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
@@ -509,8 +539,11 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             for (auto& p : game.script_ui.panels) {
                 if (p.id != ui_selected_id_) continue;
                 if (ImGui::DragFloat2("Position", &p.position.x, 1, 0, 2000)) sync_to_hud_config(game, p.id);
+                EMIT_ON_COMMIT(emit_pos(p.position.x, p.position.y));
                 if (ImGui::DragFloat("Width", &p.width, 1, 20, 1000)) sync_to_hud_config(game, p.id);
+                EMIT_ON_COMMIT(emit_i("w", (int)p.width));
                 if (ImGui::DragFloat("Height", &p.height, 1, 20, 800)) sync_to_hud_config(game, p.id);
+                EMIT_ON_COMMIT(emit_i("h", (int)p.height));
                 // Style picker — combo of all panel regions from UI atlases
                 {
                     static std::vector<std::string> panel_styles;
@@ -527,6 +560,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                         }
                         styles_cached = true;
                     }
+                    std::string prev_style = p.sprite_region;
                     if (ImGui::BeginCombo("Style", p.sprite_region.c_str())) {
                         for (auto& s : panel_styles) {
                             bool selected = (p.sprite_region == s);
@@ -536,15 +570,22 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                         }
                         ImGui::EndCombo();
                     }
+                    if (p.sprite_region != prev_style) emit_s("sprite", p.sprite_region);
                 }
                 ImGui::SliderFloat("Rotation", &p.rotation, 0, 360);
+                EMIT_ON_COMMIT(emit_f("rotation", p.rotation));
                 ImGui::SliderFloat("Opacity", &p.opacity, 0, 1);
+                EMIT_ON_COMMIT(emit_f("opacity", p.opacity));
                 ImGui::SliderFloat("Scale", &p.scale, 0.1f, 4.0f);
+                EMIT_ON_COMMIT(emit_f("scale", p.scale));
                 ImGui::ColorEdit4("Tint", &p.color.x);
+                EMIT_ON_COMMIT(emit_color("", p.color.x, p.color.y, p.color.z, p.color.w));
                 ImGui::SliderInt("Layer", &p.layer, 0, 20);
-                ImGui::Checkbox("Visible", &p.visible);
+                EMIT_ON_COMMIT(emit_i("layer", p.layer));
+                if (ImGui::Checkbox("Visible", &p.visible)) emit_b("visible", p.visible);
                 char cb[64] = {}; std::strncpy(cb, p.on_click.c_str(), sizeof(cb)-1);
                 if (ImGui::InputText("On Click", cb, sizeof(cb))) p.on_click = cb;
+                EMIT_ON_COMMIT(emit_s("on_click", p.on_click));
                 if (ImGui::Button("Delete")) {
                     append_map_script("ui_remove(\"" + p.id + "\")");
                     game.script_ui.panels.erase(std::find_if(game.script_ui.panels.begin(), game.script_ui.panels.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
@@ -557,16 +598,25 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             for (auto& b : game.script_ui.bars) {
                 if (b.id != ui_selected_id_) continue;
                 ImGui::DragFloat("Value", &b.value, 1, 0, b.max_value);
+                EMIT_ON_COMMIT(emit_f("value", b.value));
                 ImGui::DragFloat("Max", &b.max_value, 1, 1, 10000);
+                EMIT_ON_COMMIT(emit_f("max", b.max_value));
                 if (ImGui::DragFloat2("Position", &b.position.x, 1, 0, 2000)) sync_to_hud_config(game, b.id);
+                EMIT_ON_COMMIT(emit_pos(b.position.x, b.position.y));
                 if (ImGui::DragFloat("Width", &b.width, 1, 10, 500)) sync_to_hud_config(game, b.id);
+                EMIT_ON_COMMIT(emit_i("w", (int)b.width));
                 if (ImGui::DragFloat("Height", &b.height, 1, 4, 40)) sync_to_hud_config(game, b.id);
+                EMIT_ON_COMMIT(emit_i("h", (int)b.height));
                 ImGui::SliderFloat("Rotation", &b.rotation, 0, 360);
+                EMIT_ON_COMMIT(emit_f("rotation", b.rotation));
                 ImGui::ColorEdit4("Bar Color", &b.color.x);
+                EMIT_ON_COMMIT(emit_color("", b.color.x, b.color.y, b.color.z, b.color.w));
                 ImGui::ColorEdit4("BG Color", &b.bg_color.x);
+                EMIT_ON_COMMIT(emit_color("bg_", b.bg_color.x, b.bg_color.y, b.bg_color.z, b.bg_color.w));
                 ImGui::SliderFloat("Opacity", &b.opacity, 0, 1);
-                ImGui::Checkbox("Show Text", &b.show_text);
-                ImGui::Checkbox("Visible", &b.visible);
+                EMIT_ON_COMMIT(emit_f("opacity", b.opacity));
+                if (ImGui::Checkbox("Show Text", &b.show_text)) emit_b("show_text", b.show_text);
+                if (ImGui::Checkbox("Visible", &b.visible)) emit_b("visible", b.visible);
                 if (ImGui::Button("Delete")) {
                     append_map_script("ui_remove(\"" + b.id + "\")");
                     game.script_ui.bars.erase(std::find_if(game.script_ui.bars.begin(), game.script_ui.bars.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
@@ -579,8 +629,11 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             for (auto& img : game.script_ui.images) {
                 if (img.id != ui_selected_id_) continue;
                 ImGui::DragFloat2("Position", &img.position.x, 1, 0, 2000);
+                EMIT_ON_COMMIT(emit_pos(img.position.x, img.position.y));
                 ImGui::DragFloat("Width", &img.width, 1, 4, 256);
+                EMIT_ON_COMMIT(emit_i("w", (int)img.width));
                 ImGui::DragFloat("Height", &img.height, 1, 4, 256);
+                EMIT_ON_COMMIT(emit_i("h", (int)img.height));
                 // Icon picker — combo of icon regions + fantasy icon indices
                 {
                     static std::vector<std::string> icon_styles;
@@ -600,6 +653,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                         }
                         icons_cached = true;
                     }
+                    std::string prev_icon = img.icon_name;
                     if (ImGui::BeginCombo("Icon", img.icon_name.c_str())) {
                         // Filter box
                         static char icon_filter[32] = "";
@@ -613,16 +667,25 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                         }
                         ImGui::EndCombo();
                     }
+                    if (img.icon_name != prev_icon) emit_s("icon", img.icon_name);
                 }
                 ImGui::ColorEdit4("Tint", &img.tint.x);
+                EMIT_ON_COMMIT(emit_color("", img.tint.x, img.tint.y, img.tint.z, img.tint.w));
                 ImGui::SliderFloat("Rotation", &img.rotation, 0, 360);
+                EMIT_ON_COMMIT(emit_f("rotation", img.rotation));
                 ImGui::SliderFloat("Opacity", &img.opacity, 0, 1);
+                EMIT_ON_COMMIT(emit_f("opacity", img.opacity));
                 ImGui::SliderFloat("Scale", &img.scale, 0.1f, 4.0f);
-                ImGui::Checkbox("Flip H", &img.flip_h); ImGui::SameLine(); ImGui::Checkbox("Flip V", &img.flip_v);
+                EMIT_ON_COMMIT(emit_f("scale", img.scale));
+                if (ImGui::Checkbox("Flip H", &img.flip_h)) emit_b("flip_h", img.flip_h);
+                ImGui::SameLine();
+                if (ImGui::Checkbox("Flip V", &img.flip_v)) emit_b("flip_v", img.flip_v);
                 ImGui::SliderInt("Layer", &img.layer, 0, 20);
-                ImGui::Checkbox("Visible", &img.visible);
+                EMIT_ON_COMMIT(emit_i("layer", img.layer));
+                if (ImGui::Checkbox("Visible", &img.visible)) emit_b("visible", img.visible);
                 char cb[64] = {}; std::strncpy(cb, img.on_click.c_str(), sizeof(cb)-1);
                 if (ImGui::InputText("On Click", cb, sizeof(cb))) img.on_click = cb;
+                EMIT_ON_COMMIT(emit_s("on_click", img.on_click));
                 if (ImGui::Button("Delete")) {
                     append_map_script("ui_remove(\"" + img.id + "\")");
                     game.script_ui.images.erase(std::find_if(game.script_ui.images.begin(), game.script_ui.images.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
@@ -630,6 +693,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 }
                 break;
             }
+            #undef EMIT_ON_COMMIT
         } else {
             ImGui::TextDisabled("No element selected. Click a component in the viewport.");
         }
