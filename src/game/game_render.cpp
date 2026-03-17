@@ -159,6 +159,80 @@ static void draw_ui_icon(eb::SpriteBatch& batch, GameState& game,
     }
 }
 
+// ─── 9-slice panel rendering ───
+// Splits a region into 9 sub-quads: 4 fixed-size corners, 4 stretched edges, 1 stretched center.
+// `border` is the corner/edge thickness in screen pixels.
+// The UV border fraction is derived from the region's pixel dimensions.
+static void draw_nine_slice(eb::SpriteBatch& batch, const eb::AtlasRegion& region,
+                            float x, float y, float w, float h, float border, eb::Vec4 tint) {
+    // Pixel dimensions of the source region
+    float rw = (float)region.pixel_w;
+    float rh = (float)region.pixel_h;
+    // Clamp border so it doesn't exceed half the region or half the output
+    float bx = std::min(border, std::min(rw * 0.5f, w * 0.5f));
+    float by = std::min(border, std::min(rh * 0.5f, h * 0.5f));
+    // UV fraction for border inset
+    float uv_w = region.uv_max.x - region.uv_min.x;
+    float uv_h = region.uv_max.y - region.uv_min.y;
+    float ubx = (bx / rw) * uv_w;  // UV border width
+    float uby = (by / rh) * uv_h;  // UV border height
+
+    // Screen coordinates for the 3 columns and 3 rows
+    float x0 = x,           x1 = x + bx,       x2 = x + w - bx,    x3 = x + w;
+    float y0 = y,           y1 = y + by,       y2 = y + h - by,    y3 = y + h;
+    // UV coordinates for the 3 columns and 3 rows
+    float u0 = region.uv_min.x,               u1 = region.uv_min.x + ubx;
+    float u2 = region.uv_max.x - ubx,         u3 = region.uv_max.x;
+    float v0 = region.uv_min.y,               v1 = region.uv_min.y + uby;
+    float v2 = region.uv_max.y - uby,         v3 = region.uv_max.y;
+
+    // Center width/height (can be 0 if panel is exactly 2*border)
+    float cw = x2 - x1, ch = y2 - y1;
+
+    // Draw 9 quads (skip degenerate ones where width or height <= 0)
+    // Top-left corner
+    batch.draw_quad({x0, y0}, {bx, by}, {u0, v0}, {u1, v1}, tint);
+    // Top edge
+    if (cw > 0) batch.draw_quad({x1, y0}, {cw, by}, {u1, v0}, {u2, v1}, tint);
+    // Top-right corner
+    batch.draw_quad({x2, y0}, {bx, by}, {u2, v0}, {u3, v1}, tint);
+    // Left edge
+    if (ch > 0) batch.draw_quad({x0, y1}, {bx, ch}, {u0, v1}, {u1, v2}, tint);
+    // Center
+    if (cw > 0 && ch > 0) batch.draw_quad({x1, y1}, {cw, ch}, {u1, v1}, {u2, v2}, tint);
+    // Right edge
+    if (ch > 0) batch.draw_quad({x2, y1}, {bx, ch}, {u2, v1}, {u3, v2}, tint);
+    // Bottom-left corner
+    batch.draw_quad({x0, y2}, {bx, by}, {u0, v2}, {u1, v3}, tint);
+    // Bottom edge
+    if (cw > 0) batch.draw_quad({x1, y2}, {cw, by}, {u1, v2}, {u2, v3}, tint);
+    // Bottom-right corner
+    batch.draw_quad({x2, y2}, {bx, by}, {u2, v2}, {u3, v3}, tint);
+}
+
+// Draw a UI region with 9-slice support (convenience wrapper)
+static void draw_ui_region_9s(eb::SpriteBatch& batch, GameState& game,
+                               const char* name, float x, float y, float w, float h,
+                               float border, eb::Vec4 tint = {1,1,1,1}) {
+    const eb::AtlasRegion* region = nullptr;
+    VkDescriptorSet tex_desc = VK_NULL_HANDLE;
+    if (name[0] == 'f' && name[1] == 'l' && game.ui_flat_atlas) {
+        region = game.ui_flat_atlas->find_region(name);
+        if (region) tex_desc = game.ui_flat_desc;
+    }
+    if (!region && game.ui_atlas) {
+        region = game.ui_atlas->find_region(name);
+        if (region) tex_desc = game.ui_desc;
+    }
+    if (region) {
+        batch.set_texture(tex_desc);
+        draw_nine_slice(batch, *region, x, y, w, h, border, tint);
+    } else {
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({x, y}, {w, h}, {0,0}, {1,1}, {0.05f, 0.05f, 0.12f, 0.88f});
+    }
+}
+
 static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& text,
                         float screen_w, float screen_h) {
     auto& H = game.hud;
@@ -1094,37 +1168,133 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
         batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0, 0, 0, 0.65f});
     }
 
-    // ── Script-driven UI elements ──
-    // Panels (rendered first as backgrounds)
-    for (auto& panel : game.script_ui.panels) {
-        if (!panel.visible) continue;
-        draw_ui_region(batch, game, panel.sprite_region.c_str(),
-                       panel.position.x, panel.position.y, panel.width, panel.height, panel.rotation);
+    // ── Script-driven UI elements (layer-sorted) ──
+    {
+        // Gather all visible elements into a sortable list
+        struct UIDrawEntry {
+            int layer;
+            int type;   // 0=panel, 1=image, 2=label, 3=bar
+            int index;
+        };
+        std::vector<UIDrawEntry> draw_list;
+        draw_list.reserve(game.script_ui.panels.size() + game.script_ui.images.size() +
+                          game.script_ui.labels.size() + game.script_ui.bars.size());
+        for (int i = 0; i < (int)game.script_ui.panels.size(); i++)
+            if (game.script_ui.panels[i].visible)
+                draw_list.push_back({game.script_ui.panels[i].layer, 0, i});
+        for (int i = 0; i < (int)game.script_ui.images.size(); i++)
+            if (game.script_ui.images[i].visible)
+                draw_list.push_back({game.script_ui.images[i].layer, 1, i});
+        for (int i = 0; i < (int)game.script_ui.labels.size(); i++)
+            if (game.script_ui.labels[i].visible)
+                draw_list.push_back({game.script_ui.labels[i].layer, 2, i});
+        for (int i = 0; i < (int)game.script_ui.bars.size(); i++)
+            if (game.script_ui.bars[i].visible)
+                draw_list.push_back({game.script_ui.bars[i].layer, 3, i});
+
+        // Sort by layer (lower layers first), then by type (panels behind images behind labels)
+        std::sort(draw_list.begin(), draw_list.end(), [](const UIDrawEntry& a, const UIDrawEntry& b) {
+            if (a.layer != b.layer) return a.layer < b.layer;
+            return a.type < b.type;
+        });
+
+        for (auto& entry : draw_list) {
+            switch (entry.type) {
+            case 0: { // Panel
+                auto& p = game.script_ui.panels[entry.index];
+                float pw = p.width * p.scale, ph = p.height * p.scale;
+                eb::Vec4 tint = {p.color.x, p.color.y, p.color.z, p.color.w * p.opacity};
+                const char* name = p.sprite_region.c_str();
+                // Find the atlas region
+                const eb::AtlasRegion* region = nullptr;
+                VkDescriptorSet tex_desc = VK_NULL_HANDLE;
+                if (name[0] == 'f' && name[1] == 'l' && game.ui_flat_atlas) {
+                    region = game.ui_flat_atlas->find_region(name);
+                    if (region) tex_desc = game.ui_flat_desc;
+                }
+                if (!region && game.ui_atlas) {
+                    region = game.ui_atlas->find_region(name);
+                    if (region) tex_desc = game.ui_desc;
+                }
+                if (region) {
+                    batch.set_texture(tex_desc);
+                    if (p.nine_slice) {
+                        draw_nine_slice(batch, *region, p.position.x, p.position.y, pw, ph, p.border * p.scale, tint);
+                    } else {
+                        batch.draw_quad_rotated(p.position, {pw, ph}, region->uv_min, region->uv_max, p.rotation, tint);
+                    }
+                } else {
+                    // Fallback: solid dark panel
+                    batch.set_texture(game.white_desc);
+                    batch.draw_quad_rotated(p.position, {pw, ph}, {0,0}, {1,1}, p.rotation,
+                        {0.05f * tint.x, 0.05f * tint.y, 0.12f * tint.z, 0.88f * tint.w});
+                }
+                break;
+            }
+            case 1: { // Image
+                auto& img = game.script_ui.images[entry.index];
+                float iw = img.width * img.scale, ih = img.height * img.scale;
+                eb::Vec4 tint = {img.tint.x, img.tint.y, img.tint.z, img.tint.w * img.opacity};
+                const char* name = img.icon_name.c_str();
+                eb::Vec2 uv0 = {0,0}, uv1 = {1,1};
+                bool found = false;
+                // Fantasy icon by index
+                if (name[0] == 'f' && name[1] == 'i' && name[2] == '_') {
+                    int idx = std::atoi(name + 3);
+                    if (game.fantasy_icons_atlas && idx >= 0 && idx < game.fantasy_icons_atlas->region_count()) {
+                        auto r = game.fantasy_icons_atlas->region(idx);
+                        uv0 = r.uv_min; uv1 = r.uv_max;
+                        batch.set_texture(game.fantasy_icons_desc);
+                        found = true;
+                    }
+                }
+                if (!found && game.ui_atlas) {
+                    auto* r = game.ui_atlas->find_region(name);
+                    if (r) { uv0 = r->uv_min; uv1 = r->uv_max; batch.set_texture(game.ui_desc); found = true; }
+                }
+                if (!found && game.fantasy_icons_atlas) {
+                    auto* r = game.fantasy_icons_atlas->find_region(name);
+                    if (r) { uv0 = r->uv_min; uv1 = r->uv_max; batch.set_texture(game.fantasy_icons_desc); found = true; }
+                }
+                if (found) {
+                    // Apply flip by swapping UVs
+                    if (img.flip_h) std::swap(uv0.x, uv1.x);
+                    if (img.flip_v) std::swap(uv0.y, uv1.y);
+                    batch.draw_quad_rotated(img.position, {iw, ih}, uv0, uv1, img.rotation, tint);
+                }
+                break;
+            }
+            case 2: { // Label
+                auto& l = game.script_ui.labels[entry.index];
+                eb::Vec4 col = {l.color.x, l.color.y, l.color.z, l.color.w * l.opacity};
+                text.draw_text(batch, game.font_desc, l.text, l.position, col, l.scale);
+                break;
+            }
+            case 3: { // Bar
+                auto& b = game.script_ui.bars[entry.index];
+                float alpha = b.opacity;
+                batch.set_texture(game.white_desc);
+                eb::Vec4 bg = {b.bg_color.x, b.bg_color.y, b.bg_color.z, b.bg_color.w * alpha};
+                batch.draw_quad_rotated(b.position, {b.width, b.height}, {0,0}, {1,1}, b.rotation, bg);
+                float pct = b.max_value > 0 ? b.value / b.max_value : 0;
+                eb::Vec4 fg = {b.color.x, b.color.y, b.color.z, b.color.w * alpha};
+                batch.draw_quad_rotated(b.position, {b.width * pct, b.height}, {0,0}, {1,1}, b.rotation, fg);
+                // Show text overlay (e.g. "75/100")
+                if (b.show_text) {
+                    char btxt[32];
+                    std::snprintf(btxt, sizeof(btxt), "%.0f/%.0f", b.value, b.max_value);
+                    float ts = std::min(0.6f, b.height / 20.0f);
+                    auto bsz = text.measure_text(btxt, ts);
+                    float tx = b.position.x + (b.width - bsz.x) * 0.5f;
+                    float ty = b.position.y + (b.height - bsz.y) * 0.5f;
+                    text.draw_text(batch, game.font_desc, btxt, {tx, ty}, {1, 1, 1, alpha}, ts);
+                }
+                break;
+            }
+            }
+        }
     }
-    // Images
-    for (auto& img : game.script_ui.images) {
-        if (!img.visible) continue;
-        draw_ui_icon(batch, game, img.icon_name.c_str(),
-                     img.position.x, img.position.y, img.width, img.rotation);
-    }
-    // Labels
-    for (auto& label : game.script_ui.labels) {
-        if (!label.visible) continue;
-        // TODO: TextRenderer rotation support would need glyph-level transforms
-        text.draw_text(batch, game.font_desc, label.text,
-                       label.position, label.color, label.scale);
-    }
-    // Bars
-    for (auto& bar : game.script_ui.bars) {
-        if (!bar.visible) continue;
-        batch.set_texture(game.white_desc);
-        batch.draw_quad_rotated(bar.position, {bar.width, bar.height},
-                        {0,0}, {1,1}, bar.rotation, bar.bg_color);
-        float pct = bar.max_value > 0 ? bar.value / bar.max_value : 0;
-        batch.draw_quad_rotated(bar.position, {bar.width * pct, bar.height},
-                        {0,0}, {1,1}, bar.rotation, bar.color);
-    }
-    // Notifications (centered at top)
+    // Notifications (always on top, centered)
     for (auto& n : game.script_ui.notifications) {
         float alpha = std::min(1.0f, n.duration - n.timer);
         if (alpha <= 0) continue;

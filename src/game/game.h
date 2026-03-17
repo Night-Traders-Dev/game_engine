@@ -238,6 +238,8 @@ struct ScriptUIPanel {
     int layer = 0;
     std::string on_click;
     bool visible = true;
+    bool nine_slice = false;       // Enable 9-slice rendering (corners fixed, edges+center stretch)
+    float border = 16.0f;          // Border inset in pixels (corner/edge thickness)
 };
 struct ScriptUIImage {
     std::string id;

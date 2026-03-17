@@ -193,6 +193,8 @@ static Value native_ui_set(int argc, Value* args) {
         else if (std::strcmp(prop, "g") == 0) p.color.y = nv;
         else if (std::strcmp(prop, "b") == 0) p.color.z = nv;
         else if (std::strcmp(prop, "a") == 0) p.color.w = nv;
+        else if (std::strcmp(prop, "nine_slice") == 0) p.nine_slice = bv;
+        else if (std::strcmp(prop, "border") == 0) p.border = nv;
         return val_nil();
     }
     // Search images
@@ -259,6 +261,8 @@ static Value native_ui_get(int argc, Value* args) {
         if (std::strcmp(prop, "rotation") == 0) return val_number(p.rotation);
         if (std::strcmp(prop, "visible") == 0) return val_bool(p.visible);
         if (std::strcmp(prop, "scale") == 0) return val_number(p.scale);
+        if (std::strcmp(prop, "nine_slice") == 0) return val_bool(p.nine_slice);
+        if (std::strcmp(prop, "border") == 0) return val_number(p.border);
         return val_nil();
     }
     for (auto& img : gs->script_ui.images) {
