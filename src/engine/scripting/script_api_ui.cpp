@@ -73,6 +73,10 @@ static Value native_ui_remove(int argc, Value* args) {
     labels.erase(std::remove_if(labels.begin(), labels.end(), [&](auto& l){return l.id==id;}), labels.end());
     auto& bars = gs->script_ui.bars;
     bars.erase(std::remove_if(bars.begin(), bars.end(), [&](auto& b){return b.id==id;}), bars.end());
+    auto& panels = gs->script_ui.panels;
+    panels.erase(std::remove_if(panels.begin(), panels.end(), [&](auto& p){return p.id==id;}), panels.end());
+    auto& images = gs->script_ui.images;
+    images.erase(std::remove_if(images.begin(), images.end(), [&](auto& i){return i.id==id;}), images.end());
     return val_nil();
 }
 

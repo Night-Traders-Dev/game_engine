@@ -352,6 +352,19 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                     resize_my = my;
                 }
             }
+            for (auto& img : game.script_ui.images) {
+                if (img.id != ui_selected_id_ || !img.visible) continue;
+                float iw = img.width * img.scale, ih = img.height * img.scale;
+                int edge = hit_resize_handle(mx, my, img.position.x, img.position.y, iw, ih);
+                if (edge > 0) {
+                    resizing = true;
+                    resize_edge = edge;
+                    resize_start_w = img.width;
+                    resize_start_h = img.height;
+                    resize_mx = mx;
+                    resize_my = my;
+                }
+            }
         }
         if (resizing && ImGui::IsMouseDown(1)) {
             float dx = mx - resize_mx, dy = my - resize_my;
@@ -364,6 +377,11 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (b.id != ui_selected_id_) continue;
                 if (resize_edge == 1 || resize_edge == 3) b.width = std::max(10.0f, resize_start_w + dx);
                 if (resize_edge == 2 || resize_edge == 3) b.height = std::max(4.0f, resize_start_h + dy);
+            }
+            for (auto& img : game.script_ui.images) {
+                if (img.id != ui_selected_id_) continue;
+                if (resize_edge == 1 || resize_edge == 3) img.width = std::max(4.0f, resize_start_w + dx / img.scale);
+                if (resize_edge == 2 || resize_edge == 3) img.height = std::max(4.0f, resize_start_h + dy / img.scale);
             }
         }
         if (resizing && !ImGui::IsMouseDown(1)) {
@@ -381,6 +399,13 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (b.id == ui_selected_id_) {
                     append_map_script("ui_set(\"" + b.id + "\", \"w\", " + std::to_string((int)b.width) + ")");
                     append_map_script("ui_set(\"" + b.id + "\", \"h\", " + std::to_string((int)b.height) + ")");
+                    break;
+                }
+            }
+            for (auto& img : game.script_ui.images) {
+                if (img.id == ui_selected_id_) {
+                    append_map_script("ui_set(\"" + img.id + "\", \"w\", " + std::to_string((int)img.width) + ")");
+                    append_map_script("ui_set(\"" + img.id + "\", \"h\", " + std::to_string((int)img.height) + ")");
                     break;
                 }
             }
@@ -436,6 +461,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             if (ImGui::Button("+ Label")) {
                 game.script_ui.labels.push_back({new_id, "New Label", {new_x, new_y}, {1,1,1,1}, 0.8f});
                 append_map_script(std::string("ui_label(\"") + new_id + "\", \"New Label\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 1, 1, 1, 1)");
+                append_map_script(std::string("ui_set(\"") + new_id + "\", \"scale\", 0.800)");
                 ui_selected_id_ = new_id; ui_editor_type_ = "label";
                 set_status("Created label: " + std::string(new_id));
             }
@@ -771,6 +797,10 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 game.script_ui.labels.push_back({"quest_title", "Current Quest", {qx + 34, qy + 8}, {1,0.9f,0.4f,1}, 0.7f});
                 game.script_ui.labels.push_back({"quest_desc", "Find the crystal", {qx + 14, qy + 34}, {0.85f,0.82f,0.75f,1}, 0.55f});
                 append_map_script("ui_panel(\"quest_bg\", " + std::to_string((int)qx) + ", " + std::to_string((int)qy) + ", 220, 80, \"panel_window\")");
+                append_map_script("ui_image(\"quest_icon\", " + std::to_string((int)(qx+8)) + ", " + std::to_string((int)(qy+8)) + ", 20, 20, \"fi_119\")");
+                append_map_script("ui_label(\"quest_title\", \"Current Quest\", " + std::to_string((int)(qx+34)) + ", " + std::to_string((int)(qy+8)) + ", 1, 0.9, 0.4, 1)");
+                append_map_script("ui_label(\"quest_desc\", \"Find the crystal\", " + std::to_string((int)(qx+14)) + ", " + std::to_string((int)(qy+34)) + ", 0.85, 0.82, 0.75, 1)");
+                append_map_script("ui_set(\"quest_desc\", \"scale\", 0.550)");
             }
             ImGui::SameLine();
             if (ImGui::Button("Status Bar")) {
@@ -778,6 +808,8 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 game.script_ui.labels.push_back({"status_label", "Status", {20, 18}, {1,0.9f,0.5f,1}, 0.7f});
                 game.script_ui.bars.push_back({"status_bar", 75, 100, {20, 36}, 220, 10, {0.2f,0.8f,0.2f,1}});
                 append_map_script("ui_panel(\"status_bg\", 10, 10, 250, 50, \"panel_hud_wide\")");
+                append_map_script("ui_label(\"status_label\", \"Status\", 20, 18, 1, 0.9, 0.5, 1)");
+                append_map_script("ui_bar(\"status_bar\", 75, 100, 20, 36, 220, 10, 0.2, 0.8, 0.2, 1)");
             }
         }
     }
