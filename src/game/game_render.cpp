@@ -894,7 +894,7 @@ static void sync_hud_values(GameState& game) {
     };
 
     bool paused = game.paused;
-    bool show_pause = paused && !game.level_select_open;
+    bool show_pause = paused && !game.level_select_open && !game.settings_open;
     set_vis("pause_bg", paused);  // Keep bg visible during level select too
     set_vis("pause_icon", show_pause);
     set_vis("pause_title", show_pause);
@@ -1086,6 +1086,12 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     // Merchant UI
     if (game.merchant_ui.is_open()) {
         game.merchant_ui.render(batch, text, game, sw, sh);
+    }
+
+    // ── Pause Menu dim overlay (drawn BEFORE script UI so menu appears on top) ──
+    if (game.paused) {
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0, 0, 0, 0.65f});
     }
 
     // ── Script-driven UI elements ──
@@ -1296,9 +1302,4 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
         text.draw_text(batch, game.font_desc, buf, {sw - 190, 68}, {0.8f, 0.8f, 0.8f, 1}, 0.6f);
     }
 
-    // ── Pause Menu (dim overlay only — layout is script-driven) ──
-    if (game.paused) {
-        batch.set_texture(game.white_desc);
-        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0, 0, 0, 0.65f});
-    }
 }

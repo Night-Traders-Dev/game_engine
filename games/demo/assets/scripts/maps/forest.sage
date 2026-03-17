@@ -81,6 +81,9 @@ proc forest_init():
     set_spawn_time("Wolf", 20, 5)
     add_loot("Wolf", "wolf_pelt", "Wolf Pelt", 0.7, "consumable", "A thick fur", 0, 0, "", "")
 
+    # ── Portal to platformer demo (bottom-center) ──
+    set_portal(15, 20, "platformer_demo.json", 2, 11, "Platformer Demo")
+
     # ── Weather: cloudy forest with god rays ──
     set_clouds(true, 0.35, 12, 60)
     set_god_rays(true, 0.18, 4)
