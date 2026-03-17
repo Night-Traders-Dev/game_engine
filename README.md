@@ -38,7 +38,7 @@ A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-dow
 - **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, time-gating, and callbacks
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
 - **Per-Sprite Scaling** — Independent scale, tint, and flip per NPC, per object, player, and ally. Mix different sizes on screen (giant bosses + tiny minions)
-- **Script-Driven UI** — Labels, bars, panels, images with per-component opacity, layer, rotation (all types), flip, scale, `on_click` callbacks, and `ui_get()`/`ui_set()` for reading/writing any property. Editor provides style picker dropdowns for all panel and icon assets
+- **Script-Driven UI** — Labels, bars, panels, images with per-component opacity, layer, rotation (all types), flip, scale, `on_click` callbacks, and `ui_get()`/`ui_set()` for reading/writing any property. **9-slice panel rendering** (corners fixed, edges/center stretch) with configurable border. **Layer-sorted rendering** (0-20, panels→images→labels→bars). **Bar text overlay** (`show_text`). Editor provides 18 templates, style picker dropdowns for all panel and icon assets
 - **Script-Driven Pause Menu** — 6-item pause menu (Resume, Editor, Levels, Reset, Settings, Quit) with built-in level selector sub-menu
 - **Script-Driven HUD** — All HUD layout defined in `default.sage`. C++ auto-syncs values each frame (HP bar auto-colors, sun/moon icon auto-swaps)
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; path-sanitized file operations
@@ -52,7 +52,7 @@ A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-dow
 - **Spatial Audio** — Distance-based SFX volume falloff from camera center
 - **Settings Menu** — In-game settings accessible from pause menu: music volume, SFX volume, text speed. Left/Right to adjust, changes apply immediately
 - **Debug Overlay** — F1 toggle shows FPS, particle count, NPC count, tween count
-- **SageLang Scripting** — 236 API functions across 41 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
+- **SageLang Scripting** — 266 API functions across 48 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
 - **Asset Pipeline** — Multi-resolution asset generator; procedural tileset generator (10 biomes); auto-discovery of biome stamps; 1,080 base tiles, 88+ stamps, 432 fantasy icons, 3 UI spritesheets
 - **Test Automation Tool** — `tools/tw_test/` Python package for automated game testing via XTest keyboard injection and X11 screenshot capture
 - **String-Keyed Atlas Cache** — Shared texture atlas cache keyed by path+grid-size; runtime sprite loading from scripts
@@ -60,6 +60,7 @@ A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-dow
 - **Security Hardened** — Path traversal protection, input clamping, file size validation, descriptor pool exhaustion protection, Vulkan resource cleanup, thread-safe Android platform, division-by-zero guards, bounds-checked array access, fuzzer-verified API safety
 - **Map Scripting** — Visual Basic-style editor: every editor action auto-generates SageLang in a companion map script
 - **Party System** — EarthBound-style follower trail with smooth interpolation
+- **9-Slice Panel Rendering** — Corners stay fixed-size, edges stretch in one axis, center stretches both. Configurable border inset per panel. Works with any atlas region
 
 ### Editor
 
@@ -78,7 +79,7 @@ A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-dow
 - **Prefab System** (View menu) — Save tile selections as reusable prefabs, click-to-paste
 - **Map Resize** — Resize maps from the Systems panel (4x4 to 200x200)
 - **Auto-Tiling** — 4-bit corner bitmask auto-selects from 16 transition tiles when painting terrain boundaries. Configure terrain pairs in Systems panel (F5)
-- **UI/HUD Editor** (F6) — Visual drag-and-drop: click to select, drag to move (HUD groups move together), right-drag edges to resize. Style picker dropdowns (22 panel styles, 432+ icons). Templates (dialog box, quest tracker, status bar). Live property editing with color pickers, opacity, scale, layer, rotation. Edits write back to HUD config for persistence
+- **UI/HUD Editor** (F6) — Visual drag-and-drop: click to select, drag to move (HUD groups move together), right-drag edges to resize (panels, bars, images). Style picker dropdowns (22 panel styles, 432+ icons). 18 templates (dialog box, confirm dialog, toast, quest tracker, status bar, boss HP, XP bar, buff row, location banner, character stats, party HUD, equipment slots, inventory grid, pause menu, title screen, settings panel, tooltip, shop window, + more). 9-slice checkbox + border slider. Live property editing with color pickers, opacity, scale, layer, rotation. Edits write back to HUD config for persistence
 - **Map Script Generation** — Every editor action auto-appends SageLang to the map's companion `.sage` script
 
 #### Android (Menu button toggles editor)
@@ -302,7 +303,7 @@ src/
     game_io.cpp              #   Map/dialogue file I/O, JSON parser (537 lines)
     game_init.cpp            #   Game init, tileset setup, NPC setup (891 lines)
     game_battle.cpp          #   Battle logic + battle rendering (516 lines)
-    game_render.cpp          #   World rendering, parallax, HUD, UI overlay, sync (1,276 lines)
+    game_render.cpp          #   World rendering, parallax, HUD, UI overlay, 9-slice, sync (1,475 lines)
     ai/                      # A* pathfinding
     systems/                 # Day-night cycle, survival stats, spawn system
     ui/                      # Game UI systems (merchant store)
@@ -313,7 +314,7 @@ src/
     tile_editor_script_ide.cpp   # Script IDE with syntax highlighting (F3)
     tile_editor_debug.cpp    #   Debug Console panel (F4)
     tile_editor_systems.cpp  #   Game Systems panel: tweens, particles, lighting, quests, etc. (F5)
-    tile_editor_ui.cpp       #   UI/HUD/Window Editor panel (F6)
+    tile_editor_ui.cpp       #   UI/HUD/Window Editor panel, 18 templates, 9-slice (F6) (1,356 lines)
   third_party/               # miniaudio, stb_image, stb_truetype, imgui, sagelang
 games/
   demo/                      # "Crystal Quest" FF-style demo
@@ -358,7 +359,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 | Document | Description |
 |----------|-------------|
 | [Engine Guide](docs/Twilight_Engine_Guide.md) | Comprehensive engine guide with all systems |
-| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (236 functions, 41 modules) |
+| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (266 functions, 48 modules) |
 | [Architecture](docs/ARCHITECTURE.md) | Engine architecture and module breakdown |
 | [Map Design Guide](docs/MAP_DESIGN_GUIDE.md) | Map creation with biome portals and scripting |
 | [Tile Reference](docs/TILE_REFERENCE.md) | Tileset format, procedural generator, stamp system |
@@ -370,7 +371,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 236 API functions, 41 modules, multi-grid atlas cache, tracks latest main branch)
+- SageLang (scripting — 266 API functions, 48 modules, multi-grid atlas cache, tracks latest main branch)
 - tinyfiledialogs (native file dialogs, desktop only)
 - Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
@@ -384,42 +385,43 @@ MIT
 
 ```text
                     ┌─────────────────────────────────────┐
-                    │     TWILIGHT ENGINE v2.6.0           │
+                    │     TWILIGHT ENGINE v3.1.0           │
                     └─────────────────────────────────────┘
 
-  C++ Source Code          22,629 lines across 85 files (excl. third-party)
-  Total with Third-Party   272,354 lines across 206 files
+  C++ Source Code          23,486 lines across 85 files (excl. third-party)
+  Total with Third-Party   ~244,000 lines across 206 files
 
   ┌─ Game Framework (6 files) ──────────────────────────────────────┐
-  │  game_render.cpp  1,276 lines   World, parallax, HUD, UI      │
-  │  game.cpp         1,000 lines   Core update loop + settings    │
+  │  game_render.cpp  1,475 lines   World, parallax, HUD, UI, 9s  │
+  │  game.cpp         1,011 lines   Core update loop + settings    │
   │  game_init.cpp      891 lines   Init, tilesets, NPCs           │
+  │  game_platformer.cpp 537 lines  Platformer physics + enemies   │
   │  game_io.cpp        537 lines   Map/dialogue I/O, JSON         │
   │  game_battle.cpp    516 lines   Turn-based battle system       │
-  │  game_platformer.cpp 350 lines  Platformer physics + enemies   │
-  │  Total            4,570 lines                                  │
+  │  Total            4,967 lines                                  │
   └────────────────────────────────────────────────────────────────┘
 
   ┌─ Script Engine (7 files) ────────────────────────────────────────┐
-  │  script_engine.cpp    641 lines  Core + battle + inventory      │
   │  script_api_map.cpp   984 lines  Map, camera, weather, levels   │
   │  script_api_new.cpp   717 lines  Tween, particle, save, etc.    │
-  │  script_api_ui.cpp    527 lines  UI, HUD, effects, renderer     │
+  │  script_engine.cpp    642 lines  Core + battle + inventory      │
+  │  script_api_ui.cpp    534 lines  UI, HUD, effects, renderer     │
   │  script_api_npc.cpp   452 lines  NPC runtime, routes, spawn     │
-  │  script_api_player.cpp 345 lines Player, skills, input          │
   │  script_api_platformer 397 lines Platformer physics + enemies   │
-  │  Total              4,063 lines  266 API functions, 48 modules  │
+  │  script_api_player.cpp 345 lines Player, skills, input          │
+  │  Total              4,071 lines  266 API functions, 48 modules  │
   └────────────────────────────────────────────────────────────────┘
 
-  ┌─ Editor ───────────────────────────────────────────────────────┐
-  │  tile_editor.cpp          1,946 lines  Core, tools, assets     │
-  │  tile_editor_ui.cpp         727 lines  UI/HUD visual editor    │
+  ┌─ Editor (9 files) ─────────────────────────────────────────────┐
+  │  tile_editor.cpp          2,040 lines  Core, tools, assets     │
+  │  tile_editor_ui.cpp       1,356 lines  UI/HUD editor, 18 tmpls│
   │  tile_editor_script_ide.cpp 410 lines  Script IDE + highlight  │
-  │  tile_editor_systems.cpp    236 lines  Game systems panel      │
-  │  imgui_integration.cpp      150 lines  Vulkan ImGui bridge     │
+  │  tile_editor.h              361 lines  Editor class definition │
+  │  tile_editor_systems.cpp    242 lines  Game systems panel      │
+  │  imgui_integration.cpp/h    193 lines  Vulkan ImGui bridge     │
   │  tile_editor_npc_spawner.cpp 147 lines NPC spawner             │
   │  tile_editor_debug.cpp       83 lines  Debug console           │
-  │  Total                    3,699 lines  10 ImGui panels         │
+  │  Total                    4,832 lines  10 ImGui panels         │
   └────────────────────────────────────────────────────────────────┘
 
   ┌─ Engine Subsystems ────────────────────────────────────────────┐
@@ -442,6 +444,7 @@ MIT
   │  Fantasy Icons   432   16x27 grid at 32x32                    │
   │  UI Regions      113   57 (main) + 56 (flat/theme packs)      │
   │  UI Themes         4   Fantasy, Dark, Medieval, Cute (47 each)│
+  │  UI Templates     18   Dialogs, HUD, stats, menus, tooltips   │
   │  Sage Scripts     20   Game logic, weather, tests, map scripts │
   │  Biome Presets    10   Grasslands → Farmland                   │
   │  Python Tools      7   + tw_test package (11 modules)          │
@@ -453,6 +456,7 @@ MIT
   │  Particle Presets   9   fire, smoke, sparkle, blood, dust, etc.│
   │  Tile Properties    2   Collision grid + Reflection grid       │
   │  Screen Transitions 5   Fade, Iris, Wipe, Pixelate, Slide     │
+  │  Panel Rendering    2   Stretch + 9-Slice (configurable border)│
   │  Platforms          4   Linux, Windows, Android, Meta Quest    │
   │  Input Modes        4   Keyboard, Gamepad, Touch, Quest Ctrl   │
   └────────────────────────────────────────────────────────────────┘

@@ -1752,12 +1752,12 @@ Any UI component (label, bar, panel, image) can have its properties modified aft
 
 | Component | Properties |
 |-----------|------------|
-| Labels | x, y, scale, text, visible, r, g, b, a |
-| Bars | x, y, w, h, value, max, visible, r, g, b, a |
-| Panels | x, y, w, h, sprite, visible |
-| Images | x, y, w, h, icon, visible |
+| Labels | x, y, scale, text, visible, opacity, rotation, layer, r, g, b, a, on_click |
+| Bars | x, y, w, h, value, max, visible, opacity, rotation, layer, r, g, b, a, show_text, bg_r, bg_g, bg_b, bg_a |
+| Panels | x, y, w, h, sprite, visible, opacity, rotation, scale, layer, r, g, b, a, on_click, nine_slice, border |
+| Images | x, y, w, h, icon, visible, opacity, rotation, scale, layer, flip_h, flip_v, r, g, b, a, on_click |
 
-All components support a `visible` flag to show/hide without removing.
+All components support `visible`, `opacity`, `rotation`, and `layer` for full compositing control.
 
 ```sage
 # Build a custom quest tracker
@@ -1769,6 +1769,31 @@ ui_set("quest_text", "scale", 0.65)
 # Modify later
 ui_set("quest_text", "text", "Find the Crystal")
 ui_set("quest_bg", "visible", false)  # Hide quest tracker
+```
+
+### 9-Slice Panels
+
+Panels support 9-slice rendering for clean scaling at any size. Corners stay fixed, edges stretch in one axis, center stretches both. The `border` value (pixels) controls corner/edge thickness.
+
+```sage
+ui_panel("dialog", 40, 500, 880, 140, "panel_window")
+ui_set("dialog", "nine_slice", true)
+ui_set("dialog", "border", 24)
+```
+
+The UV split is computed from the source atlas region's pixel dimensions, so any region works with any border size. Border scales with panel `scale`.
+
+### Layer-Sorted Rendering
+
+All UI elements sort by `layer` (0-20) before drawing. Within the same layer: panels → images → labels → bars. Use high layers for tooltips (15), damage numbers (19), save indicators (18).
+
+### Bar Text Overlay
+
+Bars can show their value as centered text with `show_text`:
+
+```sage
+ui_bar("boss_hp", 100, 100, 200, 40, 500, 20, 0.85, 0.15, 0.1, 1)
+ui_set("boss_hp", "show_text", true)  # Shows "100/100"
 ```
 
 ### Script-Driven HUD

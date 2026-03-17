@@ -1,5 +1,49 @@
 # Twilight Engine Updates
 
+## v3.1.0 — March 17, 2026
+
+### 9-Slice Panel Rendering
+- **9-slice system** for ScriptUI panels: corners stay fixed-size, edges stretch in one axis, center stretches both axes
+- Works with any atlas region — UV splits computed from pixel dimensions automatically
+- Configurable border inset (default 16px), scales with panel scale
+- Degenerate quads skipped when panel is smaller than 2x border
+- Script API: `ui_set(id, "nine_slice", true)`, `ui_set(id, "border", 24)`
+- Editor: 9-Slice checkbox + Border slider in panel properties
+- Convenience helper `draw_ui_region_9s()` available for C++ HUD code
+
+### Layer-Sorted UI Rendering
+- All ScriptUI elements (panels, images, labels, bars) now sort by `layer` then type before drawing
+- Panels render behind images, images behind labels, labels behind bars within the same layer
+- Previously everything drew in vector insertion order with no layer support
+
+### Full Property Rendering
+- **Panels**: Now honor `color` (tint), `opacity`, and `scale` (multiplied into dimensions)
+- **Images**: Render with separate width/height (was square-only), `tint`, `opacity`, `scale`, `flip_h`/`flip_v` (UV swap)
+- **Labels**: Apply `opacity` multiplied into color alpha
+- **Bars**: Apply `opacity` to both fill and background; render `show_text` overlay ("75/100" centered on bar)
+
+### 18 Editor UI Templates (fully wired with script generation)
+- **Dialogs & Windows**: Dialog Box (speaker + text), Confirm Dialog (Yes/No buttons), Toast (notification banner)
+- **HUD Elements**: Quest Tracker, Status Bar, Boss HP (full-width with show_text), XP Bar (bottom-of-screen), Buff Row (5 icon slots), Location Banner (layer 10)
+- **Character & Stats**: Character Stats (portrait, HP/MP/XP bars, 4 stat rows), Party HUD (3-member display), Equipment Slots (6-slot grid)
+- **Menus & Overlays**: Inventory Grid (4x5 slots), Pause Menu (4 buttons), Title Screen (title + 3 options), Settings Panel (4 slider rows), Tooltip (item info, layer 15), Save Indicator (layer 18), Message Log (6 fading lines), Minimap Frame, Shop Window (4 item rows with Buy buttons), Damage Numbers (5 floating labels, layer 19), Interact Prompt (keybind hint)
+
+### Bug Fixes
+- `ui_remove()` now removes panels and images (was labels/bars only)
+- Quest Tracker template now generates complete script for all sub-components (was panel only)
+- Status Bar template now generates complete script for label + bar (was panel only)
+- Label creation in editor now emits `ui_set("scale", 0.8)` so script matches editor visual
+- Images now support viewport right-drag resize (was panels/bars only)
+
+### Stats
+- 23,486 lines C++ (85 source files, excluding third-party)
+- 266 API functions across 48 modules (7 script files)
+- 4,071 lines scripting engine, 4,967 lines game framework
+- 4,832 lines editor (9 files), 1,356 lines UI/HUD editor alone
+- 18 editor templates, 9 draw quads per 9-slice panel
+
+---
+
 ## v3.0.0 — March 17, 2026
 
 ### 2D Platformer Mode

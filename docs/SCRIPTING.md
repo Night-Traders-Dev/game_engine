@@ -448,8 +448,48 @@ Create UI elements from script. Every component has a unique string ID for later
 - **All types:** `"x"`, `"y"`, `"visible"`, `"opacity"`, `"rotation"`, `"layer"`, `"on_click"`
 - **Labels:** `"text"`, `"scale"`, `"r"`, `"g"`, `"b"`, `"a"`
 - **Bars:** `"value"`, `"max"`, `"w"`, `"h"`, `"r"`, `"g"`, `"b"`, `"a"`, `"show_text"`, `"bg_r"`, `"bg_g"`, `"bg_b"`, `"bg_a"`
-- **Panels:** `"w"`, `"h"`, `"sprite"`, `"scale"`, `"r"`, `"g"`, `"b"`, `"a"`
+- **Panels:** `"w"`, `"h"`, `"sprite"`, `"scale"`, `"r"`, `"g"`, `"b"`, `"a"`, `"nine_slice"`, `"border"`
 - **Images:** `"w"`, `"h"`, `"icon"`, `"scale"`, `"flip_h"`, `"flip_v"`, `"r"`, `"g"`, `"b"`, `"a"`
+
+### 9-Slice Panels
+
+Panels support 9-slice rendering for clean scaling at any size. When enabled, corners stay fixed, edges stretch in one axis, and the center stretches both axes. The `border` value (in pixels) controls the corner/edge inset.
+
+```sage
+# Create a 9-slice panel that scales cleanly to any size
+ui_panel("window", 100, 80, 400, 300, "panel_window")
+ui_set("window", "nine_slice", true)
+ui_set("window", "border", 24)
+
+# Works with any atlas region — border is computed from the source image
+ui_panel("tooltip", 200, 200, 180, 60, "panel_mini")
+ui_set("tooltip", "nine_slice", true)
+ui_set("tooltip", "border", 12)
+```
+
+### Layer-Sorted Rendering
+
+All UI elements sort by `layer` (0-20) before drawing. Lower layers draw first. Within the same layer, panels draw behind images, images behind labels, labels behind bars.
+
+```sage
+# Background panel at layer 0 (default)
+ui_panel("bg", 10, 10, 200, 100, "panel_window")
+
+# Tooltip on top at layer 15
+ui_panel("tip", 100, 50, 160, 40, "panel_mini")
+ui_set("tip", "layer", 15)
+ui_label("tip_text", "Iron Sword", 110, 58, 1, 0.9, 0.4, 1)
+ui_set("tip_text", "layer", 15)
+```
+
+### Bar Text Overlay
+
+Bars can display their value as centered text:
+
+```sage
+ui_bar("boss_hp", 100, 100, 200, 40, 400, 20, 0.85, 0.15, 0.1, 1)
+ui_set("boss_hp", "show_text", true)  # Shows "100/100" centered on bar
+```
 
 ```sage
 # Create an HP bar

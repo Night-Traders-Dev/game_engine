@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v2.6                       |
+|                        TWILIGHT ENGINE v3.1                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -164,16 +164,16 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v2.6.0)
+## File Counts (v3.1.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 22,629 lines (85 files) | Engine + game framework (excl. third-party) |
-| With Third-Party | 272,354 lines (206 files) | Including ImGui, SageLang, stb, miniaudio |
-| Game Logic | 5 files, 4,220 lines | game.cpp (1,000), game_io.cpp (537), game_init.cpp (891), game_battle.cpp (516), game_render.cpp (1,276) |
-| Script Engine | 2 files, 3,558 lines | script_engine.cpp (2,841) + script_api_new.cpp (717) |
+| C++ Source | 23,486 lines (85 files) | Engine + game framework (excl. third-party) |
+| With Third-Party | ~244,000 lines (206 files) | Including ImGui, SageLang, stb, miniaudio |
+| Game Framework | 6 files, 4,967 lines | game_render.cpp (1,475), game.cpp (1,011), game_init.cpp (891), game_platformer.cpp (537), game_io.cpp (537), game_battle.cpp (516) |
+| Script Engine | 7 files, 4,071 lines | script_api_map.cpp (984), script_api_new.cpp (717), script_engine.cpp (642), script_api_ui.cpp (534), script_api_npc.cpp (452), script_api_platformer.cpp (397), script_api_player.cpp (345) |
 | Script API | 266 functions | 48 modules across 7 files (266 env_define total) |
-| Editor | 7 files, 3,699 lines | tile_editor.cpp (1,946), ui (727), script_ide (410), systems (236), imgui (150), npc_spawner (147), debug (83) |
+| Editor | 9 files, 4,832 lines | tile_editor.cpp (2,040), tile_editor_ui.cpp (1,356), script_ide (410), tile_editor.h (361), systems (242), imgui (150+43), npc_spawner (147), debug (83) |
 | Graphics | 14 files, 2,493 lines | Vulkan context, renderer, sprite batch, pipeline, text, texture, atlas |
 | Platform | 8 files, 1,151 lines | Desktop (232), Android (246), Quest, input (171), touch (277) |
 | Systems | 8 headers, 965 lines | Tween (213), particles (244), save (257), spawn, level_manager, day_night, survival, sprite_anim |
