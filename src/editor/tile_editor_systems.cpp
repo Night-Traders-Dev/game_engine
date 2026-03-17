@@ -185,6 +185,12 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                     if (ImGui::Button("Resize Map")) {
                         resize_map(new_w, new_h);
                     }
+                    ImGui::Separator();
+                    const char* game_type_items[] = { "TopDown", "Platformer" };
+                    int current_type = (game.game_type == GameType::Platformer) ? 1 : 0;
+                    if (ImGui::Combo("Game Type", &current_type, game_type_items, 2)) {
+                        game.game_type = (current_type == 1) ? GameType::Platformer : GameType::TopDown;
+                    }
                 }
 
                 if (ImGui::CollapsingHeader("Auto-Tiling")) {

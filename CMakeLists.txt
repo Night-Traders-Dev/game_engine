@@ -97,6 +97,11 @@ add_library(tw_engine STATIC
     src/game/game_render.cpp
     src/engine/scripting/script_engine.cpp
     src/engine/scripting/script_api_new.cpp
+    src/engine/scripting/script_api_player.cpp
+    src/engine/scripting/script_api_npc.cpp
+    src/engine/scripting/script_api_map.cpp
+    src/engine/scripting/script_api_ui.cpp
+    src/engine/scripting/script_api_platformer.cpp
     src/engine/graphics/text_renderer.cpp
     src/engine/audio/audio_engine.cpp
     src/third_party/miniaudio_impl.cpp
@@ -107,6 +112,8 @@ add_library(tw_engine STATIC
     src/game/systems/survival.cpp
     src/game/systems/spawn_system.cpp
     src/game/systems/level_manager.cpp
+    src/game/game_platformer.cpp
+    src/game/systems/moving_platform.cpp
     src/third_party/stb_image_impl.cpp
     src/third_party/stb_truetype_impl.cpp
 )

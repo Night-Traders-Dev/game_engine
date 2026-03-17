@@ -32,6 +32,11 @@
 // Forward declare
 namespace eb { class ScriptEngine; class AudioEngine; class Renderer; }
 #include "game/systems/level_manager.h"
+#include "game/systems/platformer_physics.h"
+#include "game/systems/moving_platform.h"
+
+// ─── Game Type ───
+enum class GameType : uint8_t { TopDown = 0, Platformer = 1 };
 
 // ─── Tile IDs (1-indexed, 0 = empty) ───
 enum Tile : int {
@@ -424,6 +429,23 @@ struct NPC {
 
     // Sprite animation player (multi-frame)
     eb::AnimPlayer anim_player;
+
+    // Platformer AI
+    enum class PlatformAI : uint8_t { None = 0, Patrol, Jump, Fly };
+    PlatformAI platform_ai = PlatformAI::None;
+    float patrol_min_x = 0, patrol_max_x = 0;
+    int patrol_dir = 1;
+    bool patrol_edge_detect = true;
+    eb::Vec2 npc_velocity = {0, 0};
+    bool npc_on_ground = false;
+    float npc_gravity = 980.0f;
+    float npc_jump_force = -300.0f;
+    float npc_jump_timer = 0.0f;
+    float npc_jump_interval = 2.0f;
+    int contact_damage = 1;
+    bool stompable = true;
+    std::string on_stomp_func;
+    std::string on_contact_func;
 };
 
 // ─── Battle state ───
@@ -653,6 +675,15 @@ struct GameState {
     VkDescriptorSet ui_flat_desc = VK_NULL_HANDLE;
     std::unique_ptr<eb::TextureAtlas> ui_flat_atlas;
     bool initialized = false;
+
+    // Game type (top-down RPG vs platformer)
+    GameType game_type = GameType::TopDown;
+
+    // Platformer state
+    eb::PlatformerState platformer;
+
+    // Moving platforms (platformer mode)
+    std::vector<MovingPlatform> moving_platforms;
 
     // Pause menu
     bool paused = false;

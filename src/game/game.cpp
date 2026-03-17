@@ -14,6 +14,9 @@
 #include <filesystem>
 #endif
 
+// Forward declare platformer update (defined in game_platformer.cpp)
+void update_platformer(GameState& game, const eb::InputState& input, float dt);
+
 // ─── Core game update ───
 
 void update_game(GameState& game, const eb::InputState& input, float dt) {
@@ -503,6 +506,14 @@ void update_game(GameState& game, const eb::InputState& input, float dt) {
 
     // Player movement (blocked during cutscenes via input_locked)
     if (game.input_locked) return;
+
+    // Platformer mode: delegate to game_platformer.cpp
+    if (game.game_type == GameType::Platformer) {
+        update_platformer(game, input, dt);
+        return;
+    }
+
+    // Top-down movement
     eb::Vec2 move = {0.0f, 0.0f};
     if (input.is_held(eb::InputAction::MoveUp))    move.y -= 1.0f;
     if (input.is_held(eb::InputAction::MoveDown))  move.y += 1.0f;

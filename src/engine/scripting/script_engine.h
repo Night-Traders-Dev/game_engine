@@ -12,6 +12,7 @@ extern "C" {
 
 struct BattleState;
 struct GameState;
+struct NPC;
 
 namespace eb {
 
@@ -96,6 +97,7 @@ private:
     void register_anim_api();
     void register_visual_fx_api();
     void register_parallax_api();
+    void register_platformer_api();
 
     Env* env_ = nullptr;
 
@@ -103,5 +105,9 @@ private:
     std::vector<char*> source_buffers_;
     std::vector<std::string> loaded_files_;
 };
+
+// Shared helpers used by script API translation units
+bool is_safe_path(const char* path);
+NPC* find_npc_by_name(const std::string& name);
 
 } // namespace eb

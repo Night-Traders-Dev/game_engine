@@ -921,12 +921,17 @@ void TileEditor::cycle_collision(int tx, int ty) {
     auto cur = map_->collision_at(tx, ty);
     CollisionType next;
     switch (cur) {
-        case CollisionType::None: next = CollisionType::Solid; break;
-        case CollisionType::Solid: next = CollisionType::Portal; break;
+        case CollisionType::None:       next = CollisionType::Solid; break;
+        case CollisionType::Solid:      next = CollisionType::Portal; break;
         case CollisionType::Portal:
             for (int i=(int)map_->portals().size()-1; i>=0; i--)
                 if (map_->portals()[i].tile_x==tx && map_->portals()[i].tile_y==ty) map_->remove_portal(i);
-            next = CollisionType::None; break;
+            next = CollisionType::OneWayUp; break;
+        case CollisionType::OneWayUp:   next = CollisionType::Slope45Up; break;
+        case CollisionType::Slope45Up:  next = CollisionType::Slope45Down; break;
+        case CollisionType::Slope45Down: next = CollisionType::Ladder; break;
+        case CollisionType::Ladder:     next = CollisionType::Hazard; break;
+        case CollisionType::Hazard:     next = CollisionType::None; break;
     }
     record_collision_change(tx, ty, cur, next);
     map_->set_collision_at(tx, ty, next);
@@ -939,6 +944,8 @@ void TileEditor::cycle_collision(int tx, int ty) {
     } else if (cur == CollisionType::Portal) {
         append_map_script("remove_portal(" + std::to_string(tx) + ", " + std::to_string(ty) + ")");
     }
+    const char* names[] = {"None","Solid","Portal","OneWayUp","Slope45Up","Slope45Down","Ladder","Hazard"};
+    set_status(std::string("Collision: ") + names[(int)next]);
 }
 
 void TileEditor::commit_line(int x1, int y1, int x2, int y2, int tile) {
@@ -1117,19 +1124,65 @@ void TileEditor::render_collision_overlay(SpriteBatch& batch, const Camera& came
     for (int y=sy;y<ey;y++) for (int x=sx;x<ex;x++) {
         auto ct=map_->collision_at(x,y);
         if (ct==CollisionType::None) continue;
+        float px = x*ts, py = y*ts;
         if (ct==CollisionType::Solid) {
-            batch.draw_quad({x*ts+2,y*ts+2},{ts-4,ts-4},{1,0.2f,0.2f,0.35f});
-        } else {
+            batch.draw_quad({px+2,py+2},{ts-4,ts-4},{1,0.2f,0.2f,0.35f});
+        } else if (ct==CollisionType::Portal) {
             // Portal: cyan diamond marker
-            float cx=x*ts+ts*0.5f, cy=y*ts+ts*0.5f, r=ts*0.35f;
+            float cx=px+ts*0.5f, cy=py+ts*0.5f, r=ts*0.35f;
             batch.draw_quad({cx-r,cy-2},{r*2,4},{0.2f,1,0.8f,0.6f});
             batch.draw_quad({cx-2,cy-r},{4,r*2},{0.2f,1,0.8f,0.6f});
-            batch.draw_quad({x*ts+1,y*ts+1},{ts-2,ts-2},{0.1f,0.6f,1,0.25f});
+            batch.draw_quad({px+1,py+1},{ts-2,ts-2},{0.1f,0.6f,1,0.25f});
             // Border
-            batch.draw_quad({x*ts,y*ts},{ts,2},{0.2f,1,0.8f,0.8f});
-            batch.draw_quad({x*ts,y*ts+ts-2},{ts,2},{0.2f,1,0.8f,0.8f});
-            batch.draw_quad({x*ts,y*ts},{2,ts},{0.2f,1,0.8f,0.8f});
-            batch.draw_quad({x*ts+ts-2,y*ts},{2,ts},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({px,py},{ts,2},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({px,py+ts-2},{ts,2},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({px,py},{2,ts},{0.2f,1,0.8f,0.8f});
+            batch.draw_quad({px+ts-2,py},{2,ts},{0.2f,1,0.8f,0.8f});
+        } else if (ct==CollisionType::OneWayUp) {
+            // Cyan tint with a thin line at the top (upward arrow indicator)
+            batch.draw_quad({px+1,py+1},{ts-2,ts-2},{0,0.8f,0.9f,0.2f});
+            batch.draw_quad({px+2,py+1},{ts-4,3},{0,0.9f,1,0.7f}); // top line
+            // Small upward arrow
+            float cx=px+ts*0.5f;
+            batch.draw_quad({cx-4,py+5},{8,2},{0,1,1,0.6f});
+            batch.draw_quad({cx-2,py+3},{4,2},{0,1,1,0.6f});
+        } else if (ct==CollisionType::Slope45Up) {
+            // Yellow diagonal from bottom-left to top-right (approximated with thin quads)
+            batch.draw_quad({px+1,py+1},{ts-2,ts-2},{0.9f,0.9f,0.1f,0.15f});
+            for (int s=0; s<(int)ts; s+=3) {
+                float frac = (float)s / ts;
+                float qx = px + s;
+                float qy = py + ts - s - 3;
+                batch.draw_quad({qx,qy},{3,3},{1,1,0.2f,0.6f});
+            }
+        } else if (ct==CollisionType::Slope45Down) {
+            // Yellow diagonal from top-left to bottom-right
+            batch.draw_quad({px+1,py+1},{ts-2,ts-2},{0.9f,0.9f,0.1f,0.15f});
+            for (int s=0; s<(int)ts; s+=3) {
+                float qx = px + s;
+                float qy = py + s;
+                batch.draw_quad({qx,qy},{3,3},{1,1,0.2f,0.6f});
+            }
+        } else if (ct==CollisionType::Ladder) {
+            // Green vertical stripes
+            batch.draw_quad({px+1,py+1},{ts-2,ts-2},{0.1f,0.6f,0.2f,0.2f});
+            float stripe_w = 3;
+            for (float sx2=px+4; sx2<px+ts-2; sx2+=6) {
+                batch.draw_quad({sx2,py+2},{stripe_w,ts-4},{0.2f,0.8f,0.3f,0.5f});
+            }
+        } else if (ct==CollisionType::Hazard) {
+            // Bright red with spike/triangle pattern at top
+            batch.draw_quad({px+1,py+1},{ts-2,ts-2},{1,0.1f,0.1f,0.25f});
+            // Draw spike triangles along the top (approximated with stacked quads)
+            float spike_w = ts / 4.0f;
+            for (int i=0; i<4; i++) {
+                float bx = px + i * spike_w;
+                float tip_x = bx + spike_w * 0.5f;
+                // Approximate triangle with 3 narrow quads
+                batch.draw_quad({tip_x-1, py+2},{2,3},{1,0.2f,0.1f,0.8f});
+                batch.draw_quad({tip_x-2, py+5},{4,2},{1,0.2f,0.1f,0.7f});
+                batch.draw_quad({tip_x-3, py+7},{6,2},{1,0.2f,0.1f,0.5f});
+            }
         }
     }
 }

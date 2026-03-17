@@ -13,6 +13,7 @@ enum class InputAction : uint8_t {
     Cancel,       // B / Escape / X
     Menu,         // Start / Escape
     Run,          // Hold to run
+    Jump,         // Space bar (platformer mode)
     Count
 };
 
@@ -153,6 +154,7 @@ struct KeyBindings {
         bindings[5] = {InputAction::Cancel,     88,   259, 1};  // X, Backspace, B
         bindings[6] = {InputAction::Menu,       256,  -1,  6};  // Escape, -, Start
         bindings[7] = {InputAction::Run,        340,  -1,  5};  // LShift, -, RB
+        bindings[8] = {InputAction::Jump,       32,   -1,  0};  // Space, -, A button
     }
 
     void rebind(InputAction action, int new_key) {

@@ -19,6 +19,7 @@ public:
     void set_follow_offset(Vec2 offset) { follow_offset_ = offset; }
 
     void follow(Vec2 target, float speed = 5.0f);
+    void follow_platformer(Vec2 target, int facing_dir, bool on_ground, float speed = 5.0f);
     void center_on(Vec2 target);
 
     void update(float dt);
@@ -49,6 +50,15 @@ private:
     Vec2 target_ = {0.0f, 0.0f};
     bool following_ = false;
     float follow_speed_ = 5.0f;
+
+    // Platformer camera settings
+    float deadzone_y_top_ = 0.35f;
+    float deadzone_y_bottom_ = 0.35f;
+    float lookahead_x_ = 80.0f;
+    float lookahead_speed_ = 3.0f;
+    float vertical_snap_speed_ = 8.0f;
+    float current_lookahead_ = 0.0f;
+    bool platformer_mode_ = false;
 };
 
 } // namespace eb

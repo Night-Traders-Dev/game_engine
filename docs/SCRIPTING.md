@@ -1262,4 +1262,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v2.6.0 — 21,249 lines C++ (76 files), 236 API functions, 41 modules, 7 editor files, 20 .sage scripts, 4 UI themes, 6 maps, 4 platforms
+Twilight Engine v3.0.0 — 22,629 lines C++ (85 files), 266 API functions, 48 modules, 7 editor files, 21 .sage scripts, 4 UI themes, 7 maps, 4 platforms

@@ -75,7 +75,7 @@
 |  |                   SAGELANG SCRIPTING                          |  |
 |  |-------------------------------------------------------------|  |
 |  |                                                               |  |
-|  |  236 Native Functions across 41 Modules:                   |  |
+|  |  266 Native Functions across 48 Modules:                   |  |
 |  |                                                               |  |
 |  |  Engine Core    : log, random, clamp, str, flags             |  |
 |  |  Player         : pos, hp, atk, def, xp, dir, scale         |  |
@@ -121,7 +121,7 @@ game.json (manifest)
     v
 +-------------------+     +-------------------+     +------------------+
 | init_game_from_   |     | ScriptEngine      |     | TileEditor       |
-| manifest()        |---->| (236 natives)     |<--->| (ImGui desktop)  |
+| manifest()        |---->| (266 natives)     |<--->| (ImGui desktop)  |
 | Load tileset,     |     | Load .sage files  |     | Paint/erase/fill |
 | NPCs, party,      |     | Execute map_init  |     | Tile rotation    |
 | audio config      |     | Hot reload        |     | NPC spawner      |
@@ -168,11 +168,11 @@ game.json (manifest)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 21,249 lines (76 files) | Engine + game framework (excl. third-party) |
+| C++ Source | 22,629 lines (85 files) | Engine + game framework (excl. third-party) |
 | With Third-Party | 272,354 lines (206 files) | Including ImGui, SageLang, stb, miniaudio |
 | Game Logic | 5 files, 4,220 lines | game.cpp (1,000), game_io.cpp (537), game_init.cpp (891), game_battle.cpp (516), game_render.cpp (1,276) |
 | Script Engine | 2 files, 3,558 lines | script_engine.cpp (2,841) + script_api_new.cpp (717) |
-| Script API | 236 functions | 41 modules across 2 files (190 + 46 env_define) |
+| Script API | 266 functions | 48 modules across 7 files (266 env_define total) |
 | Editor | 7 files, 3,699 lines | tile_editor.cpp (1,946), ui (727), script_ide (410), systems (236), imgui (150), npc_spawner (147), debug (83) |
 | Graphics | 14 files, 2,493 lines | Vulkan context, renderer, sprite batch, pipeline, text, texture, atlas |
 | Platform | 8 files, 1,151 lines | Desktop (232), Android (246), Quest, input (171), touch (277) |

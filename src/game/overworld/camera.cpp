@@ -39,6 +39,42 @@ void Camera::follow(Vec2 target, float speed) {
     follow_speed_ = speed;
 }
 
+void Camera::follow_platformer(Vec2 target, int facing_dir, bool on_ground, float speed) {
+    platformer_mode_ = true;
+    following_ = true;
+    follow_speed_ = speed;
+
+    // Horizontal: lerp toward target.x + lookahead in facing direction
+    float desired_lookahead = facing_dir * lookahead_x_;
+    float la_t = 1.0f - std::exp(-lookahead_speed_ * 0.016f); // approximate dt
+    current_lookahead_ += (desired_lookahead - current_lookahead_) * la_t;
+    target_.x = target.x + current_lookahead_;
+
+    // Vertical: only adjust when target is outside deadzone band
+    float half_h = viewport_.y * 0.5f;
+    float top_band = position_.y - half_h * deadzone_y_top_;
+    float bottom_band = position_.y + half_h * deadzone_y_bottom_;
+
+    if (target.y < top_band) {
+        float snap = on_ground ? vertical_snap_speed_ : (vertical_snap_speed_ * 0.5f);
+        float vt = 1.0f - std::exp(-snap * 0.016f);
+        target_.y = position_.y + (target.y - top_band) * vt + (target.y - position_.y) * vt;
+    } else if (target.y > bottom_band) {
+        float snap = on_ground ? vertical_snap_speed_ : (vertical_snap_speed_ * 0.5f);
+        float vt = 1.0f - std::exp(-snap * 0.016f);
+        target_.y = position_.y + (target.y - bottom_band) * vt + (target.y - position_.y) * vt;
+    } else {
+        // Inside deadzone — only snap if on ground
+        if (on_ground) {
+            float snap = vertical_snap_speed_ * 0.3f;
+            float vt = 1.0f - std::exp(-snap * 0.016f);
+            target_.y = position_.y + (target.y - position_.y) * vt;
+        } else {
+            target_.y = position_.y;
+        }
+    }
+}
+
 void Camera::center_on(Vec2 target) {
     position_ = target;
     following_ = false;

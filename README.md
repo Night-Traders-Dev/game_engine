@@ -1,11 +1,17 @@
 # Twilight Engine
 
-A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixel art games. Ships with a tween engine, particle system, save/load, quests, equipment, 2D lighting, screen transitions, gamepad support, an integrated tile editor with visual UI/HUD builder, SageLang scripting (233 API functions across 40 modules), per-tile reflection maps, rotated sprite rendering, and procedural tileset generation for 10 biome types.
+A cross-platform Vulkan 2D game engine built in C++20, supporting both **top-down RPG** and **2D platformer** modes. Ships with platformer physics (gravity, jumping, coyote time, wall slide, dash), moving platforms, stomping enemies, a tween engine, particle system, save/load, quests, equipment, 2D lighting, an integrated tile editor with visual UI/HUD builder, SageLang scripting (266 API functions across 48 modules), and procedural tileset generation for 10 biome types.
 
 ## Features
 
 - **Vulkan Renderer** — Sprite batching with rotated quad support, Y-sorted rendering, texture atlases with half-texel UV correction, animated tiles, fullscreen, per-sprite tint/alpha
 - **Cross-Platform** — Linux, Windows (cross-compile), Android (landscape, touch controls, editor overlay), Meta Quest (flat 2D mode)
+- **Dual Game Modes** — Top-down RPG and 2D platformer modes per-level. Switch with `set_game_type("platformer")` in scripts or the editor dropdown
+- **Platformer Physics** — Gravity, velocity, variable-height jumping, coyote time (0.08s), jump buffering (0.12s), wall slide/jump, double jump, air dash. Configurable per-level
+- **Platformer Collision** — Solid, one-way platforms (jump through from below), 45-degree slopes (up/down), ladders, hazard tiles. All paintable in the editor
+- **Platformer Enemies** — Patrol (walk back/forth with edge detection), jump, fly patterns. Stomping kills enemies and bounces the player. Contact damage with knockback. All script-driven
+- **Moving Platforms** — Waypoint-based platforms with configurable speed, ping-pong/loop modes. Carries the player when riding. Script API: `add_platform()`, `platform_add_waypoint()`
+- **Platformer Camera** — Horizontal follow with facing-direction lookahead, vertical deadzone (only tracks when player exits band), faster snap when grounded
 - **Engine / Game Separation** — Games live in `games/<name>/` with a `game.json` manifest; engine is standalone
 - **Tile Map System** — Multi-layer maps, collision grid, reflection grid (per-tile water/ice reflections), portals, animated water/grass overlays, per-tile rotation (0°/90°/180°/270°) and flip
 - **Level System** — Multi-level manager with load/cache/switch, portal auto-transitions, background ticking, per-level zoom, per-level map scripts, level selector in pause menu
@@ -381,22 +387,28 @@ MIT
                     │     TWILIGHT ENGINE v2.6.0           │
                     └─────────────────────────────────────┘
 
-  C++ Source Code          21,249 lines across 76 files (excl. third-party)
+  C++ Source Code          22,629 lines across 85 files (excl. third-party)
   Total with Third-Party   272,354 lines across 206 files
 
-  ┌─ Game Framework ───────────────────────────────────────────────┐
-  │  game.cpp         1,000 lines   Core update loop + settings    │
+  ┌─ Game Framework (6 files) ──────────────────────────────────────┐
   │  game_render.cpp  1,276 lines   World, parallax, HUD, UI      │
+  │  game.cpp         1,000 lines   Core update loop + settings    │
   │  game_init.cpp      891 lines   Init, tilesets, NPCs           │
   │  game_io.cpp        537 lines   Map/dialogue I/O, JSON         │
   │  game_battle.cpp    516 lines   Turn-based battle system       │
-  │  Total            4,220 lines                                  │
+  │  game_platformer.cpp 350 lines  Platformer physics + enemies   │
+  │  Total            4,570 lines                                  │
   └────────────────────────────────────────────────────────────────┘
 
-  ┌─ Script Engine ────────────────────────────────────────────────┐
-  │  script_engine.cpp  2,841 lines  Core + 190 env_define         │
-  │  script_api_new.cpp   717 lines  Phase 1-4 + 46 env_define     │
-  │  Total              3,558 lines  236 API functions, 41 modules │
+  ┌─ Script Engine (7 files) ────────────────────────────────────────┐
+  │  script_engine.cpp    641 lines  Core + battle + inventory      │
+  │  script_api_map.cpp   984 lines  Map, camera, weather, levels   │
+  │  script_api_new.cpp   717 lines  Tween, particle, save, etc.    │
+  │  script_api_ui.cpp    527 lines  UI, HUD, effects, renderer     │
+  │  script_api_npc.cpp   452 lines  NPC runtime, routes, spawn     │
+  │  script_api_player.cpp 345 lines Player, skills, input          │
+  │  script_api_platformer 397 lines Platformer physics + enemies   │
+  │  Total              4,063 lines  266 API functions, 48 modules  │
   └────────────────────────────────────────────────────────────────┘
 
   ┌─ Editor ───────────────────────────────────────────────────────┐

@@ -49,6 +49,11 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/game/overworld/tile_map.cpp
     ${ENGINE_ROOT}/src/game/game.cpp
     ${ENGINE_ROOT}/src/engine/scripting/script_engine.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_api_player.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_api_npc.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_api_map.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_api_ui.cpp
+    ${ENGINE_ROOT}/src/engine/scripting/script_api_platformer.cpp
     ${ENGINE_ROOT}/src/engine/audio/audio_engine.cpp
     ${ENGINE_ROOT}/src/game/dialogue/dialogue_box.cpp
     ${ENGINE_ROOT}/src/game/ui/merchant_ui.cpp

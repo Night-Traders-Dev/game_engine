@@ -459,6 +459,34 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     batch.set_texture(game.tileset_desc);
     game.tile_map.render(batch, game.camera, game.game_time);
 
+    // Moving platforms (platformer mode)
+    if (!game.moving_platforms.empty()) {
+        batch.set_texture(game.tileset_desc);
+        for (const auto& plat : game.moving_platforms) {
+            if (!plat.active) continue;
+            float px = plat.position.x - plat.width * 0.5f;
+            float py = plat.position.y;
+            // Draw platform as tiles or fallback rectangle
+            if (plat.tile_id > 0 && game.tileset_atlas &&
+                plat.tile_id < game.tileset_atlas->region_count()) {
+                auto region = game.tileset_atlas->region(plat.tile_id);
+                float tw = (float)game.tile_map.tile_size();
+                int tiles_wide = (int)(plat.width / tw);
+                if (tiles_wide < 1) tiles_wide = 1;
+                for (int i = 0; i < tiles_wide; i++) {
+                    batch.draw_quad({px + i * tw, py}, {tw, plat.height},
+                                   region.uv_min, region.uv_max, {1,1,1,1});
+                }
+            } else {
+                // Fallback: white rectangle
+                batch.set_texture(game.white_desc);
+                batch.draw_quad({px, py}, {plat.width, plat.height},
+                               {0,0}, {1,1}, {0.6f, 0.5f, 0.3f, 1.0f});
+                batch.set_texture(game.tileset_desc);
+            }
+        }
+    }
+
     // Grass overlay
     render_grass_overlay(game, batch, game.game_time);
 

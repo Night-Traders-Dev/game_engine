@@ -35,6 +35,11 @@ enum class CollisionType : uint8_t {
     None = 0,     // Passable
     Solid = 1,    // Can't walk through
     Portal = 2,   // Door/transition to another map
+    OneWayUp = 3,    // Pass through from below, solid from above
+    Slope45Up = 4,   // 45° slope rising left to right
+    Slope45Down = 5, // 45° slope falling left to right
+    Ladder = 6,      // Climbable
+    Hazard = 7,      // Deals damage on contact
 };
 
 struct Portal {
