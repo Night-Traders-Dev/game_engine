@@ -224,10 +224,15 @@ void TileEditor::record_collision_change(int x, int y, CollisionType old_c, Coll
     if (old_c != new_c) current_action_.collision_changes.push_back({x, y, old_c, new_c});
 }
 
+void TileEditor::record_reflection_change(int x, int y, bool old_v, bool new_v) {
+    if (!action_in_progress_) begin_action("reflection");
+    if (old_v != new_v) current_action_.reflection_changes.push_back({x, y, old_v, new_v});
+}
+
 void TileEditor::commit_action() {
     if (!action_in_progress_) return;
     if (!current_action_.tile_changes.empty() || !current_action_.collision_changes.empty() ||
-        !current_action_.object_changes.empty()) {
+        !current_action_.reflection_changes.empty() || !current_action_.object_changes.empty()) {
         undo_stack_.push_back(std::move(current_action_));
         if ((int)undo_stack_.size() > MAX_UNDO) undo_stack_.erase(undo_stack_.begin());
         redo_stack_.clear();
@@ -242,6 +247,8 @@ void TileEditor::undo() {
         map_->set_tile(it->layer, it->x, it->y, it->old_tile);
     for (auto it = a.collision_changes.rbegin(); it != a.collision_changes.rend(); ++it)
         map_->set_collision_at(it->x, it->y, it->old_type);
+    for (auto it = a.reflection_changes.rbegin(); it != a.reflection_changes.rend(); ++it)
+        map_->set_reflective_at(it->x, it->y, it->old_val);
     // Undo object changes
     if (game_state_) {
         for (auto it = a.object_changes.rbegin(); it != a.object_changes.rend(); ++it) {
@@ -271,6 +278,7 @@ void TileEditor::redo() {
     auto& a = redo_stack_.back();
     for (auto& tc : a.tile_changes) map_->set_tile(tc.layer, tc.x, tc.y, tc.new_tile);
     for (auto& cc : a.collision_changes) map_->set_collision_at(cc.x, cc.y, cc.new_type);
+    for (auto& rc : a.reflection_changes) map_->set_reflective_at(rc.x, rc.y, rc.new_val);
     // Redo object changes
     if (game_state_) {
         for (auto& oc : a.object_changes) {
@@ -541,6 +549,7 @@ void TileEditor::handle_shortcuts(const InputState& input) {
     if (input.key_pressed(GLFW_KEY_L) && !input.mods.ctrl) { tool_ = EditorTool::Line; set_status("Line"); }
     if (input.key_pressed(GLFW_KEY_B)) { tool_ = EditorTool::Rect; set_status("Rectangle"); }
     if (input.key_pressed(GLFW_KEY_T) && !input.mods.ctrl) { tool_ = EditorTool::Portal; set_status("Portal"); }
+    if (input.key_pressed(GLFW_KEY_N) && !input.mods.ctrl) { tool_ = EditorTool::Reflection; set_status("Reflection"); }
     // Window toggles
     if (input.key_pressed(GLFW_KEY_F2)) show_npc_spawner_ = !show_npc_spawner_;
     if (input.key_pressed(GLFW_KEY_F3)) show_script_ide_ = !show_script_ide_;
@@ -548,6 +557,7 @@ void TileEditor::handle_shortcuts(const InputState& input) {
     if (input.key_pressed(GLFW_KEY_F6)) show_ui_editor_ = !show_ui_editor_;
     if (input.key_pressed(GLFW_KEY_G)) { show_grid_ = !show_grid_; set_status(show_grid_ ? "Grid ON" : "Grid OFF"); }
     if (input.key_pressed(GLFW_KEY_V) && !input.mods.ctrl) show_collision_ = !show_collision_;
+    if (input.key_pressed(GLFW_KEY_M) && !input.mods.ctrl) show_reflection_ = !show_reflection_;
     for (int k = GLFW_KEY_1; k <= GLFW_KEY_9; k++) {
         if (input.key_pressed(k)) {
             int layer = k - GLFW_KEY_1;
@@ -697,6 +707,15 @@ void TileEditor::handle_map_click(float mx, float my, const Camera& camera, bool
             else { selection_.x2 = tile.x; selection_.y2 = tile.y; }
             break;
         case EditorTool::Collision: if (!is_drag) { begin_action("collision"); cycle_collision(tile.x, tile.y); commit_action(); } break;
+        case EditorTool::Reflection: if (!is_drag) {
+            begin_action("reflection");
+            bool old_v = map_->is_reflective(tile.x, tile.y);
+            bool new_v = !old_v;
+            record_reflection_change(tile.x, tile.y, old_v, new_v);
+            map_->set_reflective_at(tile.x, tile.y, new_v);
+            commit_action();
+            set_status(new_v ? "Reflective ON" : "Reflective OFF");
+        } break;
         case EditorTool::Line: case EditorTool::Rect:
             if (!is_drag) { selection_.x1 = tile.x; selection_.y1 = tile.y; }
             selection_.x2 = tile.x; selection_.y2 = tile.y;
@@ -905,10 +924,11 @@ void TileEditor::copy_selection() {
     if (!map_ || !selection_.active) return;
     int sw=selection_.sel_width(), sh=selection_.sel_height(), sx=selection_.left(), sy=selection_.top();
     clipboard_.width=sw; clipboard_.height=sh;
-    clipboard_.tiles.resize(sw*sh); clipboard_.collision.resize(sw*sh); clipboard_.has_data=true;
+    clipboard_.tiles.resize(sw*sh); clipboard_.collision.resize(sw*sh); clipboard_.reflection.resize(sw*sh); clipboard_.has_data=true;
     for (int y=0;y<sh;y++) for (int x=0;x<sw;x++) {
         clipboard_.tiles[y*sw+x] = map_->tile_at(active_layer_, sx+x, sy+y);
         clipboard_.collision[y*sw+x] = map_->collision_at(sx+x, sy+y);
+        clipboard_.reflection[y*sw+x] = map_->is_reflective(sx+x, sy+y) ? 1 : 0;
     }
     set_status("Copied " + std::to_string(sw) + "x" + std::to_string(sh));
 }
@@ -924,6 +944,10 @@ void TileEditor::paste_at(int tx, int ty) {
         auto nc=clipboard_.collision[y*clipboard_.width+x];
         record_collision_change(tx+x,ty+y,oc,nc);
         map_->set_collision_at(tx+x,ty+y,nc);
+        bool or_=map_->is_reflective(tx+x,ty+y);
+        bool nr_=clipboard_.reflection[y*clipboard_.width+x]!=0;
+        record_reflection_change(tx+x,ty+y,or_,nr_);
+        map_->set_reflective_at(tx+x,ty+y,nr_);
     }
     set_status("Pasted");
 }
@@ -933,17 +957,17 @@ void TileEditor::clear_selection() { selection_ = {}; }
 void TileEditor::flip_clipboard_h() {
     if (!clipboard_.has_data) return;
     int w=clipboard_.width, h=clipboard_.height;
-    std::vector<int> f(w*h); std::vector<CollisionType> fc(w*h);
-    for (int y=0;y<h;y++) for (int x=0;x<w;x++) { f[y*w+(w-1-x)]=clipboard_.tiles[y*w+x]; fc[y*w+(w-1-x)]=clipboard_.collision[y*w+x]; }
-    clipboard_.tiles=f; clipboard_.collision=fc; set_status("Flipped H");
+    std::vector<int> f(w*h); std::vector<CollisionType> fc(w*h); std::vector<uint8_t> fr(w*h);
+    for (int y=0;y<h;y++) for (int x=0;x<w;x++) { f[y*w+(w-1-x)]=clipboard_.tiles[y*w+x]; fc[y*w+(w-1-x)]=clipboard_.collision[y*w+x]; fr[y*w+(w-1-x)]=clipboard_.reflection[y*w+x]; }
+    clipboard_.tiles=f; clipboard_.collision=fc; clipboard_.reflection=fr; set_status("Flipped H");
 }
 
 void TileEditor::flip_clipboard_v() {
     if (!clipboard_.has_data) return;
     int w=clipboard_.width, h=clipboard_.height;
-    std::vector<int> f(w*h); std::vector<CollisionType> fc(w*h);
-    for (int y=0;y<h;y++) for (int x=0;x<w;x++) { f[(h-1-y)*w+x]=clipboard_.tiles[y*w+x]; fc[(h-1-y)*w+x]=clipboard_.collision[y*w+x]; }
-    clipboard_.tiles=f; clipboard_.collision=fc; set_status("Flipped V");
+    std::vector<int> f(w*h); std::vector<CollisionType> fc(w*h); std::vector<uint8_t> fr(w*h);
+    for (int y=0;y<h;y++) for (int x=0;x<w;x++) { f[(h-1-y)*w+x]=clipboard_.tiles[y*w+x]; fc[(h-1-y)*w+x]=clipboard_.collision[y*w+x]; fr[(h-1-y)*w+x]=clipboard_.reflection[y*w+x]; }
+    clipboard_.tiles=f; clipboard_.collision=fc; clipboard_.reflection=fr; set_status("Flipped V");
 }
 
 bool TileEditor::save_map(const std::string& path) const { return map_ ? map_->save_json(path) : false; }
@@ -965,6 +989,8 @@ void TileEditor::render(SpriteBatch& batch, const Camera& camera,
     if (show_grid_) render_grid(batch, camera);
     if (show_collision_ || tool_ == EditorTool::Portal || tool_ == EditorTool::Collision)
         render_collision_overlay(batch, camera);
+    if (show_reflection_ || tool_ == EditorTool::Reflection)
+        render_reflection_overlay(batch, camera);
     if (selection_.active) render_selection(batch, camera);
     render_cursor(batch, camera, mouse_x_, mouse_y_);
 
@@ -1042,6 +1068,23 @@ void TileEditor::render_collision_overlay(SpriteBatch& batch, const Camera& came
             batch.draw_quad({x*ts,y*ts},{2,ts},{0.2f,1,0.8f,0.8f});
             batch.draw_quad({x*ts+ts-2,y*ts},{2,ts},{0.2f,1,0.8f,0.8f});
         }
+    }
+}
+
+void TileEditor::render_reflection_overlay(SpriteBatch& batch, const Camera& camera) const {
+    Rect view = camera.visible_area();
+    float ts = (float)map_->tile_size();
+    int sx=std::max(0,(int)std::floor(view.x/ts)), sy=std::max(0,(int)std::floor(view.y/ts));
+    int ex=std::min(map_->width(),(int)std::ceil((view.x+view.w)/ts)+1);
+    int ey=std::min(map_->height(),(int)std::ceil((view.y+view.h)/ts)+1);
+    for (int y=sy;y<ey;y++) for (int x=sx;x<ex;x++) {
+        if (!map_->is_reflective(x,y)) continue;
+        // Blue-cyan tint with wave-like pattern
+        batch.draw_quad({x*ts+1,y*ts+1},{ts-2,ts-2},{0.2f,0.5f,0.9f,0.3f});
+        // Small indicator lines (wave effect)
+        float cy = y*ts + ts*0.4f;
+        batch.draw_quad({x*ts+4,cy},{ts-8,1.5f},{0.4f,0.7f,1.0f,0.5f});
+        batch.draw_quad({x*ts+6,cy+5},{ts-12,1.5f},{0.4f,0.7f,1.0f,0.4f});
     }
 }
 
@@ -1349,6 +1392,7 @@ void TileEditor::render_imgui(GameState& game) {
             ImGui::Separator();
             ImGui::MenuItem("Grid", "G", &show_grid_);
             ImGui::MenuItem("Collision", "V", &show_collision_);
+            ImGui::MenuItem("Reflection", "M", &show_reflection_);
             ImGui::Separator();
             ImGui::MenuItem("Object Inspector", nullptr, &show_object_inspector_);
             ImGui::MenuItem("Prefabs", nullptr, &show_prefab_panel_);
@@ -1362,6 +1406,7 @@ void TileEditor::render_imgui(GameState& game) {
             if (ImGui::MenuItem("Eyedrop", "I")) tool_ = EditorTool::Eyedrop;
             if (ImGui::MenuItem("Select", "R")) tool_ = EditorTool::Select;
             if (ImGui::MenuItem("Collision", "C")) tool_ = EditorTool::Collision;
+            if (ImGui::MenuItem("Reflection", "N")) tool_ = EditorTool::Reflection;
             if (ImGui::MenuItem("Line", "L")) tool_ = EditorTool::Line;
             if (ImGui::MenuItem("Rectangle", "B")) tool_ = EditorTool::Rect;
             if (ImGui::MenuItem("Portal", "T")) tool_ = EditorTool::Portal;
@@ -1396,6 +1441,7 @@ void TileEditor::render_imgui(GameState& game) {
         ImGui::Checkbox("Grid (G)", &show_grid_);
         ImGui::SameLine();
         ImGui::Checkbox("Collision (V)", &show_collision_);
+        ImGui::Checkbox("Reflection (M)", &show_reflection_);
 
         ImGui::Separator();
         ImGui::Text("Layers:");
@@ -1808,6 +1854,7 @@ void TileEditor::save_selection_as_prefab(const std::string& name) {
         for (int x = sx; x <= selection_.right(); x++) {
             prefab.tiles.push_back(map_->tile_at(active_layer_, x, y));
             prefab.collision.push_back(map_->collision_at(x, y));
+            prefab.reflection.push_back(map_->is_reflective(x, y) ? 1 : 0);
         }
     }
     prefabs_.push_back(prefab);

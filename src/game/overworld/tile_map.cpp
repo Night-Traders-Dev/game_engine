@@ -20,6 +20,7 @@ void TileMap::create(int width, int height, int tile_size) {
     tile_size_ = tile_size;
     layers_.clear();
     collision_types_.assign(width * height, CollisionType::None);
+    reflection_grid_.assign(width * height, 0);
     portals_.clear();
 }
 
@@ -46,6 +47,15 @@ void TileMap::resize(int new_width, int new_height) {
     }
     collision_types_ = std::move(new_col);
 
+    std::vector<uint8_t> new_ref(new_width * new_height, 0);
+    for (int y = 0; y < copy_h; y++) {
+        for (int x = 0; x < copy_w; x++) {
+            if ((int)reflection_grid_.size() > y * width_ + x)
+                new_ref[y * new_width + x] = reflection_grid_[y * width_ + x];
+        }
+    }
+    reflection_grid_ = std::move(new_ref);
+
     width_ = new_width;
     height_ = new_height;
 }
@@ -63,6 +73,26 @@ void TileMap::set_collision(const std::vector<int>& data) {
     for (size_t i = 0; i < data.size(); i++) {
         collision_types_[i] = (data[i] != 0) ? CollisionType::Solid : CollisionType::None;
     }
+}
+
+void TileMap::set_reflective(const std::vector<int>& data) {
+    reflection_grid_.resize(data.size());
+    for (size_t i = 0; i < data.size(); i++) {
+        reflection_grid_[i] = (data[i] != 0) ? 1 : 0;
+    }
+}
+
+void TileMap::set_reflective_at(int x, int y, bool reflective) {
+    if (x < 0 || x >= width_ || y < 0 || y >= height_) return;
+    if (reflection_grid_.size() < (size_t)(width_ * height_))
+        reflection_grid_.resize(width_ * height_, 0);
+    reflection_grid_[y * width_ + x] = reflective ? 1 : 0;
+}
+
+bool TileMap::is_reflective(int x, int y) const {
+    if (x < 0 || x >= width_ || y < 0 || y >= height_) return false;
+    if (reflection_grid_.empty()) return false;
+    return reflection_grid_[y * width_ + x] != 0;
 }
 
 void TileMap::set_tile(int layer, int x, int y, int tile_id) {
@@ -267,6 +297,15 @@ bool TileMap::save_json(const std::string& path) const {
     }
     f << "\n  ],\n";
 
+    // Reflection grid
+    f << "  \"reflection\": [";
+    for (size_t i = 0; i < reflection_grid_.size(); i++) {
+        if (i > 0) f << ",";
+        if (i % width_ == 0) f << "\n    ";
+        f << (int)reflection_grid_[i];
+    }
+    f << "\n  ],\n";
+
     // Portals
     f << "  \"portals\": [\n";
     for (size_t pi = 0; pi < portals_.size(); pi++) {
@@ -437,6 +476,7 @@ bool TileMap::load_json(const std::string& path) {
 
     layers_.clear();
     collision_types_.clear();
+    reflection_grid_.clear();
     portals_.clear();
 
     while (i < json.size() && json[i] != '}') {
@@ -517,6 +557,12 @@ bool TileMap::load_json(const std::string& path) {
                 collision_types_[ci] = (cv >= 0 && cv <= 2)
                     ? static_cast<CollisionType>(cv) : CollisionType::None;
             }
+        } else if (key == "reflection") {
+            auto ref = parse_int_array(json, i);
+            reflection_grid_.resize(ref.size());
+            for (size_t ri = 0; ri < ref.size(); ri++) {
+                reflection_grid_[ri] = (ref[ri] != 0) ? 1 : 0;
+            }
         } else if (key == "portals") {
             if (json[i] == '[') {
                 i++;
@@ -543,6 +589,9 @@ bool TileMap::load_json(const std::string& path) {
 
     if (collision_types_.empty()) {
         collision_types_.assign(w * h, CollisionType::None);
+    }
+    if (reflection_grid_.empty()) {
+        reflection_grid_.assign(w * h, 0);
     }
 
     (void)version;

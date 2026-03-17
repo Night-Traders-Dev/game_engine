@@ -42,6 +42,9 @@ public:
     // Look up a named region
     const AtlasRegion* find_region(const std::string& name) const;
 
+    // Get all named region keys
+    std::vector<std::string> region_names() const;
+
     Texture* texture() const { return texture_; }
     int columns() const { return columns_; }
     int rows() const { return rows_; }

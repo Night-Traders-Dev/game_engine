@@ -1177,6 +1177,25 @@ static Value native_set_collision(int argc, Value* args) {
     return val_nil();
 }
 
+// set_reflective(tx, ty, bool) — mark tile as reflective (water, ice, etc.)
+static Value native_set_reflective(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 3) return val_nil();
+    int tx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int ty = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    bool val = (args[2].type == VAL_BOOL) ? args[2].as.boolean :
+               (args[2].type == VAL_NUMBER) ? (args[2].as.number != 0) : false;
+    s_active_engine->game_state_->tile_map.set_reflective_at(tx, ty, val);
+    return val_nil();
+}
+
+// is_reflective(tx, ty) -> bool
+static Value native_is_reflective(int argc, Value* args) {
+    if (!s_active_engine || !s_active_engine->game_state_ || argc < 2) return val_bool(false);
+    int tx = (args[0].type == VAL_NUMBER) ? (int)args[0].as.number : 0;
+    int ty = (args[1].type == VAL_NUMBER) ? (int)args[1].as.number : 0;
+    return val_bool(s_active_engine->game_state_->tile_map.is_reflective(tx, ty));
+}
+
 // set_tile(layer, tx, ty, tile_id)
 static Value native_set_tile(int argc, Value* args) {
     if (!s_active_engine || !s_active_engine->game_state_ || argc < 4) return val_nil();
@@ -2240,6 +2259,8 @@ void ScriptEngine::register_map_api() {
     env_define(env_, "set_portal", 10, val_native(native_set_portal));
     env_define(env_, "remove_portal", 13, val_native(native_remove_portal));
     env_define(env_, "set_collision", 13, val_native(native_set_collision));
+    env_define(env_, "set_reflective", 14, val_native(native_set_reflective));
+    env_define(env_, "is_reflective", 13, val_native(native_is_reflective));
     env_define(env_, "set_tile", 8, val_native(native_set_tile));
     env_define(env_, "drop_item", 9, val_native(native_drop_item));
     env_define(env_, "add_loot", 8, val_native(native_add_loot));

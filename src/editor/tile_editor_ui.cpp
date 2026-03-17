@@ -424,6 +424,17 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             ImGui::SameLine();
             ImGui::DragFloat("Y##new", &new_y, 1, 0, 1080);
 
+            // Style for new panels
+            static const char* new_panel_styles[] = {
+                "panel_window", "panel_hud_wide", "panel_hud_sq", "panel_hud_sq2",
+                "panel_large", "panel_scroll", "panel_window_lg", "panel_dialogue",
+                "panel_mini", "panel_wide", "panel_wide2", "panel_dark", "panel_settings",
+                "flat_grey", "flat_blue", "flat_orange", "flat_cream",
+                "flat_grey_sm", "flat_blue_sm", "flat_orange_sm", "flat_dark", "flat_dark_tall"
+            };
+            static int new_style_idx = 0;
+            ImGui::Combo("Panel Style", &new_style_idx, new_panel_styles, IM_ARRAYSIZE(new_panel_styles));
+
             if (ImGui::Button("+ Label")) {
                 game.script_ui.labels.push_back({new_id, "New Label", {new_x, new_y}, {1,1,1,1}, 0.8f});
                 append_map_script(std::string("ui_label(\"") + new_id + "\", \"New Label\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 1, 1, 1, 1)");
@@ -432,8 +443,9 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             }
             ImGui::SameLine();
             if (ImGui::Button("+ Panel")) {
-                game.script_ui.panels.push_back({new_id, {new_x, new_y}, 200, 100, "panel_window"});
-                append_map_script(std::string("ui_panel(\"") + new_id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 200, 100, \"panel_window\")");
+                std::string style = new_panel_styles[new_style_idx];
+                game.script_ui.panels.push_back({new_id, {new_x, new_y}, 200, 100, style});
+                append_map_script(std::string("ui_panel(\"") + new_id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 200, 100, \"" + style + "\")");
                 ui_selected_id_ = new_id; ui_editor_type_ = "panel";
                 set_status("Created panel: " + std::string(new_id));
             }
@@ -444,10 +456,20 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 ui_selected_id_ = new_id; ui_editor_type_ = "bar";
                 set_status("Created bar: " + std::string(new_id));
             }
+            // Icon for new images
+            static const char* new_icon_presets[] = {
+                "fi_0", "icon_sword", "icon_shield", "icon_potion", "icon_heart_red",
+                "icon_gem_blue", "icon_gem_green", "icon_ring", "icon_star", "icon_coin",
+                "icon_book", "icon_scroll", "icon_heart_orange"
+            };
+            static int new_icon_idx = 0;
+            ImGui::Combo("Image Icon", &new_icon_idx, new_icon_presets, IM_ARRAYSIZE(new_icon_presets));
+
             ImGui::SameLine();
             if (ImGui::Button("+ Image")) {
-                game.script_ui.images.push_back({new_id, {new_x, new_y}, 32, 32, "fi_0"});
-                append_map_script(std::string("ui_image(\"") + new_id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 32, 32, \"fi_0\")");
+                std::string icon = new_icon_presets[new_icon_idx];
+                game.script_ui.images.push_back({new_id, {new_x, new_y}, 32, 32, icon});
+                append_map_script(std::string("ui_image(\"") + new_id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 32, 32, \"" + icon + "\")");
                 ui_selected_id_ = new_id; ui_editor_type_ = "image";
                 set_status("Created image: " + std::string(new_id));
             }
@@ -491,8 +513,32 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (ImGui::DragFloat2("Position", &p.position.x, 1, 0, 2000)) sync_to_hud_config(game, p.id);
                 if (ImGui::DragFloat("Width", &p.width, 1, 20, 1000)) sync_to_hud_config(game, p.id);
                 if (ImGui::DragFloat("Height", &p.height, 1, 20, 800)) sync_to_hud_config(game, p.id);
-                char region[64] = {}; std::strncpy(region, p.sprite_region.c_str(), sizeof(region)-1);
-                if (ImGui::InputText("Sprite Region", region, sizeof(region))) p.sprite_region = region;
+                // Style picker — combo of all panel regions from UI atlases
+                {
+                    static std::vector<std::string> panel_styles;
+                    static bool styles_cached = false;
+                    if (!styles_cached) {
+                        if (game.ui_atlas) {
+                            for (auto& n : game.ui_atlas->region_names())
+                                if (n.find("panel") != std::string::npos || n.find("btn") != std::string::npos)
+                                    panel_styles.push_back(n);
+                        }
+                        if (game.ui_flat_atlas) {
+                            for (auto& n : game.ui_flat_atlas->region_names())
+                                panel_styles.push_back(n);
+                        }
+                        styles_cached = true;
+                    }
+                    if (ImGui::BeginCombo("Style", p.sprite_region.c_str())) {
+                        for (auto& s : panel_styles) {
+                            bool selected = (p.sprite_region == s);
+                            if (ImGui::Selectable(s.c_str(), selected))
+                                p.sprite_region = s;
+                            if (selected) ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+                }
                 ImGui::SliderFloat("Rotation", &p.rotation, 0, 360);
                 ImGui::SliderFloat("Opacity", &p.opacity, 0, 1);
                 ImGui::SliderFloat("Scale", &p.scale, 0.1f, 4.0f);
@@ -537,8 +583,39 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 ImGui::DragFloat2("Position", &img.position.x, 1, 0, 2000);
                 ImGui::DragFloat("Width", &img.width, 1, 4, 256);
                 ImGui::DragFloat("Height", &img.height, 1, 4, 256);
-                char icon[64] = {}; std::strncpy(icon, img.icon_name.c_str(), sizeof(icon)-1);
-                if (ImGui::InputText("Icon", icon, sizeof(icon))) img.icon_name = icon;
+                // Icon picker — combo of icon regions + fantasy icon indices
+                {
+                    static std::vector<std::string> icon_styles;
+                    static bool icons_cached = false;
+                    if (!icons_cached) {
+                        if (game.ui_atlas) {
+                            for (auto& n : game.ui_atlas->region_names())
+                                if (n.find("icon") != std::string::npos || n.find("arrow") != std::string::npos ||
+                                    n.find("checkbox") != std::string::npos || n.find("cursor") != std::string::npos)
+                                    icon_styles.push_back(n);
+                        }
+                        // Fantasy icons (fi_0 through fi_431)
+                        if (game.fantasy_icons_atlas) {
+                            int count = game.fantasy_icons_atlas->region_count();
+                            for (int i = 0; i < count && i < 432; i++)
+                                icon_styles.push_back("fi_" + std::to_string(i));
+                        }
+                        icons_cached = true;
+                    }
+                    if (ImGui::BeginCombo("Icon", img.icon_name.c_str())) {
+                        // Filter box
+                        static char icon_filter[32] = "";
+                        ImGui::InputText("Filter", icon_filter, sizeof(icon_filter));
+                        for (auto& s : icon_styles) {
+                            if (icon_filter[0] && s.find(icon_filter) == std::string::npos) continue;
+                            bool selected = (img.icon_name == s);
+                            if (ImGui::Selectable(s.c_str(), selected))
+                                img.icon_name = s;
+                            if (selected) ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+                }
                 ImGui::ColorEdit4("Tint", &img.tint.x);
                 ImGui::SliderFloat("Rotation", &img.rotation, 0, 360);
                 ImGui::SliderFloat("Opacity", &img.opacity, 0, 1);

@@ -1,5 +1,6 @@
 #include "engine/graphics/texture_atlas.h"
 #include "engine/graphics/texture.h"
+#include <algorithm>
 
 namespace eb {
 
@@ -20,13 +21,19 @@ AtlasRegion TextureAtlas::make_region(int x, int y, int w, int h) const {
     float tex_w = static_cast<float>(texture_->width());
     float tex_h = static_cast<float>(texture_->height());
 
+    // Half-texel inset prevents sampling neighboring pixels at region edges
+    float half_px_u = 0.5f / tex_w;
+    float half_px_v = 0.5f / tex_h;
+
     AtlasRegion r;
     r.pixel_x = x;
     r.pixel_y = y;
     r.pixel_w = w;
     r.pixel_h = h;
-    r.uv_min = {static_cast<float>(x) / tex_w, static_cast<float>(y) / tex_h};
-    r.uv_max = {static_cast<float>(x + w) / tex_w, static_cast<float>(y + h) / tex_h};
+    r.uv_min = {static_cast<float>(x) / tex_w + half_px_u,
+                static_cast<float>(y) / tex_h + half_px_v};
+    r.uv_max = {static_cast<float>(x + w) / tex_w - half_px_u,
+                static_cast<float>(y + h) / tex_h - half_px_v};
     return r;
 }
 
@@ -65,6 +72,14 @@ void TextureAtlas::define_region(const std::string& name, int x, int y, int w, i
 const AtlasRegion* TextureAtlas::find_region(const std::string& name) const {
     auto it = named_regions_.find(name);
     return it != named_regions_.end() ? &it->second : nullptr;
+}
+
+std::vector<std::string> TextureAtlas::region_names() const {
+    std::vector<std::string> names;
+    names.reserve(named_regions_.size());
+    for (auto& kv : named_regions_) names.push_back(kv.first);
+    std::sort(names.begin(), names.end());
+    return names;
 }
 
 } // namespace eb

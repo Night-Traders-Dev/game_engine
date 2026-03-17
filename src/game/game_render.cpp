@@ -558,25 +558,24 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         eb::Vec4 water_tint = {0.5f, 0.6f, 0.9f, reflect_alpha};
         int ts = game.tile_map.tile_size();
 
-        // Player reflection
+        // Player reflection — only on reflective tiles
         if (game.dean_atlas) {
             auto sr = get_character_sprite(*game.dean_atlas, game.player_dir, game.player_moving, game.player_frame);
             float rw = 48.0f * game.player_sprite_scale;
             float rh = 64.0f * game.player_sprite_scale;
-            // Check if tile below player is water-like
             int check_y = (int)((game.player_pos.y + rh * 0.5f) / ts);
             int check_x = (int)(game.player_pos.x / ts);
-            if (check_y >= 0 && check_y < game.tile_map.height() && check_x >= 0 && check_x < game.tile_map.width()) {
-                // Draw reflection below player position (flipped V via swapped UVs)
+            if (check_x >= 0 && check_x < game.tile_map.width() &&
+                check_y >= 0 && check_y < game.tile_map.height() &&
+                game.tile_map.is_reflective(check_x, check_y)) {
                 eb::Vec2 dp = {game.player_pos.x - rw * 0.5f, game.player_pos.y + 4};
-                // Flip vertically by swapping uv_min.y and uv_max.y
                 batch.set_texture(game.dean_desc);
                 batch.draw_quad(dp, {rw, rh * 0.7f},
                     {sr.uv_min.x, sr.uv_max.y}, {sr.uv_max.x, sr.uv_min.y}, water_tint);
             }
         }
 
-        // NPC reflections
+        // NPC reflections — only on reflective tiles
         for (const auto& npc : game.npcs) {
             if (!npc.schedule.currently_visible) continue;
             eb::TextureAtlas* atlas_ptr = nullptr;
@@ -599,15 +598,21 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
                 desc = game.npc_descs[npc.sprite_atlas_id];
             }
             if (atlas_ptr && desc) {
-                auto sr = get_character_sprite(*atlas_ptr, npc.dir, npc.moving, npc.frame);
-                float base_w = (npc.sprite_grid_w > 0) ? (float)npc.sprite_grid_w : 32.0f;
-                float base_h = (npc.sprite_grid_h > 0) ? (float)npc.sprite_grid_h : 32.0f;
-                float rw = base_w * 1.5f * npc.sprite_scale;
-                float rh = base_h * 1.5f * npc.sprite_scale;
-                eb::Vec2 dp = {npc.position.x - rw * 0.5f, npc.position.y + 4};
-                batch.set_texture(desc);
-                batch.draw_quad(dp, {rw, rh * 0.7f},
-                    {sr.uv_min.x, sr.uv_max.y}, {sr.uv_max.x, sr.uv_min.y}, water_tint);
+                int nx = (int)(npc.position.x / ts);
+                int ny = (int)((npc.position.y + 16) / ts);
+                if (nx >= 0 && nx < game.tile_map.width() &&
+                    ny >= 0 && ny < game.tile_map.height() &&
+                    game.tile_map.is_reflective(nx, ny)) {
+                    auto sr = get_character_sprite(*atlas_ptr, npc.dir, npc.moving, npc.frame);
+                    float base_w = (npc.sprite_grid_w > 0) ? (float)npc.sprite_grid_w : 32.0f;
+                    float base_h = (npc.sprite_grid_h > 0) ? (float)npc.sprite_grid_h : 32.0f;
+                    float rw = base_w * 1.5f * npc.sprite_scale;
+                    float rh = base_h * 1.5f * npc.sprite_scale;
+                    eb::Vec2 dp = {npc.position.x - rw * 0.5f, npc.position.y + 4};
+                    batch.set_texture(desc);
+                    batch.draw_quad(dp, {rw, rh * 0.7f},
+                        {sr.uv_min.x, sr.uv_max.y}, {sr.uv_max.x, sr.uv_min.y}, water_tint);
+                }
             }
         }
     }

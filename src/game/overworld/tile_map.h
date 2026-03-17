@@ -104,6 +104,12 @@ public:
     const std::vector<TileLayer>& layers() const { return layers_; }
     const std::vector<CollisionType>& collision_types() const { return collision_types_; }
 
+    // Reflection grid (per-tile: true = reflective surface like water/ice)
+    void set_reflective(const std::vector<int>& data);
+    void set_reflective_at(int x, int y, bool reflective);
+    bool is_reflective(int x, int y) const;
+    const std::vector<uint8_t>& reflection_grid() const { return reflection_grid_; }
+
 private:
     int width_ = 0;
     int height_ = 0;
@@ -113,6 +119,7 @@ private:
     TextureAtlas* tileset_ = nullptr;
     std::vector<TileLayer> layers_;
     std::vector<CollisionType> collision_types_;
+    std::vector<uint8_t> reflection_grid_;  // 1 = reflective, 0 = not
     std::vector<Portal> portals_;
     int animated_first_ = -1;
     int animated_last_ = -1;

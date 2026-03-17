@@ -1,13 +1,13 @@
 # Twilight Engine
 
-A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixel art games. Ships with a tween engine, particle system, save/load, quests, equipment, 2D lighting, screen transitions, gamepad support, an integrated tile editor, SageLang scripting (229 API functions across 39 modules), and procedural tileset generation for 10 biome types.
+A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixel art games. Ships with a tween engine, particle system, save/load, quests, equipment, 2D lighting, screen transitions, gamepad support, an integrated tile editor with visual UI/HUD builder, SageLang scripting (233 API functions across 40 modules), per-tile reflection maps, rotated sprite rendering, and procedural tileset generation for 10 biome types.
 
 ## Features
 
-- **Vulkan Renderer** — Sprite batching, Y-sorted rendering, texture atlases, animated tiles, fullscreen, per-sprite tint/alpha
+- **Vulkan Renderer** — Sprite batching with rotated quad support, Y-sorted rendering, texture atlases with half-texel UV correction, animated tiles, fullscreen, per-sprite tint/alpha
 - **Cross-Platform** — Linux, Windows (cross-compile), Android (landscape, touch controls, editor overlay), Meta Quest (flat 2D mode)
 - **Engine / Game Separation** — Games live in `games/<name>/` with a `game.json` manifest; engine is standalone
-- **Tile Map System** — Multi-layer maps, collision, portals, animated water/grass overlays, per-tile rotation (0°/90°/180°/270°) and flip
+- **Tile Map System** — Multi-layer maps, collision grid, reflection grid (per-tile water/ice reflections), portals, animated water/grass overlays, per-tile rotation (0°/90°/180°/270°) and flip
 - **Level System** — Multi-level manager with load/cache/switch, portal auto-transitions, background ticking, per-level zoom, per-level map scripts, level selector in pause menu
 - **Tween/Easing Engine** — 19 easing types (sine, quad, cubic, back, bounce, elastic), tween any UI/camera/player/NPC property, loop/yoyo, delayed callbacks, script-driven cutscene sequencing
 - **Particle System** — Emitters with color/size interpolation, gravity, spread angles, shapes (point/circle/rect). 9 presets: fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash
@@ -32,7 +32,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Spawn System** — Periodic NPC spawning with configurable intervals, max counts, spawn areas, time-gating, and callbacks
 - **Survival System** — Hunger, thirst, energy meters with configurable depletion rates and gameplay effects
 - **Per-Sprite Scaling** — Independent scale, tint, and flip per NPC, per object, player, and ally. Mix different sizes on screen (giant bosses + tiny minions)
-- **Script-Driven UI** — Labels, bars, panels, images with per-component opacity, layer, rotation, flip, scale, `on_click` callbacks, and `ui_get()`/`ui_set()` for reading/writing any property
+- **Script-Driven UI** — Labels, bars, panels, images with per-component opacity, layer, rotation (all types), flip, scale, `on_click` callbacks, and `ui_get()`/`ui_set()` for reading/writing any property. Editor provides style picker dropdowns for all panel and icon assets
 - **Script-Driven Pause Menu** — 6-item pause menu (Resume, Editor, Levels, Reset, Settings, Quit) with built-in level selector sub-menu
 - **Script-Driven HUD** — All HUD layout defined in `default.sage`. C++ auto-syncs values each frame (HP bar auto-colors, sun/moon icon auto-swaps)
 - **Audio System** — miniaudio-powered BGM with crossfade, SFX, per-platform backends; path-sanitized file operations
@@ -46,7 +46,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Spatial Audio** — Distance-based SFX volume falloff from camera center
 - **Settings System** — Master/music/SFX volume, text speed, fullscreen; ready for UI menu
 - **Debug Overlay** — F1 toggle shows FPS, particle count, NPC count, tween count
-- **SageLang Scripting** — 229 API functions across 39 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
+- **SageLang Scripting** — 233 API functions across 40 modules driving all game systems with hot reload. See [docs/SCRIPTING.md](docs/SCRIPTING.md) for the full API reference
 - **Asset Pipeline** — Multi-resolution asset generator; procedural tileset generator (10 biomes); auto-discovery of biome stamps; 1,080 base tiles, 88+ stamps, 432 fantasy icons, 3 UI spritesheets
 - **Test Automation Tool** — `tools/tw_test/` Python package for automated game testing via XTest keyboard injection and X11 screenshot capture
 - **String-Keyed Atlas Cache** — Shared texture atlas cache keyed by path+grid-size; runtime sprite loading from scripts
@@ -60,7 +60,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 #### Desktop (Tab to toggle)
 
 - **Menu Bar** — File (Save/Load/Import), Edit (Undo/Redo), View (toggle windows), Tools
-- **Tools** — Paint, Erase, Fill, Eyedrop, Select, Collision, Line, Rectangle, Portal
+- **Tools** — Paint, Erase, Fill, Eyedrop, Select, Collision, Reflection, Line, Rectangle, Portal
 - **Brush Sizes** — 1x1, 2x2, 3x3
 - **Assets Panel** — Tabbed tileset browser (Tiles, Buildings, Furniture, Characters, Trees, Vehicles, Misc) with image previews and keyboard shortcuts (Q/E to cycle, [ ] brackets, F5-F11 direct jump)
 - **Minimap** — Color-coded map overview with player/NPC markers, click to teleport
@@ -72,6 +72,7 @@ A cross-platform Vulkan 2D RPG engine built in C++20, designed for creating pixe
 - **Prefab System** (View menu) — Save tile selections as reusable prefabs, click-to-paste
 - **Map Resize** — Resize maps from the Systems panel (4x4 to 200x200)
 - **Auto-Tile Config** — Configure terrain pairs and transition tile ranges for auto-placement
+- **UI/HUD Editor** (F6) — Visual drag-and-drop: click to select, drag to move (HUD groups move together), right-drag edges to resize. Style picker dropdowns (22 panel styles, 432+ icons). Templates (dialog box, quest tracker, status bar). Live property editing with color pickers, opacity, scale, layer, rotation. Edits write back to HUD config for persistence
 - **Map Script Generation** — Every editor action auto-appends SageLang to the map's companion `.sage` script
 
 #### Android (Menu button toggles editor)
@@ -244,6 +245,9 @@ All biome maps are connected via portals in the forest (corners of the map).
 | F3            | Script IDE                                      |
 | F4            | Debug Console                                   |
 | F5            | Game Systems Panel (editor only)                |
+| F6            | UI/HUD Editor (editor only)                     |
+| N             | Reflection tool (editor only)                   |
+| M             | Toggle reflection overlay (editor only)         |
 | Q / E         | Cycle asset tabs (editor only)                  |
 | ESC           | Pause Menu (in game) / Exit Editor (in editor)  |
 
@@ -285,14 +289,14 @@ All biome maps are connected via portals in the forest (corners of the map).
 src/
   engine/                    # Standalone engine (graphics, audio, scripting, debug, platform)
     scripting/
-      script_engine.cpp      #   Core + original API modules (2,815 lines)
+      script_engine.cpp      #   Core + original API modules (2,840 lines)
       script_api_new.cpp     #   Phase 1-4 APIs: tween, particle, save, quest, equipment, etc. (644 lines)
   game/                      # Generic RPG framework — modularized across 5 files:
     game.cpp                 #   Core update loop (966 lines)
     game_io.cpp              #   Map/dialogue file I/O, JSON parser (537 lines)
     game_init.cpp            #   Game init, tileset setup, NPC setup (891 lines)
     game_battle.cpp          #   Battle logic + battle rendering (516 lines)
-    game_render.cpp          #   World rendering, HUD, UI overlay, sync (1,211 lines)
+    game_render.cpp          #   World rendering, HUD, UI overlay, sync (1,217 lines)
     ai/                      # A* pathfinding
     systems/                 # Day-night cycle, survival stats, spawn system
     ui/                      # Game UI systems (merchant store)
@@ -348,7 +352,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 | Document | Description |
 |----------|-------------|
 | [Engine Guide](docs/Twilight_Engine_Guide.md) | Comprehensive engine guide with all systems |
-| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (185 functions, 28 modules) |
+| [Scripting API](docs/SCRIPTING.md) | Full SageLang API reference (233 functions, 40 modules) |
 | [Architecture](docs/ARCHITECTURE.md) | Engine architecture and module breakdown |
 | [Map Design Guide](docs/MAP_DESIGN_GUIDE.md) | Map creation with biome portals and scripting |
 | [Tile Reference](docs/TILE_REFERENCE.md) | Tileset format, procedural generator, stamp system |
@@ -359,7 +363,7 @@ android/                     # Android build (Gradle, manifest, native glue)
 - C++20, Vulkan, GLFW, GLM, stb_image, stb_truetype
 - Dear ImGui (editor UI, desktop only)
 - miniaudio (audio)
-- SageLang (scripting — 231 API functions, 40 modules, multi-grid atlas cache, tracks latest main branch)
+- SageLang (scripting — 233 API functions, 40 modules, multi-grid atlas cache, tracks latest main branch)
 - tinyfiledialogs (native file dialogs, desktop only)
 - Python 3 + Pillow + numpy (tooling: tileset generator, test automation, asset pipeline)
 
@@ -369,4 +373,4 @@ MIT
 
 ---
 
-Twilight Engine v2.4.0 — 20,600 lines C++ (76 source files), 231 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms
+Twilight Engine v2.5.0 — 21,000+ lines C++ (78 source files), 233 API functions, 40 script modules (2 script files), 7 editor files, 6 maps, 8 tilesets, 4 UI themes (47 components each), 10 biome presets, 88 stamps, 432 icons, 19 easing types, 9 particle presets, per-tile reflection grid, rotated quad rendering, 510 test assertions, 7 fuzz categories, 7 Python tools, 4 platforms

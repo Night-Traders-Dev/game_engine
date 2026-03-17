@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v2.4                       |
+|                        TWILIGHT ENGINE v2.5                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -39,6 +39,7 @@
 |  |  |------------------|  |------------------|  |--------------| |  |
 |  |  | Multi-layer      |  | A* Pathfinding   |  | Turn-based   | |  |
 |  |  | Collision grid   |  | Routes/Patrols   |  | Rolling HP   | |  |
+|  |  | Reflection grid  |  |                  |  |              | |  |
 |  |  | Portal system    |  | Schedules        |  | Party system | |  |
 |  |  | Tile rotation    |  | Sprite scale     |  | XP/leveling  | |  |
 |  |  | Animated tiles   |  | Tint/Flip        |  | Item use     | |  |
@@ -74,7 +75,7 @@
 |  |                   SAGELANG SCRIPTING                          |  |
 |  |-------------------------------------------------------------|  |
 |  |                                                               |  |
-|  |  185 Native Functions across 27 Modules:                   |  |
+|  |  233 Native Functions across 40 Modules:                   |  |
 |  |                                                               |  |
 |  |  Engine Core    : log, random, clamp, str, flags             |  |
 |  |  Player         : pos, hp, atk, def, xp, dir, scale         |  |
@@ -95,7 +96,8 @@
 |  |  Schedules      : time-based NPC visibility                  |  |
 |  |  Interactions   : meet triggers, face each other             |  |
 |  |  Effects        : screen shake/flash/fade                    |  |
-|  |  Tile Map       : get/set tile, rotation, flip, collision    |  |
+|  |  Tile Map       : get/set tile, rotation, flip, collision,   |  |
+|  |                    reflection                                |  |
 |  |  Input          : key_held, key_pressed, mouse               |  |
 |  |  Dialogue       : say, speed, scale                          |  |
 |  |  Renderer       : clear_color                                |  |
@@ -119,7 +121,7 @@ game.json (manifest)
     v
 +-------------------+     +-------------------+     +------------------+
 | init_game_from_   |     | ScriptEngine      |     | TileEditor       |
-| manifest()        |---->| (184 natives)     |<--->| (ImGui desktop)  |
+| manifest()        |---->| (233 natives)     |<--->| (ImGui desktop)  |
 | Load tileset,     |     | Load .sage files  |     | Paint/erase/fill |
 | NPCs, party,      |     | Execute map_init  |     | Tile rotation    |
 | audio config      |     | Hot reload        |     | NPC spawner      |
@@ -130,6 +132,7 @@ game.json (manifest)
 | load_map_file()   |     | update_game()     |
 | Parse JSON map    |     | Per-frame loop:   |
 | Tiles, collision, |     |  Screen effects   |
+| reflection,       |     |                   |
 | portals, objects, |     |  Day-night        |
 | NPCs              |     |  Survival         |
 +-------------------+     |  Spawn loops      |
@@ -161,14 +164,14 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v2.4.0)
+## File Counts (v2.5.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 20,600 lines (76 files) | Engine + game framework + 4 system headers |
-| Game Logic | 5 files | game.cpp (update, 966), game_io.cpp (save/load, 537), game_init.cpp (init, 891), game_battle.cpp (battle, 516), game_render.cpp (render+HUD, 1211) |
-| Script Engine | 2 files | script_engine.cpp (core + original APIs, 2,815) + script_api_new.cpp (Phase 1-4 APIs, 644) |
-| Script API | 231 functions | 40 modules across 2 files |
+| C++ Source | 21,000+ lines (78 files) | Engine + game framework + 4 system headers |
+| Game Logic | 5 files | game.cpp (update, 966), game_io.cpp (save/load, 537), game_init.cpp (init, 891), game_battle.cpp (battle, 516), game_render.cpp (render+HUD, 1,217) |
+| Script Engine | 2 files | script_engine.cpp (core + original APIs, 2,840) + script_api_new.cpp (Phase 1-4 APIs, 644) |
+| Script API | 233 functions | 40 modules across 2 files |
 | Easing Types | 19 | Linear, Sine, Quad, Cubic, Back, Bounce, Elastic (each with In/Out/InOut) |
 | Particle Presets | 9 | fire, smoke, sparkle, blood, dust, magic, explosion, heal, rain_splash |
 | Maps | 6 | Forest, House Inside, Desert, Snow, Cave, Volcanic |
@@ -182,8 +185,9 @@ game.json (manifest)
 | Python Tools | 7 | Tileset generator, biome wiring, test automation, asset scaler, tileset extractor, security fuzzer, UI pack generator |
 | Fuzz Categories | 7 | boundaries, division, strings, types, exhaustion, conflicts, rapid |
 | Test Assertions | 510 | 46 test sections across all API modules |
-| Editor Source | 7 files | tile_editor.cpp (core), npc_spawner, script_ide, debug, systems, ui, imgui_integration |
-| Editor Panels | 25 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (15 sections), Object Inspector, Prefabs, UI/HUD Editor (with templates) |
+| Editor Source | 7 files | tile_editor.cpp (core, 1,883), npc_spawner (147), script_ide (410), debug (83), systems (236), ui (727), imgui_integration (150) |
+| Editor Panels | 26 | Tools, Assets (7 tabs), Minimap, NPC Spawner, Script IDE, Debug Console, Game Systems (15 sections), Object Inspector, Prefabs, UI/HUD Editor (with style pickers and templates) |
+| Tile Properties | 2 grids | Collision (None/Solid/Portal) + Reflection (reflective surface for water/ice) |
 | Platforms | 4 | Linux, Windows, Android, Quest |
 
 ## Platform Support

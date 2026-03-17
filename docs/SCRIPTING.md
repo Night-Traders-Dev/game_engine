@@ -445,9 +445,11 @@ Create UI elements from script. Every component has a unique string ID for later
 
 ### Properties for `ui_set()`
 
-- Labels: `"text"`, `"visible"`, `"x"`, `"y"`, `"scale"`
-- Bars: `"value"`, `"max"`, `"visible"`
-- Panels/Images: `"visible"`, `"x"`, `"y"`
+- **All types:** `"x"`, `"y"`, `"visible"`, `"opacity"`, `"rotation"`, `"layer"`, `"on_click"`
+- **Labels:** `"text"`, `"scale"`, `"r"`, `"g"`, `"b"`, `"a"`
+- **Bars:** `"value"`, `"max"`, `"w"`, `"h"`, `"r"`, `"g"`, `"b"`, `"a"`, `"show_text"`, `"bg_r"`, `"bg_g"`, `"bg_b"`, `"bg_a"`
+- **Panels:** `"w"`, `"h"`, `"sprite"`, `"scale"`, `"r"`, `"g"`, `"b"`, `"a"`
+- **Images:** `"w"`, `"h"`, `"icon"`, `"scale"`, `"flip_h"`, `"flip_v"`, `"r"`, `"g"`, `"b"`, `"a"`
 
 ```sage
 # Create an HP bar
@@ -540,6 +542,8 @@ play_sfx("assets/audio/hit.wav", 0.8)
 | Function | Description |
 |----------|-------------|
 | `set_collision(tx, ty, type)` | Set tile collision (0=None, 1=Solid, 2=Portal) |
+| `set_reflective(tx, ty, bool)` | Mark tile as reflective (water, ice — enables sprite reflections) |
+| `is_reflective(tx, ty)` | Check if tile is reflective (returns bool) |
 | `set_portal(tx, ty, target_map, tx2, ty2, label)` | Place a portal |
 | `remove_portal(tx, ty)` | Remove a portal |
 | `place_object(x, y, stamp_name)` | Place a world object |
@@ -1213,4 +1217,4 @@ proc setup_dungeon():
 
 ---
 
-Twilight Engine v2.4.0 — 20,600 lines C++ (76 files), 231 API functions, 40 modules, 7 editor files, 2 script files, 4 UI themes, 6 maps, 4 platforms
+Twilight Engine v2.5.0 — 21,000+ lines C++ (78 files), 233 API functions, 40 modules, 7 editor files, 2 script files, 4 UI themes, 6 maps, 4 platforms

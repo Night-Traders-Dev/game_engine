@@ -26,6 +26,7 @@ enum class EditorTool {
     Eyedrop,
     Select,
     Collision,
+    Reflection, // Toggle reflective tiles (water, ice, etc.)
     Line,       // Draw straight lines
     Rect,       // Draw filled/outlined rectangles
     Portal,     // Place entrance/exit teleport tiles
@@ -46,6 +47,7 @@ struct TileSelection {
 struct Clipboard {
     std::vector<int> tiles;
     std::vector<CollisionType> collision;
+    std::vector<uint8_t> reflection;
     int width = 0, height = 0;
     bool has_data = false;
 };
@@ -60,6 +62,10 @@ struct EditorAction {
         int x, y;
         CollisionType old_type, new_type;
     };
+    struct ReflectionChange {
+        int x, y;
+        bool old_val, new_val;
+    };
     struct ObjectChange {
         int obj_id;       // sprite_id
         float x, y;       // position
@@ -67,6 +73,7 @@ struct EditorAction {
     };
     std::vector<TileChange> tile_changes;
     std::vector<CollisionChange> collision_changes;
+    std::vector<ReflectionChange> reflection_changes;
     std::vector<ObjectChange> object_changes;
     std::string description;
 };
@@ -127,6 +134,7 @@ private:
     void begin_action(const std::string& desc);
     void record_tile_change(int layer, int x, int y, int old_t, int new_t);
     void record_collision_change(int x, int y, CollisionType old_c, CollisionType new_c);
+    void record_reflection_change(int x, int y, bool old_v, bool new_v);
     void commit_action();
     void undo();
     void redo();
@@ -153,6 +161,7 @@ private:
     // Rendering helpers
     void render_grid(SpriteBatch& batch, const Camera& camera) const;
     void render_collision_overlay(SpriteBatch& batch, const Camera& camera) const;
+    void render_reflection_overlay(SpriteBatch& batch, const Camera& camera) const;
     void render_selection(SpriteBatch& batch, const Camera& camera) const;
     void render_cursor(SpriteBatch& batch, const Camera& camera, float mx, float my) const;
     void render_tool_panel(SpriteBatch& batch, int screen_w, int screen_h) const;
@@ -177,6 +186,7 @@ private:
     int active_layer_ = 0;
     bool show_grid_ = true;
     bool show_collision_ = false;
+    bool show_reflection_ = false;
     bool rect_filled_ = true;
 
     // Layer visibility
@@ -299,6 +309,7 @@ private:
         std::string name;
         std::vector<int> tiles;
         std::vector<CollisionType> collision;
+        std::vector<uint8_t> reflection;
         int width = 0, height = 0;
     };
     std::vector<Prefab> prefabs_;
