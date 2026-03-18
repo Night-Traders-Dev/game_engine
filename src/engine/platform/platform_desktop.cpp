@@ -10,15 +10,61 @@ namespace eb {
 
 PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height, bool fullscreen)
     : width_(width), height_(height) {
-    // Allow forcing X11 via environment variable (for test tooling on Wayland)
-    if (std::getenv("TW_FORCE_X11")) {
+
+    // ── Platform selection: X11 / Wayland / XWayland ──
+    // Priority:
+    //   1. TW_FORCE_X11 env var → force X11 (for test tooling, XWayland compat)
+    //   2. TW_FORCE_WAYLAND env var → force Wayland
+    //   3. Command line: --x11 or --wayland parsed before engine init
+    //   4. Auto-detect (GLFW default: prefers Wayland if available)
+    //
+    // XWayland: runs X11 apps on a Wayland compositor. GLFW with X11 platform
+    //   works on XWayland automatically. Vulkan gets VK_KHR_xcb_surface.
+
+    const char* force_x11 = std::getenv("TW_FORCE_X11");
+    const char* force_wayland = std::getenv("TW_FORCE_WAYLAND");
+    const char* xdg_session = std::getenv("XDG_SESSION_TYPE");
+
+    if (force_x11 && force_x11[0]) {
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+        std::printf("[Platform] Forced X11 backend (TW_FORCE_X11)\n");
+    } else if (force_wayland && force_wayland[0]) {
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+        std::printf("[Platform] Forced Wayland backend (TW_FORCE_WAYLAND)\n");
+    } else {
+        // Auto-detect: let GLFW choose, but log what we expect
+        if (xdg_session) {
+            std::printf("[Platform] Session type: %s (auto-detect)\n", xdg_session);
+        }
     }
+
     // Disable libdecor on Wayland to avoid fontconfig crash in some distros
     glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
+
     if (!glfwInit()) {
-        throw std::runtime_error("Failed to initialize GLFW");
+        // If auto-detect failed, try falling back to X11 (XWayland)
+        if (!force_x11 && !force_wayland) {
+            std::fprintf(stderr, "[Platform] GLFW init failed, retrying with X11 (XWayland fallback)...\n");
+            glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+            glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
+            if (!glfwInit()) {
+                throw std::runtime_error("Failed to initialize GLFW (both native and X11 fallback)");
+            }
+        } else {
+            throw std::runtime_error("Failed to initialize GLFW");
+        }
     }
+
+    // Log which platform GLFW actually selected
+    int platform = glfwGetPlatform();
+    const char* plat_name = "unknown";
+    switch (platform) {
+        case GLFW_PLATFORM_X11:     plat_name = "X11"; break;
+        case GLFW_PLATFORM_WAYLAND: plat_name = "Wayland"; break;
+        case GLFW_PLATFORM_WIN32:   plat_name = "Win32"; break;
+        default: break;
+    }
+    std::printf("[Platform] GLFW platform: %s\n", plat_name);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -39,8 +85,27 @@ PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height
 
     window_ = glfwCreateWindow(width_, height_, title.c_str(), monitor, nullptr);
     if (!window_) {
-        glfwTerminate();
-        throw std::runtime_error("Failed to create GLFW window");
+        // Fallback: if Wayland window creation failed, try X11 via XWayland
+        if (platform == GLFW_PLATFORM_WAYLAND && !force_wayland) {
+            std::fprintf(stderr, "[Platform] Wayland window failed, falling back to X11 (XWayland)...\n");
+            glfwTerminate();
+            glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+            glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
+            if (!glfwInit()) {
+                throw std::runtime_error("Failed to reinitialize GLFW with X11");
+            }
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+            window_ = glfwCreateWindow(width_, height_, title.c_str(), monitor, nullptr);
+            if (!window_) {
+                glfwTerminate();
+                throw std::runtime_error("Failed to create window (both Wayland and X11)");
+            }
+            std::printf("[Platform] Using X11 via XWayland (fallback)\n");
+        } else {
+            glfwTerminate();
+            throw std::runtime_error("Failed to create GLFW window");
+        }
     }
 
     glfwSetWindowUserPointer(window_, this);
@@ -50,8 +115,9 @@ PlatformDesktop::PlatformDesktop(const std::string& title, int width, int height
     glfwSetCursorPosCallback(window_, cursor_pos_callback);
     glfwSetScrollCallback(window_, scroll_callback);
 
-    std::printf("[Platform] Desktop window created (%dx%d%s)\n",
-                width_, height_, fullscreen ? ", fullscreen" : "");
+    std::printf("[Platform] Desktop window created (%dx%d%s, %s)\n",
+                width_, height_, fullscreen ? ", fullscreen" : "",
+                plat_name);
 }
 
 PlatformDesktop::~PlatformDesktop() {

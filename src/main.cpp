@@ -24,8 +24,33 @@ int main(int argc, char* argv[]) {
     bool run_tests = false;
     bool windowed = false;
     for (int i = 1; i < argc; i++) {
-        if (std::string(argv[i]) == "--test") run_tests = true;
-        if (std::string(argv[i]) == "--windowed") windowed = true;
+        std::string arg = argv[i];
+        if (arg == "--test") run_tests = true;
+        else if (arg == "--windowed") windowed = true;
+        else if (arg == "--x11") {
+            // Force X11 backend (works on XWayland too)
+#ifdef _WIN32
+            // No-op on Windows
+#else
+            setenv("TW_FORCE_X11", "1", 1);
+#endif
+        }
+        else if (arg == "--wayland") {
+#ifndef _WIN32
+            setenv("TW_FORCE_WAYLAND", "1", 1);
+#endif
+        }
+        else if (arg == "--help" || arg == "-h") {
+            std::printf("Twilight Engine\n\n");
+            std::printf("Usage: %s [options]\n\n", argv[0]);
+            std::printf("Options:\n");
+            std::printf("  --test        Run test suite and exit\n");
+            std::printf("  --windowed    Start in windowed mode (default: fullscreen)\n");
+            std::printf("  --x11         Force X11 backend (XWayland on Wayland sessions)\n");
+            std::printf("  --wayland     Force Wayland backend\n");
+            std::printf("  --help        Show this help\n");
+            return 0;
+        }
     }
 
     try {
