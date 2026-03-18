@@ -193,6 +193,255 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                     }
                 }
 
+                if (ImGui::CollapsingHeader("Player & Spawn", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Position & Movement");
+                    ImGui::DragFloat("Pos X", &game.player_pos.x, 1, 0, 10000);
+                    ImGui::DragFloat("Pos Y", &game.player_pos.y, 1, 0, 10000);
+                    ImGui::DragFloat("Speed", &game.player_speed, 1, 10, 500);
+                    if (ImGui::Button("Teleport to Center")) {
+                        game.player_pos = {game.tile_map.world_width() * 0.5f, game.tile_map.world_height() * 0.5f};
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Teleport to Origin")) {
+                        game.player_pos = {3.0f * game.tile_map.tile_size(), 3.0f * game.tile_map.tile_size()};
+                    }
+
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Stats");
+                    ImGui::DragInt("HP", &game.player_hp, 1, 0, 9999);
+                    ImGui::DragInt("HP Max", &game.player_hp_max, 1, 1, 9999);
+                    ImGui::DragInt("ATK", &game.player_atk, 1, 0, 999);
+                    ImGui::DragInt("DEF", &game.player_def, 1, 0, 999);
+                    ImGui::DragInt("Level", &game.player_level, 1, 1, 100);
+                    ImGui::DragInt("XP", &game.player_xp, 1, 0, 99999);
+                    ImGui::DragInt("Gold", &game.gold, 1, 0, 999999);
+                    if (ImGui::Button("Full Heal")) {
+                        game.player_hp = game.player_hp_max;
+                    }
+
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Sprite & Scale");
+                    ImGui::DragFloat("Player Scale", &game.player_sprite_scale, 0.05f, 0.25f, 4.0f, "%.2f");
+                    ImGui::DragFloat("Ally Scale", &game.ally_sprite_scale, 0.05f, 0.25f, 4.0f, "%.2f");
+
+                    // Sprite asset picker — load a new player sprite from file path
+                    static char player_sprite_path[256] = "assets/textures/dean_sprites.png";
+                    ImGui::InputText("Player Sprite", player_sprite_path, sizeof(player_sprite_path));
+                    static int player_grid_w = 158, player_grid_h = 210;
+                    ImGui::InputInt("Grid W##plr", &player_grid_w);
+                    ImGui::SameLine();
+                    ImGui::InputInt("Grid H##plr", &player_grid_h);
+                    if (ImGui::Button("Load Player Sprite")) {
+                        if (game.resource_manager && game.renderer) {
+                            try {
+                                auto* tex = game.resource_manager->load_texture(player_sprite_path);
+                                if (tex && player_grid_w > 0 && player_grid_h > 0) {
+                                    game.dean_atlas = std::make_unique<eb::TextureAtlas>(tex, player_grid_w, player_grid_h);
+                                    int cw = player_grid_w, ch = player_grid_h;
+                                    game.dean_atlas->define_region("idle_down",     0,      0, cw, ch);
+                                    game.dean_atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                                    game.dean_atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                                    game.dean_atlas->define_region("idle_up",       0,     ch, cw, ch);
+                                    game.dean_atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                                    game.dean_atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                                    game.dean_atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                                    game.dean_atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                                    game.dean_atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+                                    game.dean_desc = game.renderer->get_texture_descriptor(*tex);
+                                    set_status("Player sprite loaded: " + std::string(player_sprite_path));
+                                }
+                            } catch (...) { set_status("Failed: " + std::string(player_sprite_path)); }
+                        }
+                    }
+
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Character Stats (S.P.E.C.I.A.L.)");
+                    ImGui::SliderInt("Vitality", &game.player_stats.vitality, 1, 10);
+                    ImGui::SliderInt("Arcana", &game.player_stats.arcana, 1, 10);
+                    ImGui::SliderInt("Agility", &game.player_stats.agility, 1, 10);
+                    ImGui::SliderInt("Tactics", &game.player_stats.tactics, 1, 10);
+                    ImGui::SliderInt("Spirit", &game.player_stats.spirit, 1, 10);
+                    ImGui::SliderInt("Strength", &game.player_stats.strength, 1, 10);
+                    ImGui::Text("Total: %d/%d", game.player_stats.total(), CharacterStats::STARTING_POINTS);
+                    ImGui::Text("HP Bonus: +%d  Crit: %.0f%%  Dodge: %.0f%%",
+                        game.player_stats.hp_bonus(),
+                        game.player_stats.crit_chance() * 100,
+                        game.player_stats.dodge_chance() * 100);
+                }
+
+                if (ImGui::CollapsingHeader("Party")) {
+                    ImGui::Text("Party Size: %d", (int)game.party.size());
+                    ImGui::Separator();
+
+                    // Ally stats (Sam)
+                    ImGui::TextColored(ImVec4(1,0.84f,0.31f,1), "Ally (Sam)");
+                    ImGui::DragInt("Ally HP", &game.sam_hp, 1, 0, 9999);
+                    ImGui::DragInt("Ally HP Max", &game.sam_hp_max, 1, 1, 9999);
+                    ImGui::DragInt("Ally ATK", &game.sam_atk, 1, 0, 999);
+                    if (ImGui::Button("Heal Ally")) game.sam_hp = game.sam_hp_max;
+
+                    // Ally sprite picker
+                    static char ally_sprite_path[256] = "assets/textures/sam_sprites.png";
+                    ImGui::InputText("Ally Sprite", ally_sprite_path, sizeof(ally_sprite_path));
+                    static int ally_grid_w = 0, ally_grid_h = 0;
+                    ImGui::InputInt("Grid W##ally", &ally_grid_w);
+                    ImGui::SameLine();
+                    ImGui::InputInt("Grid H##ally", &ally_grid_h);
+                    ImGui::TextDisabled("(0 = use custom regions from code)");
+                    if (ImGui::Button("Load Ally Sprite")) {
+                        if (game.resource_manager && game.renderer) {
+                            try {
+                                auto* tex = game.resource_manager->load_texture(ally_sprite_path);
+                                if (tex) {
+                                    if (ally_grid_w > 0 && ally_grid_h > 0) {
+                                        game.sam_atlas = std::make_unique<eb::TextureAtlas>(tex, ally_grid_w, ally_grid_h);
+                                        int cw = ally_grid_w, ch = ally_grid_h;
+                                        game.sam_atlas->define_region("idle_down",     0,      0, cw, ch);
+                                        game.sam_atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                                        game.sam_atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                                        game.sam_atlas->define_region("idle_up",       0,     ch, cw, ch);
+                                        game.sam_atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                                        game.sam_atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                                        game.sam_atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                                        game.sam_atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                                        game.sam_atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+                                    } else {
+                                        game.sam_atlas = std::make_unique<eb::TextureAtlas>(tex);
+                                    }
+                                    game.sam_desc = game.renderer->get_texture_descriptor(*tex);
+                                    set_status("Ally sprite loaded: " + std::string(ally_sprite_path));
+                                }
+                            } catch (...) { set_status("Failed: " + std::string(ally_sprite_path)); }
+                        }
+                    }
+
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1,0.84f,0.31f,1), "Ally Stats (S.P.E.C.I.A.L.)");
+                    ImGui::SliderInt("Vitality##ally", &game.ally_stats.vitality, 1, 10);
+                    ImGui::SliderInt("Arcana##ally", &game.ally_stats.arcana, 1, 10);
+                    ImGui::SliderInt("Agility##ally", &game.ally_stats.agility, 1, 10);
+                    ImGui::SliderInt("Tactics##ally", &game.ally_stats.tactics, 1, 10);
+                    ImGui::SliderInt("Spirit##ally", &game.ally_stats.spirit, 1, 10);
+                    ImGui::SliderInt("Strength##ally", &game.ally_stats.strength, 1, 10);
+
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1,0.84f,0.31f,1), "Party Members (%d / %d)", (int)game.party.size(), MAX_PARTY_MEMBERS);
+
+                    // Per-member editor
+                    int remove_idx = -1;
+                    for (int i = 0; i < (int)game.party.size(); i++) {
+                        auto& pm = game.party[i];
+                        ImGui::PushID(i + 8000);
+                        bool open = ImGui::TreeNode(("##pm" + std::to_string(i)).c_str(), "%s", pm.name.c_str());
+                        // Quick remove button on the same line
+                        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.94f, 0.33f, 0.31f, 0.8f));
+                        if (ImGui::SmallButton("X")) remove_idx = i;
+                        ImGui::PopStyleColor();
+
+                        if (open) {
+                            // Name
+                            char nbuf[64];
+                            std::strncpy(nbuf, pm.name.c_str(), sizeof(nbuf) - 1); nbuf[sizeof(nbuf)-1] = 0;
+                            if (ImGui::InputText("Name", nbuf, sizeof(nbuf))) pm.name = nbuf;
+
+                            // Position
+                            ImGui::DragFloat2("Position", &pm.position.x, 1, 0, 10000);
+                            ImGui::DragInt("Direction", &pm.dir, 1, 0, 3);
+                            if (ImGui::Button("Teleport to Player")) pm.position = game.player_pos;
+
+                            // Combat stats
+                            ImGui::Separator();
+                            ImGui::DragInt("HP", &pm.hp, 1, 0, 9999);
+                            ImGui::DragInt("HP Max", &pm.hp_max, 1, 1, 9999);
+                            ImGui::DragInt("ATK", &pm.atk, 1, 0, 999);
+                            ImGui::DragInt("DEF", &pm.def, 1, 0, 999);
+                            if (ImGui::Button("Full Heal##pm")) pm.hp = pm.hp_max;
+
+                            // Scale
+                            ImGui::DragFloat("Scale", &pm.sprite_scale, 0.05f, 0.25f, 4.0f, "%.2f");
+
+                            // Sprite
+                            ImGui::Separator();
+                            char spbuf[256];
+                            std::strncpy(spbuf, pm.sprite_path.c_str(), sizeof(spbuf) - 1); spbuf[sizeof(spbuf)-1] = 0;
+                            if (ImGui::InputText("Sprite Path", spbuf, sizeof(spbuf))) pm.sprite_path = spbuf;
+                            ImGui::InputInt("Grid W", &pm.sprite_grid_w);
+                            ImGui::SameLine();
+                            ImGui::InputInt("Grid H", &pm.sprite_grid_h);
+                            if (ImGui::Button("Load Sprite##pm")) {
+                                if (game.resource_manager && game.renderer && !pm.sprite_path.empty()) {
+                                    try {
+                                        auto* tex = game.resource_manager->load_texture(pm.sprite_path);
+                                        if (tex) {
+                                            // Store in atlas cache
+                                            std::string key = pm.sprite_path;
+                                            if (pm.sprite_grid_w > 0 && pm.sprite_grid_h > 0) {
+                                                char kb[32]; std::snprintf(kb, sizeof(kb), "@%dx%d", pm.sprite_grid_w, pm.sprite_grid_h);
+                                                key += kb;
+                                                game.atlas_cache[key] = std::make_shared<eb::TextureAtlas>(tex, pm.sprite_grid_w, pm.sprite_grid_h);
+                                                int cw = pm.sprite_grid_w, ch = pm.sprite_grid_h;
+                                                auto& atlas = game.atlas_cache[key];
+                                                atlas->define_region("idle_down",     0,      0, cw, ch);
+                                                atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                                                atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                                                atlas->define_region("idle_up",       0,     ch, cw, ch);
+                                                atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                                                atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                                                atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                                                atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                                                atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+                                            } else {
+                                                game.atlas_cache[key] = std::make_shared<eb::TextureAtlas>(tex);
+                                            }
+                                            game.atlas_descs[key] = game.renderer->get_texture_descriptor(*tex);
+                                            set_status("Party sprite loaded: " + pm.sprite_path);
+                                        }
+                                    } catch (...) { set_status("Failed: " + pm.sprite_path); }
+                                }
+                            }
+
+                            ImGui::TreePop();
+                        }
+                        ImGui::PopID();
+                    }
+
+                    // Remove deferred (safe — outside iteration)
+                    if (remove_idx >= 0 && remove_idx < (int)game.party.size()) {
+                        std::string removed_name = game.party[remove_idx].name;
+                        game.party.erase(game.party.begin() + remove_idx);
+                        set_status("Removed party member: " + removed_name);
+                    }
+
+                    // Add new member
+                    if ((int)game.party.size() < MAX_PARTY_MEMBERS) {
+                        ImGui::Separator();
+                        static char new_member_name[64] = "Companion";
+                        ImGui::InputText("New Name##addpm", new_member_name, sizeof(new_member_name));
+                        if (ImGui::Button("+ Add Party Member")) {
+                            PartyMember pm;
+                            pm.name = new_member_name;
+                            pm.position = game.player_pos;
+                            pm.hp = 80; pm.hp_max = 80;
+                            pm.atk = 12; pm.def = 4;
+                            game.party.push_back(pm);
+                            set_status("Added party member: " + std::string(new_member_name));
+                        }
+                    } else {
+                        ImGui::Separator();
+                        ImGui::TextColored(ImVec4(1,0.65f,0.15f,1), "Party full (max %d members)", MAX_PARTY_MEMBERS);
+                    }
+
+                    if (game.party.empty()) {
+                        ImGui::TextDisabled("No party members. Use + Add above or game.json manifest.");
+                    }
+
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1,0.84f,0.31f,1), "Trail");
+                    ImGui::Text("Trail size: %d / %d", game.trail_count, GameState::TRAIL_SIZE);
+                    ImGui::Text("Follow Distance: %d (compile-time)", GameState::FOLLOW_DISTANCE);
+                }
+
                 if (ImGui::CollapsingHeader("Parallax Backgrounds")) {
                     ImGui::Text("Layers: %d", (int)game.parallax_layers.size());
 

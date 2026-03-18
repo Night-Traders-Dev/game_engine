@@ -587,7 +587,15 @@ struct PartyMember {
     int dir = 0, frame = 0;
     float anim_timer = 0.0f;
     bool moving = false;
+    std::string sprite_path;       // Texture path (for atlas cache lookup)
+    int sprite_grid_w = 0;        // 0 = use default/custom regions
+    int sprite_grid_h = 0;
+    int hp = 90, hp_max = 90;
+    int atk = 15, def = 5;
+    float sprite_scale = 1.0f;
 };
+
+static constexpr int MAX_PARTY_MEMBERS = 4;
 
 struct PositionRecord { eb::Vec2 pos; int dir; };
 
