@@ -43,10 +43,11 @@ def load_pipeline():
     except Exception as e:
         print(f"[AI] Warning: LoRA failed ({e}), using base model with prompt engineering")
 
-    pipe = pipe.to("cuda")
-    pipe.enable_attention_slicing()  # Save VRAM
+    # Use model CPU offloading to fit in 8GB VRAM with desktop compositor running
+    pipe.enable_model_cpu_offload()
+    pipe.enable_attention_slicing()
 
-    print(f"[AI] Pipeline ready (GPU: {torch.cuda.get_device_name()}, VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f}GB)")
+    print(f"[AI] Pipeline ready (GPU: {torch.cuda.get_device_name()}, VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB, CPU offload enabled)")
     return pipe
 
 
