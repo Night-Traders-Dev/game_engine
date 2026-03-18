@@ -137,7 +137,35 @@ proc map_init():
         i = i + 1
 
     # ══════════════════════════════════════
-    # NPC Setup
+    # AI Character NPCs (with sprite sheets)
+    # ══════════════════════════════════════
+    # Spawn NPCs using AI-generated sprite sheets (64x64 grid, 3x3 walk cycle)
+    spawn_npc("Knight", 400, 300, 0, false, "assets/textures/ai/knight_sheet.png", 0, 0, 40, 0, 64, 64)
+    spawn_npc("Goblin", 550, 350, 0, true, "assets/textures/ai/goblin_sheet.png", 5, 3, 60, 100, 64, 64)
+    spawn_npc("Skeleton", 650, 400, 0, true, "assets/textures/ai/skeleton_sheet.png", 8, 4, 50, 120, 64, 64)
+
+    # Define walk animations for AI characters (3 frames at 0.2s each)
+    anim_define("Knight", "walk", 3, 0.2, true)
+    anim_define("Goblin", "walk", 3, 0.15, true)
+    anim_define("Skeleton", "walk", 3, 0.18, true)
+
+    # Knight patrols the village
+    npc_add_waypoint("Knight", 400, 300)
+    npc_add_waypoint("Knight", 550, 300)
+    npc_add_waypoint("Knight", 550, 400)
+    npc_add_waypoint("Knight", 400, 400)
+    npc_set_route("Knight", "patrol")
+    npc_start_route("Knight")
+
+    # Goblin wanders aggressively
+    npc_set_hostile("Goblin", true)
+
+    # Skeleton patrols at night
+    npc_set_schedule("Skeleton", 20, 6)
+    npc_set_despawn_day("Skeleton", true)
+
+    # ══════════════════════════════════════
+    # NPC Setup (original)
     # ══════════════════════════════════════
     npc_set_schedule("Merchant", 6, 20)
     npc_set_spawn_point("Merchant", 512, 256)
