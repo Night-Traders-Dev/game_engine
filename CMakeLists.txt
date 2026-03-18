@@ -190,6 +190,9 @@ target_include_directories(tw_engine PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
 )
 
+# Suppress warnings from third-party C files
+set_source_files_properties(src/third_party/tinyfiledialogs.c PROPERTIES COMPILE_FLAGS "-w")
+
 target_link_libraries(tw_engine PUBLIC
     Vulkan::Vulkan
     glm::glm

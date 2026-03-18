@@ -1878,7 +1878,7 @@ void TileEditor::render_imgui(GameState& game) {
             ImGui::PushID(100+i);
             bool act = (i == active_layer_);
             if (act) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f,0.6f,1,1));
-            char lb[8]; std::snprintf(lb,sizeof(lb),"%d",i+1);
+            char lb[16]; std::snprintf(lb,sizeof(lb),"%d",i+1);
             if (ImGui::Button(lb, ImVec2(26,26))) active_layer_ = i;
             if (act) ImGui::PopStyleColor();
             ImGui::SameLine();

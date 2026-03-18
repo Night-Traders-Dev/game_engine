@@ -533,7 +533,7 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                             while (std::fgets(buf, sizeof(buf), pipe)) result += buf;
                             int ret = pclose(pipe);
                             if (ret == 0) {
-                                std::snprintf(blend_status, sizeof(blend_status), "OK: %s (%dx%d)", sprite_output, blend_size, blend_size);
+                                std::snprintf(blend_status, sizeof(blend_status), "OK: %.200s (%dx%d)", sprite_output, blend_size, blend_size);
                                 set_status("Blender import complete: " + std::string(sprite_output));
                                 // Auto-load into atlas cache
                                 if (game.resource_manager && game.renderer) {
@@ -574,7 +574,7 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                             "blender -b -P tools/blender_create_sample.py -- --output \"%s\" 2>/dev/null", blend_path);
                         int ret = std::system(cmd);
                         if (ret == 0) {
-                            std::snprintf(blend_status, sizeof(blend_status), "Sample created: %s", blend_path);
+                            std::snprintf(blend_status, sizeof(blend_status), "Sample created: %.230s", blend_path);
                             set_status("Sample .blend created");
                         } else {
                             std::snprintf(blend_status, sizeof(blend_status), "Failed to create sample");
@@ -618,7 +618,7 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                             while (std::fgets(buf, sizeof(buf), pipe)) result += buf;
                             int ret = pclose(pipe);
                             if (ret == 0) {
-                                std::snprintf(ue_status, sizeof(ue_status), "OK: %s", ue_output);
+                                std::snprintf(ue_status, sizeof(ue_status), "OK: %.248s", ue_output);
                                 set_status("UE import complete");
                                 // Auto-load into atlas cache
                                 if (game.resource_manager && game.renderer) {
