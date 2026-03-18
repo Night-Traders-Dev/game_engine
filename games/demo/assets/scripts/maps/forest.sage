@@ -2,8 +2,6 @@
 # House center, dense tree border, dirt paths, small pond
 
 proc forest_init():
-    set_portal(0, 14, "", 0, 0, "portal")
-    remove_portal(0, 14)
     ui_set("hud_player_bg", "sprite", "flat_blue")
     ui_set("hud_time_bg", "sprite", "flat_blue")
     ui_set("pause_bg", "sprite", "flat_orange")

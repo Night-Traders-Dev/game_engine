@@ -238,15 +238,72 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     auto& H = game.hud;
     float S = H.scale;
 
+    // ══════════════════════════════════════════════════════════════
+    // Color Palette — Material-inspired, consistent with touch UI
+    // ══════════════════════════════════════════════════════════════
+    // Panel BG:    Blue-Grey 900 with high alpha
+    // HP Green:    Gradient from #43A047 to #66BB6A
+    // HP Yellow:   #FFA000 warm amber
+    // HP Red:      #E53935 vivid red
+    // XP Blue:     #42A5F5 light blue
+    // Gold:        #FFD54F amber
+    // Text:        White 90% for primary, 60% for secondary
+    // Borders:     Blue-grey 600 at low alpha
+    // Shadows:     Black 20-30% alpha, 2-3px offset
+
+    eb::Vec4 col_panel_bg    = {0.12f, 0.15f, 0.18f, 0.85f};
+    eb::Vec4 col_panel_lite  = {0.16f, 0.20f, 0.24f, 0.75f};
+    eb::Vec4 col_shadow      = {0.0f, 0.0f, 0.0f, 0.25f};
+    eb::Vec4 col_border      = {0.33f, 0.40f, 0.48f, 0.40f};
+    eb::Vec4 col_border_lite = {0.40f, 0.48f, 0.55f, 0.25f};
+    eb::Vec4 col_text_pri    = {1.0f, 1.0f, 1.0f, 0.92f};
+    eb::Vec4 col_text_sec    = {0.75f, 0.78f, 0.82f, 0.75f};
+    eb::Vec4 col_text_gold   = {1.0f, 0.84f, 0.31f, 1.0f};
+    eb::Vec4 col_bar_bg      = {0.10f, 0.10f, 0.14f, 0.90f};
+    eb::Vec4 col_bar_shine   = {1.0f, 1.0f, 1.0f, 0.08f};
+
+    // Helper: draw a panel with shadow + border
+    auto draw_panel = [&](float x, float y, float w, float h) {
+        batch.set_texture(game.white_desc);
+        // Shadow
+        batch.draw_quad({x + 2*S, y + 3*S}, {w, h}, {0,0}, {1,1}, col_shadow);
+        // Try atlas panel first, then fallback
+        draw_ui_region(batch, game, "panel_hud_wide", x, y, w, h);
+        // Top highlight edge
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({x + 1, y}, {w - 2, 1.5f * S}, {0,0}, {1,1}, col_border_lite);
+        // Bottom border
+        batch.draw_quad({x, y + h - 1}, {w, 1.0f}, {0,0}, {1,1}, col_border);
+    };
+
+    // Helper: draw a bar with background, fill, shine, and border
+    auto draw_bar = [&](float x, float y, float w, float h, float pct, eb::Vec4 fill_col) {
+        batch.set_texture(game.white_desc);
+        // Bar background
+        batch.draw_quad({x, y}, {w, h}, {0,0}, {1,1}, col_bar_bg);
+        // Fill
+        float fw = w * std::max(0.0f, std::min(1.0f, pct));
+        if (fw > 0) {
+            batch.draw_quad({x, y}, {fw, h}, {0,0}, {1,1}, fill_col);
+            // Top shine (subtle gradient effect)
+            batch.draw_quad({x, y}, {fw, h * 0.35f}, {0,0}, {1,1}, col_bar_shine);
+        }
+        // Border
+        batch.draw_quad({x, y}, {w, 1}, {0,0}, {1,1}, col_border);
+        batch.draw_quad({x, y + h - 1}, {w, 1}, {0,0}, {1,1}, col_border);
+        batch.draw_quad({x, y}, {1, h}, {0,0}, {1,1}, col_border);
+        batch.draw_quad({x + w - 1, y}, {1, h}, {0,0}, {1,1}, col_border);
+    };
+
     // ── Player Stats Panel (top-left) ──
     if (H.show_player) {
         float hx = H.player_x, hy = H.player_y;
         float hw = H.player_w * S, hh = H.player_h * S;
-        draw_ui_region(batch, game, "panel_hud_wide", hx, hy, hw, hh);
+        draw_panel(hx, hy, hw, hh);
 
         // Name + Level
         char ns[64]; std::snprintf(ns, sizeof(ns), "Mage  Lv.%d", game.player_level);
-        text.draw_text(batch, game.font_desc, ns, {hx + 14*S, hy + 10*S}, {1,1,1,1}, H.text_scale * S);
+        text.draw_text(batch, game.font_desc, ns, {hx + 14*S, hy + 10*S}, col_text_pri, H.text_scale * S);
 
         // HP bar with heart icon
         float icon_sz = 18 * S;
@@ -254,36 +311,38 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         float hp_pct = game.player_hp_max > 0 ? std::max(0.0f, (float)game.player_hp / game.player_hp_max) : 0.0f;
         float bx = hx + 14*S + icon_sz + 4*S, by = hy + 36*S;
         float bw = H.hp_bar_w * S, bh = H.hp_bar_h * S;
-        batch.set_texture(game.white_desc);
-        batch.draw_quad({bx, by}, {bw, bh}, {0,0}, {1,1}, {0.15f, 0.15f, 0.2f, 0.9f});
-        eb::Vec4 hc = hp_pct > 0.5f ? eb::Vec4{0.2f, 0.8f, 0.2f, 1}
-                    : hp_pct > 0.25f ? eb::Vec4{0.9f, 0.7f, 0.1f, 1}
-                    : eb::Vec4{0.9f, 0.2f, 0.2f, 1};
-        batch.draw_quad({bx, by}, {bw * hp_pct, bh}, {0,0}, {1,1}, hc);
+        // HP color transitions: green → amber → red
+        eb::Vec4 hc = hp_pct > 0.5f  ? eb::Vec4{0.26f, 0.63f, 0.28f, 1.0f}   // Green 700
+                    : hp_pct > 0.25f ? eb::Vec4{1.0f, 0.63f, 0.0f, 1.0f}      // Amber 800
+                    :                  eb::Vec4{0.90f, 0.22f, 0.21f, 1.0f};    // Red 700
+        draw_bar(bx, by, bw, bh, hp_pct, hc);
         char hs[32]; std::snprintf(hs, sizeof(hs), "%d/%d", game.player_hp, game.player_hp_max);
-        text.draw_text(batch, game.font_desc, hs, {bx + bw + 8*S, by - 1}, {1,1,1,1}, 0.65f * S);
+        text.draw_text(batch, game.font_desc, hs, {bx + bw + 8*S, by - 1}, col_text_sec, 0.65f * S);
 
         // Gold with coin icon
         draw_ui_icon(batch, game, "icon_coin", hx + hw - 70*S, hy + 10*S, icon_sz);
         char gs[32]; std::snprintf(gs, sizeof(gs), "%d", game.gold);
-        text.draw_text(batch, game.font_desc, gs, {hx + hw - 48*S, hy + 12*S}, {1.0f, 0.95f, 0.3f, 1}, 0.7f * S);
+        text.draw_text(batch, game.font_desc, gs, {hx + hw - 48*S, hy + 12*S}, col_text_gold, 0.7f * S);
 
         // ── Survival Bars (below player panel) ──
         if (game.survival.enabled && H.show_survival) {
-            float sy = hy + hh + 4*S;
-            float bar_w = H.surv_bar_w * S, bar_h = H.surv_bar_h * S, bar_pad = 3*S;
+            float sy = hy + hh + 6*S;
+            float bar_w = H.surv_bar_w * S, bar_h = H.surv_bar_h * S, bar_pad = 4*S;
+            float label_w = 14 * S;
 
-            batch.set_texture(game.white_desc);
-            batch.draw_quad({hx, sy}, {bar_w, bar_h}, {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.7f});
-            batch.draw_quad({hx, sy}, {bar_w * (game.survival.hunger / 100.0f), bar_h}, {0,0}, {1,1}, {0.85f, 0.55f, 0.15f, 0.9f});
+            // Hunger (orange)
+            text.draw_text(batch, game.font_desc, "H", {hx, sy + 1}, {0.85f, 0.55f, 0.15f, 0.8f}, 0.4f * S);
+            draw_bar(hx + label_w, sy, bar_w - label_w, bar_h, game.survival.hunger / 100.0f, {0.85f, 0.55f, 0.15f, 0.9f});
 
+            // Thirst (blue)
             float ty2 = sy + bar_h + bar_pad;
-            batch.draw_quad({hx, ty2}, {bar_w, bar_h}, {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.7f});
-            batch.draw_quad({hx, ty2}, {bar_w * (game.survival.thirst / 100.0f), bar_h}, {0,0}, {1,1}, {0.2f, 0.5f, 0.9f, 0.9f});
+            text.draw_text(batch, game.font_desc, "T", {hx, ty2 + 1}, {0.26f, 0.54f, 0.90f, 0.8f}, 0.4f * S);
+            draw_bar(hx + label_w, ty2, bar_w - label_w, bar_h, game.survival.thirst / 100.0f, {0.26f, 0.54f, 0.90f, 0.9f});
 
+            // Energy (yellow)
             float ey = ty2 + bar_h + bar_pad;
-            batch.draw_quad({hx, ey}, {bar_w, bar_h}, {0,0}, {1,1}, {0.15f, 0.15f, 0.15f, 0.7f});
-            batch.draw_quad({hx, ey}, {bar_w * (game.survival.energy / 100.0f), bar_h}, {0,0}, {1,1}, {0.9f, 0.8f, 0.2f, 0.9f});
+            text.draw_text(batch, game.font_desc, "E", {hx, ey + 1}, {0.90f, 0.80f, 0.20f, 0.8f}, 0.4f * S);
+            draw_bar(hx + label_w, ey, bar_w - label_w, bar_h, game.survival.energy / 100.0f, {0.90f, 0.80f, 0.20f, 0.9f});
         }
     }
 
@@ -291,14 +350,14 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
     if (H.show_time) {
         float tw = H.time_w * S, th = H.time_h * S;
         float tx = screen_w - tw - 8, ty = 8;
-        draw_ui_region(batch, game, "panel_hud_sq", tx, ty, tw, th);
+        draw_panel(tx, ty, tw, th);
 
         int hour = (int)game.day_night.game_hours;
         int minute = (int)((game.day_night.game_hours - hour) * 60.0f);
         bool pm = hour >= 12;
         int dh = hour % 12; if (dh == 0) dh = 12;
         char time_str[16]; std::snprintf(time_str, sizeof(time_str), "%d:%02d %s", dh, minute, pm ? "PM" : "AM");
-        text.draw_text(batch, game.font_desc, time_str, {tx + 12*S, ty + 10*S}, {1,1,0.9f,1}, H.time_text_scale * S);
+        text.draw_text(batch, game.font_desc, time_str, {tx + 12*S, ty + 10*S}, col_text_pri, H.time_text_scale * S);
 
         const char* period; eb::Vec4 pc;
         if (hour >= 6 && hour < 10)       { period = "Morning"; pc = {1.0f, 0.85f, 0.4f, 1}; }
@@ -308,8 +367,9 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         else                               { period = "Night";   pc = {0.4f, 0.5f, 0.9f, 1}; }
         text.draw_text(batch, game.font_desc, period, {tx + 12*S, ty + 34*S}, pc, 0.65f * S);
 
+        // Sun/moon icon (fantasy icons: 281=sun, 280=moon)
         float ico = 20 * S;
-        draw_ui_icon(batch, game, (hour >= 6 && hour < 18) ? "icon_star" : "icon_gem_blue",
+        draw_ui_icon(batch, game, (hour >= 6 && hour < 18) ? "fi_281" : "fi_280",
                      tx + tw - ico - 8*S, ty + 10*S, ico);
     }
 
@@ -322,24 +382,35 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         bool sel_mode = game.hud.inv_open;
 
         float strip_w = max_slots * (slot_w + pad) + pad;
+
+        // Strip shadow + background
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({ix - 3 + 2*S, iy_base - 3 + 3*S}, {strip_w + 6, slot_h + 8}, {0,0}, {1,1}, col_shadow);
         draw_ui_region(batch, game, "panel_dark", ix - 3, iy_base - 3, strip_w + 6, slot_h + 8);
 
         // Hint text above the bar
         if (sel_mode) {
+#ifdef EB_ANDROID
+            const char* hint = "[A] Use   [B] Close";
+#else
             const char* hint = "[Left/Right] Select  [Z] Use  [X] Close";
+#endif
             float hint_scale = 0.5f * S;
             auto hsz = text.measure_text(hint, hint_scale);
             batch.set_texture(game.white_desc);
             batch.draw_quad({ix, iy_base - 22*S}, {hsz.x + 12, hsz.y + 6},
-                            {0,0}, {1,1}, {0, 0, 0, 0.7f});
+                            {0,0}, {1,1}, {0.08f, 0.10f, 0.14f, 0.80f});
             text.draw_text(batch, game.font_desc, hint,
-                           {ix + 6, iy_base - 20*S}, {0.7f, 0.8f, 1.0f, 0.9f}, hint_scale);
+                           {ix + 6, iy_base - 20*S}, {0.55f, 0.70f, 0.90f, 0.90f}, hint_scale);
         } else if (game.inventory.items.size() > 0) {
-            // Show "X: Items" hint
+#ifdef EB_ANDROID
+            const char* open_hint = "[B] Items";
+#else
             const char* open_hint = "[X] Items";
+#endif
             float oh_scale = 0.45f * S;
             text.draw_text(batch, game.font_desc, open_hint,
-                           {ix, iy_base - 14*S}, {0.5f, 0.5f, 0.55f, 0.6f}, oh_scale);
+                           {ix, iy_base - 14*S}, {0.45f, 0.50f, 0.55f, 0.55f}, oh_scale);
         }
 
         for (int i = 0; i < max_slots; i++) {
@@ -347,26 +418,26 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             float sx = ix + i * (slot_w + pad) + pad;
             bool selected = sel_mode && i == game.hud.inv_selected;
 
-            // Slot background
             batch.set_texture(game.white_desc);
+
             if (selected) {
-                // Bright highlight for selected slot
-                batch.draw_quad({sx - 2, iy_base - 2}, {slot_w + 4, slot_h + 4},
-                                {0,0}, {1,1}, {1.0f, 0.9f, 0.3f, 0.35f});
-                batch.draw_quad({sx - 2, iy_base - 2}, {slot_w + 4, 2.5f},
-                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
-                batch.draw_quad({sx - 2, iy_base + slot_h}, {slot_w + 4, 2.5f},
-                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
-                batch.draw_quad({sx - 2, iy_base - 2}, {2.5f, slot_h + 4},
-                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
-                batch.draw_quad({sx + slot_w, iy_base - 2}, {2.5f, slot_h + 4},
-                                {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.9f});
+                // Outer glow
+                batch.draw_quad({sx - 3, iy_base - 3}, {slot_w + 6, slot_h + 6},
+                                {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.20f});
+                // Selection border (all 4 sides)
+                float bw = 2.0f * S;
+                batch.draw_quad({sx - bw, iy_base - bw}, {slot_w + bw*2, bw}, {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.85f});
+                batch.draw_quad({sx - bw, iy_base + slot_h}, {slot_w + bw*2, bw}, {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.85f});
+                batch.draw_quad({sx - bw, iy_base}, {bw, slot_h}, {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.85f});
+                batch.draw_quad({sx + slot_w, iy_base}, {bw, slot_h}, {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.85f});
             }
-            batch.draw_quad({sx, iy_base}, {slot_w, slot_h}, {0,0}, {1,1},
-                            selected ? eb::Vec4{0.15f, 0.15f, 0.25f, 0.9f}
-                                     : eb::Vec4{0.1f, 0.1f, 0.18f, 0.8f});
-            batch.draw_quad({sx, iy_base}, {slot_w, 1.5f}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.6f});
-            batch.draw_quad({sx, iy_base + slot_h - 1.5f}, {slot_w, 1.5f}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.6f});
+
+            // Slot fill
+            eb::Vec4 slot_bg = selected ? eb::Vec4{0.14f, 0.16f, 0.24f, 0.92f}
+                                        : eb::Vec4{0.10f, 0.11f, 0.16f, 0.85f};
+            batch.draw_quad({sx, iy_base}, {slot_w, slot_h}, {0,0}, {1,1}, slot_bg);
+            // Top edge highlight
+            batch.draw_quad({sx, iy_base}, {slot_w, 1.0f}, {0,0}, {1,1}, col_border_lite);
 
             // Item icon
             const char* icon_name = "icon_gem_blue";
@@ -379,12 +450,17 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             float icon_sz = slot_w * 0.55f;
             draw_ui_icon(batch, game, icon_name, sx + (slot_w - icon_sz) * 0.5f, iy_base + 4*S, icon_sz);
 
-            // Quantity badge
+            // Quantity badge (bottom-right corner, semi-transparent bg)
             if (item.quantity > 1) {
                 char qty[8]; std::snprintf(qty, sizeof(qty), "%d", item.quantity);
+                float qs = 0.48f * S;
+                auto qsz = text.measure_text(qty, qs);
+                batch.set_texture(game.white_desc);
+                batch.draw_quad({sx + slot_w - qsz.x - 6, iy_base + slot_h - qsz.y - 4},
+                                {qsz.x + 4, qsz.y + 2}, {0,0}, {1,1}, {0, 0, 0, 0.55f});
                 text.draw_text(batch, game.font_desc, qty,
-                               {sx + slot_w - 14*S, iy_base + slot_h - 16*S},
-                               {1, 1, 1, 0.9f}, 0.5f * S);
+                               {sx + slot_w - qsz.x - 4, iy_base + slot_h - qsz.y - 3},
+                               col_text_pri, qs);
             }
         }
 
@@ -392,7 +468,7 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         if ((int)game.inventory.items.size() > max_slots) {
             float dx = ix + max_slots * (slot_w + pad) + pad + 4;
             text.draw_text(batch, game.font_desc, "...", {dx, iy_base + slot_h * 0.3f},
-                           {0.6f, 0.6f, 0.6f, 0.8f}, 0.6f * S);
+                           col_text_sec, 0.6f * S);
         }
 
         // Show selected item name + description below the bar
@@ -401,17 +477,19 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             float desc_y = iy_base + slot_h + 8*S;
             float desc_w = strip_w + 6;
 
-            // Description panel
-            draw_ui_region(batch, game, "panel_mini", ix - 3, desc_y, desc_w, 36*S);
+            // Description shadow + panel
+            batch.set_texture(game.white_desc);
+            batch.draw_quad({ix - 3 + 2*S, desc_y + 2*S}, {desc_w, 38*S}, {0,0}, {1,1}, col_shadow);
+            draw_ui_region(batch, game, "panel_mini", ix - 3, desc_y, desc_w, 38*S);
 
-            // Item name (bright)
+            // Item name (bright, warm)
             text.draw_text(batch, game.font_desc, sel_item.name,
-                           {ix + 6, desc_y + 4*S}, {1, 1, 0.9f, 1}, 0.7f * S);
+                           {ix + 8, desc_y + 5*S}, {1.0f, 0.95f, 0.80f, 1.0f}, 0.7f * S);
 
-            // Description (dim)
+            // Description (subdued)
             if (!sel_item.description.empty()) {
                 text.draw_text(batch, game.font_desc, sel_item.description,
-                               {ix + 6, desc_y + 20*S}, {0.7f, 0.7f, 0.65f, 0.9f}, 0.5f * S);
+                               {ix + 8, desc_y + 22*S}, col_text_sec, 0.5f * S);
             }
         }
     }
@@ -428,66 +506,72 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
 
         float mm_x = screen_w - mm_w - 10;
         float mm_y = screen_h - mm_h - 10;
-        float px_w = mm_w / mw;  // Pixels per tile
+        float px_w = mm_w / mw;
         float px_h = mm_h / mh;
 
-        // Background panel
+        // Shadow + background panel
+        batch.set_texture(game.white_desc);
+        batch.draw_quad({mm_x - 4 + 2*S, mm_y - 4 + 3*S}, {mm_w + 8, mm_h + 8}, {0,0}, {1,1}, col_shadow);
         draw_ui_region(batch, game, "panel_hud_sq", mm_x - 4, mm_y - 4, mm_w + 8, mm_h + 8);
 
-        // Draw tile colors (every Nth tile for performance on large maps)
+        // Draw tile colors
         batch.set_texture(game.white_desc);
-        int step = std::max(1, (int)mw / 80);  // Limit to ~80 samples across
+        int step = std::max(1, (int)mw / 80);
         for (int y = 0; y < (int)mh; y += step) {
             for (int x = 0; x < (int)mw; x += step) {
                 int t = game.tile_map.tile_at(0, x, y);
                 eb::Vec4 col;
                 if (t == 0)                          col = {0.08f, 0.08f, 0.12f, 1};
-                else if (t >= 42 && t <= 50)         col = {0.12f, 0.24f, 0.47f, 1}; // Water
-                else if (t >= 25 && t <= 36)         col = {0.31f, 0.31f, 0.31f, 1}; // Roads
-                else if (t >= 5 && t <= 8)           col = {0.47f, 0.35f, 0.24f, 1}; // Dirt
-                else if (t >= 19 && t <= 24)         col = {0.20f, 0.12f, 0.16f, 1}; // Dark
-                else                                 col = {0.20f, 0.39f, 0.16f, 1}; // Grass
+                else if (t >= 42 && t <= 50)         col = {0.15f, 0.30f, 0.55f, 1};
+                else if (t >= 25 && t <= 36)         col = {0.35f, 0.35f, 0.38f, 1};
+                else if (t >= 5 && t <= 8)           col = {0.50f, 0.38f, 0.26f, 1};
+                else if (t >= 19 && t <= 24)         col = {0.22f, 0.14f, 0.18f, 1};
+                else                                 col = {0.22f, 0.42f, 0.18f, 1};
                 if (game.tile_map.collision_at(x, y) == eb::CollisionType::Solid && t > 0)
                     col = {col.x * 0.5f, col.y * 0.5f, col.z * 0.5f, 1};
-
                 batch.draw_quad({mm_x + x * px_w, mm_y + y * px_h},
                                 {px_w * step + 0.5f, px_h * step + 0.5f}, {0,0}, {1,1}, col);
             }
         }
 
-        // Player dot (yellow, pulsing)
+        // Player dot (amber glow + white center)
         float ts = (float)game.tile_map.tile_size();
         float pp_x = mm_x + (game.player_pos.x / ts) * px_w;
         float pp_y = mm_y + (game.player_pos.y / ts) * px_h;
         float dot_sz = 4.0f * S;
-        float pulse = 0.8f + 0.2f * std::sin(game.game_time * 5.0f);
+        float pulse = 0.75f + 0.25f * std::sin(game.game_time * 4.0f);
+        // Outer glow
+        batch.draw_quad({pp_x - dot_sz, pp_y - dot_sz}, {dot_sz * 2, dot_sz * 2},
+                        {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.25f * pulse});
+        // Inner dot
         batch.draw_quad({pp_x - dot_sz*0.5f, pp_y - dot_sz*0.5f}, {dot_sz, dot_sz},
-                        {0,0}, {1,1}, {1.0f, 1.0f, 0.3f, pulse});
+                        {0,0}, {1,1}, {1.0f, 1.0f, 0.85f, pulse});
 
-        // NPC dots
+        // NPC dots (colored by type)
         for (auto& npc : game.npcs) {
             if (!npc.schedule.currently_visible) continue;
             float np_x = mm_x + (npc.position.x / ts) * px_w;
             float np_y = mm_y + (npc.position.y / ts) * px_h;
-            float nd = 2.5f * S;
-            eb::Vec4 nc = npc.hostile ? eb::Vec4{1.0f, 0.2f, 0.2f, 0.9f}
-                                      : eb::Vec4{0.2f, 0.8f, 1.0f, 0.7f};
+            float nd = 3.0f * S;
+            eb::Vec4 nc = npc.hostile ? eb::Vec4{0.94f, 0.33f, 0.31f, 0.90f}   // Red 400
+                                      : eb::Vec4{0.31f, 0.76f, 0.97f, 0.75f};  // Light Blue 300
             batch.draw_quad({np_x - nd*0.5f, np_y - nd*0.5f}, {nd, nd}, {0,0}, {1,1}, nc);
         }
 
-        // Item drop dots (gold)
+        // Item drop dots (gold glow)
         for (auto& drop : game.world_drops) {
             float dp_x = mm_x + (drop.position.x / ts) * px_w;
             float dp_y = mm_y + (drop.position.y / ts) * px_h;
-            batch.draw_quad({dp_x - 1.5f, dp_y - 1.5f}, {3, 3},
-                            {0,0}, {1,1}, {1.0f, 0.85f, 0.2f, 0.8f});
+            batch.draw_quad({dp_x - 2, dp_y - 2}, {4, 4},
+                            {0,0}, {1,1}, {1.0f, 0.84f, 0.31f, 0.70f});
         }
 
-        // Border
-        batch.draw_quad({mm_x, mm_y}, {mm_w, 1}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
-        batch.draw_quad({mm_x, mm_y + mm_h - 1}, {mm_w, 1}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
-        batch.draw_quad({mm_x, mm_y}, {1, mm_h}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
-        batch.draw_quad({mm_x + mm_w - 1, mm_y}, {1, mm_h}, {0,0}, {1,1}, {0.4f, 0.4f, 0.55f, 0.7f});
+        // Border (2px, subtle blue-grey)
+        float bw = 1.5f;
+        batch.draw_quad({mm_x, mm_y}, {mm_w, bw}, {0,0}, {1,1}, col_border);
+        batch.draw_quad({mm_x, mm_y + mm_h - bw}, {mm_w, bw}, {0,0}, {1,1}, col_border);
+        batch.draw_quad({mm_x, mm_y}, {bw, mm_h}, {0,0}, {1,1}, col_border);
+        batch.draw_quad({mm_x + mm_w - bw, mm_y}, {bw, mm_h}, {0,0}, {1,1}, col_border);
     }
 }
 
@@ -989,12 +1073,12 @@ static void sync_hud_values(GameState& game) {
         }
     } // end if (!editor_active) block
 
-    // HP bar color (green → yellow → red)
+    // HP bar color (Material Green 700 → Amber 800 → Red 700)
     if (auto* b = find_bar("hud_hp")) {
         float pct = b->max_value > 0 ? b->value / b->max_value : 0;
-        if (pct > 0.5f) b->color = {0.2f, 0.8f, 0.2f, 1};
-        else if (pct > 0.25f) b->color = {0.9f, 0.7f, 0.1f, 1};
-        else b->color = {0.9f, 0.2f, 0.2f, 1};
+        if (pct > 0.5f)       b->color = {0.26f, 0.63f, 0.28f, 1};  // Green 700
+        else if (pct > 0.25f) b->color = {1.0f, 0.63f, 0.0f, 1};    // Amber 800
+        else                  b->color = {0.90f, 0.22f, 0.21f, 1};   // Red 700
     }
 
     // ── Pause menu sync ──
@@ -1017,12 +1101,15 @@ static void sync_hud_values(GameState& game) {
         set_vis(pause_item_ids[i], show_pause);
         set_vis(pause_icon_ids[i], show_pause);
 
-        // Highlight selected item
+        // Highlight selected item — Material palette
         if (auto* l = find_label(pause_item_ids[i])) {
             if (i == game.pause_selection && show_pause) {
-                l->color = {1.0f, 1.0f, 0.9f, 1.0f};
+                // Quit stays red-tinted even when selected
+                if (i == 5) l->color = {1.0f, 0.48f, 0.45f, 1.0f};   // Red 300 — bright red
+                else        l->color = {1.0f, 0.84f, 0.31f, 1.0f};   // Amber 300 — warm highlight
             } else {
-                l->color = {0.85f, 0.82f, 0.75f, 1.0f};
+                if (i == 5) l->color = {0.94f, 0.33f, 0.31f, 0.70f}; // Red 400 — dim destructive
+                else        l->color = {0.78f, 0.82f, 0.86f, 0.85f}; // Blue-Grey 200 — subdued
             }
         }
     }
@@ -1047,7 +1134,7 @@ static void sync_hud_values(GameState& game) {
         if (!level_title_created) {
             float cx = game.hud.screen_w / 2.0f;
             float cy = game.hud.screen_h / 2.0f;
-            game.script_ui.labels.push_back({"lvl_sel_title", "SELECT LEVEL", {cx - 80, cy - 110}, {1, 0.9f, 0.5f, 1}, 1.2f, true});
+            game.script_ui.labels.push_back({"lvl_sel_title", "SELECT LEVEL", {cx - 80, cy - 110}, {1.0f, 0.84f, 0.31f, 1}, 1.2f, true});
             level_title_created = true;
         }
         set_vis("lvl_sel_title", true);
@@ -1074,8 +1161,8 @@ static void sync_hud_values(GameState& game) {
                 display += "  (current)";
 
             eb::Vec4 color = (i == game.level_select_cursor)
-                ? eb::Vec4{1.0f, 1.0f, 0.9f, 1.0f}
-                : eb::Vec4{0.85f, 0.82f, 0.75f, 1.0f};
+                ? eb::Vec4{1.0f, 0.84f, 0.31f, 1.0f}   // Amber 300 — selected
+                : eb::Vec4{0.78f, 0.82f, 0.86f, 0.85f}; // Blue-Grey 200 — unselected
             labels.push_back({lid, display, {cx - 60, cy - 70 + i * 36.0f}, color, 1.0f, true});
         }
     } else {
@@ -1098,7 +1185,7 @@ static void sync_hud_values(GameState& game) {
         if (paused && game.settings_open) {
             float cx = game.hud.screen_w / 2.0f;
             float cy = game.hud.screen_h / 2.0f;
-            labels.push_back({"sett_title", "SETTINGS", {cx - 60, cy - 110}, {1, 0.9f, 0.5f, 1}, 1.2f, true});
+            labels.push_back({"sett_title", "SETTINGS", {cx - 60, cy - 110}, {1.0f, 0.84f, 0.31f, 1}, 1.2f, true});
 
             static const char* setting_names[] = {"Music Volume", "SFX Volume", "Text Speed", "Back"};
             char val_buf[32];
@@ -1111,13 +1198,13 @@ static void sync_hud_values(GameState& game) {
                     display += std::string(": ") + speeds[game.settings.text_speed];
                 }
                 eb::Vec4 color = (i == game.settings_cursor)
-                    ? eb::Vec4{1.0f, 1.0f, 0.9f, 1.0f}
-                    : eb::Vec4{0.85f, 0.82f, 0.75f, 1.0f};
+                    ? eb::Vec4{1.0f, 0.84f, 0.31f, 1.0f}   // Amber 300
+                    : eb::Vec4{0.78f, 0.82f, 0.86f, 0.85f}; // Blue-Grey 200
                 std::string lid = "sett_" + std::to_string(i);
                 labels.push_back({lid, display, {cx - 80, cy - 70 + i * 36.0f}, color, 1.0f, true});
             }
             // Hint
-            labels.push_back({"sett_hint", "Left/Right to adjust", {cx - 70, cy + 80}, {0.6f, 0.6f, 0.7f, 0.8f}, 0.6f, true});
+            labels.push_back({"sett_hint", "Left/Right to adjust", {cx - 70, cy + 80}, {0.45f, 0.55f, 0.65f, 0.70f}, 0.6f, true});
         }
     }
 }
@@ -1149,21 +1236,26 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
         float dy = game.player_pos.y - npc.position.y;
         float dist = std::sqrt(dx*dx + dy*dy);
         if (dist < npc.interact_radius * 1.5f) {
-            // Position label directly above the NPC sprite
             float label_x = npc.position.x;
-            float label_y = npc.position.y - 72.0f; // Just above the 64px sprite
+            float label_y = npc.position.y - 72.0f;
 
             float ns = 1.1f;
             auto name_size = text.measure_text(npc.name, ns);
-            float lp = 8.0f;
+            float lp = 10.0f;
+            float lw = name_size.x + lp * 2, lh = name_size.y + lp;
+            float lx = label_x - name_size.x * 0.5f - lp;
+            float ly = label_y - lp * 0.5f;
+
             batch.set_texture(game.white_desc);
-            batch.draw_quad({label_x - name_size.x*0.5f - lp, label_y - lp*0.5f},
-                {name_size.x + lp*2, name_size.y + lp}, {0,0},{1,1}, {0.05f, 0.05f, 0.12f, 0.75f});
-            // Border
-            batch.draw_quad({label_x - name_size.x*0.5f - lp, label_y - lp*0.5f},
-                {name_size.x + lp*2, 1.5f}, {0,0},{1,1}, {0.5f, 0.5f, 0.7f, 0.6f});
+            // Shadow
+            batch.draw_quad({lx + 2, ly + 3}, {lw, lh}, {0,0},{1,1}, {0, 0, 0, 0.30f});
+            // Background — Blue-Grey 900
+            batch.draw_quad({lx, ly}, {lw, lh}, {0,0},{1,1}, {0.12f, 0.15f, 0.18f, 0.82f});
+            // Top highlight
+            batch.draw_quad({lx + 1, ly}, {lw - 2, 1.5f}, {0,0},{1,1}, {0.40f, 0.48f, 0.55f, 0.30f});
+            // Name text — warm white
             text.draw_text(batch, game.font_desc, npc.name,
-                {label_x - name_size.x*0.5f, label_y}, {1, 1, 0.5f, 1}, ns);
+                {label_x - name_size.x * 0.5f, label_y}, {1.0f, 0.95f, 0.80f, 1.0f}, ns);
 
             if (dist < npc.interact_radius) {
                 const char* hint_text =
@@ -1174,12 +1266,20 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
 #endif
                 float hs = 0.85f;
                 auto hint_size = text.measure_text(hint_text, hs);
-                float hy = label_y + name_size.y + 6.0f;
+                float hy = label_y + name_size.y + 8.0f;
+                float hw = hint_size.x + 14, hh = hint_size.y + 8;
+                float hx = label_x - hint_size.x * 0.5f - 7;
+
                 batch.set_texture(game.white_desc);
-                batch.draw_quad({label_x - hint_size.x*0.5f - 6, hy - 3},
-                    {hint_size.x + 12, hint_size.y + 6}, {0,0},{1,1}, {0.05f, 0.05f, 0.12f, 0.65f});
+                // Shadow
+                batch.draw_quad({hx + 2, hy - 3 + 2}, {hw, hh}, {0,0},{1,1}, {0, 0, 0, 0.25f});
+                // Background
+                batch.draw_quad({hx, hy - 3}, {hw, hh}, {0,0},{1,1}, {0.12f, 0.15f, 0.20f, 0.78f});
+                // Left accent bar — Light Blue 400
+                batch.draw_quad({hx, hy - 3}, {2.5f, hh}, {0,0},{1,1}, {0.31f, 0.76f, 0.97f, 0.70f});
+                // Text — Light Blue 200
                 text.draw_text(batch, game.font_desc, hint_text,
-                    {label_x - hint_size.x*0.5f, hy}, {0.8f, 0.9f, 1.0f, 0.95f}, hs);
+                    {label_x - hint_size.x * 0.5f, hy}, {0.70f, 0.87f, 1.0f, 0.95f}, hs);
             }
         }
     }
@@ -1202,7 +1302,14 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
     // ── Pause Menu dim overlay (drawn BEFORE script UI so menu appears on top) ──
     if (game.paused) {
         batch.set_texture(game.white_desc);
-        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0, 0, 0, 0.65f});
+        // Base dim — dark blue-black for cinematic feel
+        batch.draw_quad({0, 0}, {sw, sh}, {0,0}, {1,1}, {0.02f, 0.03f, 0.06f, 0.70f});
+        // Subtle vignette darkening at edges
+        float vig = sh * 0.3f;
+        batch.draw_quad({0, 0}, {sw, vig}, {0,0}, {1,1}, {0, 0, 0, 0.15f});
+        batch.draw_quad({0, sh - vig}, {sw, vig}, {0,0}, {1,1}, {0, 0, 0, 0.15f});
+        batch.draw_quad({0, 0}, {sw * 0.15f, sh}, {0,0}, {1,1}, {0, 0, 0, 0.10f});
+        batch.draw_quad({sw * 0.85f, 0}, {sw * 0.15f, sh}, {0,0}, {1,1}, {0, 0, 0, 0.10f});
     }
 
     // ── Script-driven UI elements (layer-sorted) ──
@@ -1536,17 +1643,36 @@ void render_game_ui(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer& t
 
     // ── Debug Overlay (F1) ──
     if (game.show_debug_overlay) {
+        float dx = sw - 210, dy = 4;
+        float dw = 206, dh = 100;
         batch.set_texture(game.white_desc);
-        batch.draw_quad({sw - 200, 0}, {200, 80}, {0,0}, {1,1}, {0, 0, 0, 0.7f});
+        // Shadow
+        batch.draw_quad({dx + 2, dy + 2}, {dw, dh}, {0,0}, {1,1}, {0, 0, 0, 0.30f});
+        // Background — dark panel
+        batch.draw_quad({dx, dy}, {dw, dh}, {0,0}, {1,1}, {0.10f, 0.12f, 0.16f, 0.88f});
+        // Top accent — Light Blue 400
+        batch.draw_quad({dx, dy}, {dw, 2.0f}, {0,0}, {1,1}, {0.31f, 0.76f, 0.97f, 0.60f});
+        // Left accent
+        batch.draw_quad({dx, dy}, {2.0f, dh}, {0,0}, {1,1}, {0.31f, 0.76f, 0.97f, 0.30f});
+
         char buf[128];
+        float lx = dx + 10, ly = dy + 8, ls = 0.55f, gap = 20.0f;
+
+        // FPS — green if good, amber if low, red if bad
         std::snprintf(buf, sizeof(buf), "FPS: %.0f", game.debug_fps);
-        text.draw_text(batch, game.font_desc, buf, {sw - 190, 8}, {0.2f, 1, 0.2f, 1}, 0.6f);
+        eb::Vec4 fps_col = game.debug_fps >= 55 ? eb::Vec4{0.40f, 0.73f, 0.42f, 1}   // Green 400
+                         : game.debug_fps >= 30 ? eb::Vec4{1.0f, 0.65f, 0.15f, 1}     // Orange 400
+                         :                        eb::Vec4{0.94f, 0.33f, 0.31f, 1};    // Red 400
+        text.draw_text(batch, game.font_desc, buf, {lx, ly}, fps_col, ls);
+
         std::snprintf(buf, sizeof(buf), "Particles: %d", game.debug_particle_count);
-        text.draw_text(batch, game.font_desc, buf, {sw - 190, 28}, {0.8f, 0.8f, 0.8f, 1}, 0.6f);
-        std::snprintf(buf, sizeof(buf), "NPCs: %d", (int)game.npcs.size());
-        text.draw_text(batch, game.font_desc, buf, {sw - 190, 48}, {0.8f, 0.8f, 0.8f, 1}, 0.6f);
-        std::snprintf(buf, sizeof(buf), "Tweens: %d", (int)game.tween_system.tweens.size());
-        text.draw_text(batch, game.font_desc, buf, {sw - 190, 68}, {0.8f, 0.8f, 0.8f, 1}, 0.6f);
+        text.draw_text(batch, game.font_desc, buf, {lx, ly + gap}, {0.75f, 0.80f, 0.85f, 0.90f}, ls);
+
+        std::snprintf(buf, sizeof(buf), "NPCs: %d  Triggers: %d", (int)game.npcs.size(), (int)game.trigger_zones.size());
+        text.draw_text(batch, game.font_desc, buf, {lx, ly + gap*2}, {0.75f, 0.80f, 0.85f, 0.90f}, ls);
+
+        std::snprintf(buf, sizeof(buf), "Tweens: %d  Trails: %d", (int)game.tween_system.tweens.size(), (int)game.trails.size());
+        text.draw_text(batch, game.font_desc, buf, {lx, ly + gap*3}, {0.75f, 0.80f, 0.85f, 0.90f}, ls);
     }
 
 }
