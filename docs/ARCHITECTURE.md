@@ -4,7 +4,7 @@
 
 ```text
 +------------------------------------------------------------------+
-|                        TWILIGHT ENGINE v3.2                       |
+|                        TWILIGHT ENGINE v3.3                       |
 +------------------------------------------------------------------+
 |                                                                    |
 |  +--------------------+    +--------------------+                  |
@@ -164,16 +164,16 @@ game.json (manifest)
                     +-------------------+
 ```
 
-## File Counts (v3.2.0)
+## File Counts (v3.3.0)
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| C++ Source | 28,038 lines (109 files) | Engine + game framework (excl. third-party) |
+| C++ Source | 28,474 lines (109 files) | Engine + game framework (excl. third-party) |
 | With Third-Party | ~248,000 lines (230 files) | Including ImGui, SageLang, stb, miniaudio |
-| Game Framework | 7 files, 6,107 lines | game_render.cpp (1,552), game.cpp (1,087), game.h (950), game_init.cpp (893), game_io.cpp (572), game_platformer.cpp (537), game_battle.cpp (516) |
-| Script Engine | 9 files, 5,277 lines | script_api_map (1,034), script_api_new (814), script_api_systems (668), script_engine (655), script_api_ui (534), script_api_npc (452), script_api_platformer (397), script_api_physics (378), script_api_player (345) |
+| Game Framework | 7 files, 6,235 lines | game_render.cpp (1,680), game.cpp (1,087), game.h (950), game_init.cpp (893), game_io.cpp (572), game_platformer.cpp (537), game_battle.cpp (516) |
+| Script Engine | 9 files, 5,278 lines | script_api_map (1,035), script_api_new (814), script_api_systems (668), script_engine (655), script_api_ui (534), script_api_npc (452), script_api_platformer (397), script_api_physics (378), script_api_player (345) |
 | Script API | 323 functions | 56 modules across 9 files |
-| Editor | 11 files, 5,071 lines | tile_editor.cpp (2,157), tile_editor_ui.cpp (1,356), script_ide (410), tile_editor.h (377), systems (319), imgui (193), npc_spawner (147), debug (83), particle_editor (29) |
+| Editor | 11 files, 5,209 lines | tile_editor.cpp (2,269), tile_editor_ui.cpp (1,364), script_ide (410), tile_editor.h (395), systems (319), imgui (193), npc_spawner (147), debug (83), particle_editor (29) |
 | New Systems | 22 headers, 2,725 lines | Collision, raycast, noise, triggers, FSM, pool, checkpoint, combo, replay, trails, rule tiles, dungeon gen, skeleton, coroutine, behavior tree, iso/hex, ECS, net, post-process, mod loader |
 | Graphics | 14 files, 2,493 lines | Vulkan context, renderer, sprite batch, pipeline, text, texture, atlas, post-process stub |
 | Platform | 8 files, 1,151 lines | Desktop (232), Android (246), Quest, input (171), touch (277) |

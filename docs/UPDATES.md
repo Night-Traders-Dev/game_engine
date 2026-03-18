@@ -1,5 +1,54 @@
 # Twilight Engine Updates
 
+## v3.3.0 — March 17, 2026
+
+### Intelligent Map Script Management
+- **Upsert system** — Property edits (move, resize, color, scale) now **replace existing lines** instead of appending duplicates. Moving a panel 50 times produces exactly 1 x-line and 1 y-line
+- **Component deletion** — Deleting a UI element removes ALL its lines (creation + every `ui_set`) instead of appending `ui_remove()` while leaving dead code
+- **Structured line storage** — `ScriptLine` struct tracks `component_id` + `property` per line. `upsert_map_script()` finds and replaces; `remove_component_script()` erases all lines for an ID
+- **Load-time parsing** — Existing `.sage` scripts are parsed on load to extract component IDs from `ui_label/panel/bar/image/set/remove` calls, enabling in-place editing of previously saved scripts
+
+### Material Design UI Overhaul
+- **Unified color palette** across all platforms (desktop + Android):
+  - Amber 300 (#FFD54F) for selection/highlights/gold
+  - Blue-Grey 200/900 for text hierarchy and panel backgrounds
+  - Green 700 / Amber 800 / Red 700 for HP bar states
+  - Red 400 for destructive actions (Quit stays red even when selected)
+  - Light Blue 400 for accents and interaction hints
+- **Touch controls** (Android): Proper disc rendering (9-quad approximation), drop shadows, ring outlines, Material-colored buttons (green confirm, red cancel, orange menu), proper A/B letter shapes
+- **HUD** (all platforms): Bar shine effect, survival bar labels (H/T/E), dark bar backgrounds, quantity badges with backgrounds, amber player dot glow on minimap, NPC dot colors match palette
+- **Pause menu**: Amber selected items, Blue-Grey unselected, dim Red quit, cinematic vignette overlay
+- **NPC labels**: Drop shadows, top-edge highlights, left accent bar on interaction hints
+- **Debug overlay**: Shadow panel, Light Blue accent bars, FPS color-coded (green/amber/red), shows trigger + trail counts
+- **default.sage + hud.sage**: Fully rewritten with Material palette, fantasy icon references (fi_*), proper bar backgrounds
+
+### Modernized Icon System
+- All C++ render code migrated from `icon_sword/icon_coin/icon_potion` atlas names to `fi_*` fantasy icon indices
+- Editor icon presets updated to fi_* range (23 icons)
+- Forest map script cleaned: removed old `flat_blue`/`flat_orange` panel overrides
+
+### Test Suite Expansion
+- **40 new assertions** (101 → 141 total) across 17 new test sections
+- Tests for: collision (10), raycast (2), triggers, coroutines, FSM (2), checkpoints, combos, trails, skeletons, input replay, post-processing, audio buses, parallax extended (3), camera zoom, 9-slice (2), layer sorting, bar show_text, colliders
+
+### README Modularization
+- README reduced from 509 to ~110 lines — concise overview with feature table
+- Detailed sections extracted to dedicated docs/:
+  - [docs/EDITOR.md](EDITOR.md) — Editor features, new map dialog, parallax panel
+  - [docs/CONTROLS.md](CONTROLS.md) — All platform control schemes
+  - [docs/BUILD.md](BUILD.md) — Build instructions + project structure
+  - [docs/TOOLS.md](TOOLS.md) — Python tool descriptions
+
+### Stats
+- 28,474 lines C++ (109 files, excluding third-party)
+- 323 API functions across 56 modules (9 script files)
+- 5,278 lines scripting engine, 6,235 lines game framework
+- 5,209 lines editor (11 files)
+- 141 test assertions across 50 categories
+- 45 parallax backgrounds, 13 Python tools
+
+---
+
 ## v3.2.0 — March 17, 2026
 
 ### 27 New Engine Systems (Tier 1–4 Feature Sweep)
