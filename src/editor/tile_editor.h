@@ -100,6 +100,7 @@ public:
     void set_active(bool active) { active_ = active; }
     void toggle() { active_ = !active_; }
 
+    TextureAtlas* tileset_atlas() const { return tileset_; }
     EditorTool current_tool() const { return tool_; }
     int selected_tile() const { return selected_tile_; }
     int active_layer() const { return active_layer_; }

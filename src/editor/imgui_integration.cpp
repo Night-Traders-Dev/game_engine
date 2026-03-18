@@ -30,12 +30,12 @@ bool ImGuiIntegration::init(GLFWwindow* window, Renderer& renderer) {
 
     // Create dedicated descriptor pool for ImGui
     VkDescriptorPoolSize pool_sizes[] = {
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256},
     };
     VkDescriptorPoolCreateInfo pool_info{};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets = 100;
+    pool_info.maxSets = 256;
     pool_info.poolSizeCount = 1;
     pool_info.pPoolSizes = pool_sizes;
     if (vkCreateDescriptorPool(device_, &pool_info, nullptr, &imgui_pool_) != VK_SUCCESS) {

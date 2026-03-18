@@ -17,7 +17,7 @@ class Platform;
 class Renderer {
 public:
     static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
-    static constexpr int MAX_TEXTURE_DESCRIPTORS = 256;
+    static constexpr int MAX_TEXTURE_DESCRIPTORS = 512;
 
     Renderer(Platform& platform, bool vsync);
     ~Renderer();

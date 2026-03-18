@@ -324,8 +324,8 @@ int main(int argc, char* argv[]) {
 
 #ifndef EB_ANDROID
             if (editor.is_active()) {
-                // Sync editor tileset with game (may change after map load)
-                if (game.tileset_atlas)
+                // Sync editor tileset with game (only when it actually changed)
+                if (game.tileset_atlas && game.tileset_atlas.get() != editor.tileset_atlas())
                     editor.set_tileset(game.tileset_atlas.get(), game.tileset_desc);
 
                 // Editor overlays (grid, collision, cursor)
