@@ -506,5 +506,173 @@ proc run_all_tests():
     set_bloom(true, 0.5, 0.7)
     set_bloom(false)
 
+    # ── Collision API ──
+    log("Testing: Collision API")
+    assert_true(collide_rects(0,0,10,10, 5,5,10,10) == true, "rect overlap")
+    assert_true(collide_rects(0,0,10,10, 20,20,10,10) == false, "rect no overlap")
+    assert_true(collide_circles(0,0,10, 5,0,10) == true, "circle overlap")
+    assert_true(collide_circles(0,0,5, 100,100,5) == false, "circle no overlap")
+    assert_true(collide_rect_circle(0,0,20,20, 10,10,5) == true, "rect-circle overlap")
+    assert_true(collide_rect_circle(0,0,10,10, 50,50,3) == false, "rect-circle no overlap")
+    assert_true(point_in_rect(5,5, 0,0,10,10) == true, "point in rect")
+    assert_true(point_in_rect(15,15, 0,0,10,10) == false, "point outside rect")
+    assert_true(point_in_circle(1,1, 0,0,5) == true, "point in circle")
+    assert_true(point_in_circle(10,10, 0,0,5) == false, "point outside circle")
+
+    # ── Raycast API ──
+    log("Testing: Raycast API")
+    let ray_dist = raycast(100, 100, 1, 0, 500)
+    assert_true(ray_dist >= 0, "raycast returns number")
+    let los = line_of_sight(100, 100, 200, 100)
+    assert_true(los == true or los == false, "line_of_sight returns bool")
+
+    # ── Trigger Zone API ──
+    log("Testing: Trigger Zone API")
+    add_trigger("test_zone", 100, 100, 50, 50, "", "", "")
+    add_trigger_circle("test_circ", 200, 200, 30, "", "", "")
+    set_trigger_active("test_zone", false)
+    set_trigger_active("test_zone", true)
+    remove_trigger("test_zone")
+    remove_trigger("test_circ")
+
+    # ── Coroutine API ──
+    log("Testing: Coroutine API")
+    coroutine_create("test_co")
+    coroutine_step("test_co", "", 0.01)
+    coroutine_loop("test_co", false)
+    coroutine_start("test_co")
+    coroutine_stop("test_co")
+    coroutine_remove("test_co")
+
+    # ── State Machine API ──
+    log("Testing: State Machine API")
+    fsm_create("test_fsm")
+    fsm_add_state("test_fsm", "idle", "", "", "")
+    fsm_add_state("test_fsm", "walk", "", "", "")
+    fsm_transition("test_fsm", "idle")
+    assert_true(fsm_current("test_fsm") == "idle", "fsm current state")
+    fsm_transition("test_fsm", "walk")
+    assert_true(fsm_current("test_fsm") == "walk", "fsm transition")
+    fsm_remove("test_fsm")
+
+    # ── Checkpoint API ──
+    log("Testing: Checkpoint API")
+    add_checkpoint("cp1", 100, 200, "forest.json")
+    activate_checkpoint("cp1")
+    assert_true(get_checkpoint_id() == "cp1", "active checkpoint")
+
+    # ── Combo API ──
+    log("Testing: Combo API")
+    register_combo("test_combo", "0,1,2", 1.0, "")
+
+    # ── Trail API ──
+    log("Testing: Trail API")
+    trail_create("test_trail", 32, 0.5, 8)
+    trail_add_point("test_trail", 100, 100)
+    trail_add_point("test_trail", 120, 110)
+    trail_add_point("test_trail", 140, 105)
+    trail_set_color("test_trail", 1, 0, 0, 1, 0, 0, 1, 0)
+    trail_set_emitting("test_trail", false)
+    trail_destroy("test_trail")
+
+    # ── Dungeon Generation API ──
+    log("Testing: Dungeon Generation API")
+    # Note: generate_dungeon modifies the tilemap, so we skip it in non-destructive tests
+    # generate_dungeon(30, 20, 0, 12345)
+    # assert_true(dungeon_room_count() > 0, "dungeon has rooms")
+
+    # ── Skeleton API ──
+    log("Testing: Skeleton API")
+    skel_create("test_skel")
+    skel_add_bone("test_skel", "root", "", 0, 0, 0)
+    skel_add_bone("test_skel", "arm", "root", 10, 0, 0)
+    skel_set_sprite("test_skel", "root", "fi_0")
+    skel_play("test_skel", "idle")
+    skel_stop("test_skel")
+
+    # ── Input Replay API ──
+    log("Testing: Input Replay API")
+    input_record_start()
+    input_record_stop("assets/test_replay.bin")
+    # input_replay_start("assets/test_replay.bin")
+    # input_replay_stop()
+
+    # ── Post-Processing API ──
+    log("Testing: Post-Processing API")
+    set_postprocess("bloom", true)
+    set_postprocess("vignette", true)
+    set_postprocess("crt", false)
+    set_postprocess_param("bloom_intensity", 0.6)
+    set_postprocess_param("vignette_strength", 0.4)
+    set_postprocess("bloom", false)
+    set_postprocess("vignette", false)
+
+    # ── Audio Bus API ──
+    log("Testing: Audio Bus API")
+    audio_bus_volume("music", 0.7)
+    audio_bus_volume("sfx", 0.9)
+    audio_bus_volume("ambience", 0.5)
+    audio_bus_volume("voice", 1.0)
+
+    # ── Parallax API (extended) ──
+    log("Testing: Parallax API extended")
+    let plx = add_parallax("assets/textures/parallax/forest/layer_0_sky.png", 0.1, 0.05)
+    if plx >= 0:
+        set_parallax(plx, "pin_bottom", true)
+        set_parallax(plx, "fill_viewport", true)
+        set_parallax(plx, "auto_scroll_x", 5.0)
+        set_parallax(plx, "scale", 1.5)
+        set_parallax(plx, "tint_r", 0.9)
+        set_parallax(plx, "tint_g", 0.85)
+        set_parallax(plx, "tint_b", 0.8)
+        set_parallax(plx, "z_order", 0)
+        remove_parallax(plx)
+    let pc = parallax_count()
+    assert_true(pc >= 0, "parallax_count returns number")
+    clear_parallax()
+    assert_true(parallax_count() == 0, "clear_parallax works")
+
+    # ── New Map API ──
+    log("Testing: New Map API")
+    # Skip actual new_map() call as it would destroy current map state
+    # new_map(0, 20, 15, 32)
+
+    # ── Camera Smooth Zoom ──
+    log("Testing: Camera Smooth Zoom")
+    let old_zoom = camera_get_zoom()
+    camera_set_zoom(2.0)
+    assert_true(camera_get_zoom() == 2, "camera_set_zoom")
+    camera_set_zoom(old_zoom)
+
+    # ── UI 9-Slice ──
+    log("Testing: UI 9-Slice")
+    ui_panel("test_9s", 10, 10, 200, 100, "panel_window")
+    ui_set("test_9s", "nine_slice", true)
+    assert_true(ui_get("test_9s", "nine_slice") == true, "nine_slice enabled")
+    ui_set("test_9s", "border", 20)
+    assert_true(ui_get("test_9s", "border") == 20, "nine_slice border")
+    ui_remove("test_9s")
+
+    # ── UI Layer Sorting ──
+    log("Testing: UI Layer Sorting")
+    ui_label("layer_test", "Hi", 10, 10, 1, 1, 1, 1)
+    ui_set("layer_test", "layer", 15)
+    assert_true(ui_get("layer_test", "layer") == 15, "ui layer set/get")
+    ui_remove("layer_test")
+
+    # ── Bar Show Text ──
+    log("Testing: Bar Show Text")
+    ui_bar("bar_txt_test", 50, 100, 10, 10, 100, 12, 0.5, 0.8, 0.2, 1)
+    ui_set("bar_txt_test", "show_text", true)
+    ui_remove("bar_txt_test")
+
+    # ── Collider API ──
+    log("Testing: Collider API")
+    set_collider_rect("player", 0, 0, 24, 24)
+    set_collider_rect("Elder", 0, 0, 20, 20)
+    let col_result = check_collision("player", "Elder")
+    assert_true(col_result == true or col_result == false, "check_collision returns bool")
+    set_collider_circle("Elder", 0, 0, 16)
+
     log("═══ All API Tests Complete ═══")
     info("TEST SUITE PASSED")

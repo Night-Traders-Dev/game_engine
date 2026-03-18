@@ -442,6 +442,96 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                     ImGui::Text("Follow Distance: %d (compile-time)", GameState::FOLLOW_DISTANCE);
                 }
 
+                if (ImGui::CollapsingHeader("Blender Import")) {
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Import .blend as Sprite Sheet");
+                    static char blend_path[256] = "games/demo/assets/blender/sample_character.blend";
+                    ImGui::InputText(".blend File", blend_path, sizeof(blend_path));
+
+                    static char sprite_output[256] = "assets/textures/imported_sprite.png";
+                    ImGui::InputText("Output PNG", sprite_output, sizeof(sprite_output));
+
+                    static int blend_size = 64;
+                    ImGui::SliderInt("Frame Size (px)", &blend_size, 16, 256);
+
+                    static int blend_mode = 0;
+                    const char* blend_modes[] = {"Top-Down RPG", "Side (Platformer)"};
+                    ImGui::Combo("Camera Mode", &blend_mode, blend_modes, 2);
+
+                    static char blend_status[256] = "";
+                    if (ImGui::Button("Import to Sprite Sheet")) {
+                        // Run blender_to_spritesheet.py via system()
+                        char cmd[1024];
+                        std::snprintf(cmd, sizeof(cmd),
+                            "python3 tools/blender_to_spritesheet.py --blend \"%s\" --output \"%s\" --size %d --mode %s 2>&1",
+                            blend_path, sprite_output, blend_size,
+                            blend_mode == 0 ? "topdown" : "side");
+                        std::FILE* pipe = popen(cmd, "r");
+                        if (pipe) {
+                            char buf[512]; std::string result;
+                            while (std::fgets(buf, sizeof(buf), pipe)) result += buf;
+                            int ret = pclose(pipe);
+                            if (ret == 0) {
+                                std::snprintf(blend_status, sizeof(blend_status), "OK: %s (%dx%d)", sprite_output, blend_size, blend_size);
+                                set_status("Blender import complete: " + std::string(sprite_output));
+                                // Auto-load into atlas cache
+                                if (game.resource_manager && game.renderer) {
+                                    try {
+                                        auto* tex = game.resource_manager->load_texture(sprite_output);
+                                        if (tex) {
+                                            std::string key = std::string(sprite_output);
+                                            char kb[32]; std::snprintf(kb, sizeof(kb), "@%dx%d", blend_size, blend_size);
+                                            key += kb;
+                                            game.atlas_cache[key] = std::make_shared<eb::TextureAtlas>(tex, blend_size, blend_size);
+                                            auto& atlas = game.atlas_cache[key];
+                                            int cw = blend_size, ch = blend_size;
+                                            atlas->define_region("idle_down",     0,      0, cw, ch);
+                                            atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                                            atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                                            atlas->define_region("idle_up",       0,     ch, cw, ch);
+                                            atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                                            atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                                            atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                                            atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                                            atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+                                            game.atlas_descs[key] = game.renderer->get_texture_descriptor(*tex);
+                                        }
+                                    } catch (...) {}
+                                }
+                            } else {
+                                std::snprintf(blend_status, sizeof(blend_status), "FAILED (exit %d)", ret);
+                                set_status("Blender import failed");
+                            }
+                        } else {
+                            std::snprintf(blend_status, sizeof(blend_status), "Failed to run command");
+                        }
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Create Sample .blend")) {
+                        char cmd[512];
+                        std::snprintf(cmd, sizeof(cmd),
+                            "blender -b -P tools/blender_create_sample.py -- --output \"%s\" 2>/dev/null", blend_path);
+                        int ret = std::system(cmd);
+                        if (ret == 0) {
+                            std::snprintf(blend_status, sizeof(blend_status), "Sample created: %s", blend_path);
+                            set_status("Sample .blend created");
+                        } else {
+                            std::snprintf(blend_status, sizeof(blend_status), "Failed to create sample");
+                        }
+                    }
+
+                    if (blend_status[0]) {
+                        ImGui::TextColored(
+                            blend_status[0] == 'O' ? ImVec4(0.4f,0.9f,0.4f,1) :
+                            blend_status[0] == 'F' ? ImVec4(0.9f,0.3f,0.3f,1) :
+                                                     ImVec4(0.8f,0.8f,0.8f,1),
+                            "%s", blend_status);
+                    }
+
+                    ImGui::Separator();
+                    ImGui::TextDisabled("Pipeline: .blend -> Blender renders 3x3 frames -> Pillow assembles sprite sheet");
+                    ImGui::TextDisabled("Output: 3-column x 3-row grid (down/up/right, idle/walk0/walk1)");
+                }
+
                 if (ImGui::CollapsingHeader("Parallax Backgrounds")) {
                     ImGui::Text("Layers: %d", (int)game.parallax_layers.size());
 

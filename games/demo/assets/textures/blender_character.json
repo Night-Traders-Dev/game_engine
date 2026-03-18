@@ -1,0 +1,12 @@
+{
+  "sprite_sheet": "blender_character.png",
+  "grid_w": 64,
+  "grid_h": 64,
+  "directions": [
+    "down",
+    "up",
+    "right"
+  ],
+  "frames_per_direction": 3,
+  "source_blend": "sample_character.blend"
+}

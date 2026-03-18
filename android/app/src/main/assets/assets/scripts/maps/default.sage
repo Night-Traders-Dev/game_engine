@@ -34,7 +34,7 @@ proc map_init():
     # ══════════════════════════════════════
     # TOP-LEFT — Player Vitals
     # ══════════════════════════════════════
-    ui_panel("hud_player_bg", 6, 6, 260, 68, "panel_window")
+    ui_panel("hud_player_bg", 6, 6, 260, 68, "flat_blue")
 
     # Name + Level — primary white
     ui_label("hud_name", "Mage  Lv.1", 16, 12, 1, 1, 1, 0.92)
@@ -61,7 +61,7 @@ proc map_init():
     # TOP-RIGHT — Time & Environment
     # ══════════════════════════════════════
     let tx = sw - 140
-    ui_panel("hud_time_bg", tx, 6, 132, 56, "panel_window")
+    ui_panel("hud_time_bg", tx, 6, 132, 56, "flat_blue")
     ui_image("hud_sun", tx + 8, 10, 20, 20, "fi_281")
 
     # Time — primary white
@@ -78,15 +78,12 @@ proc map_init():
     let px = sw / 2 - 130
     let py = sh / 2 - 155
 
-    ui_panel("pause_bg", px, py, 260, 330, "panel_window")
+    ui_panel("pause_bg", px, py, 260, 330, "flat_orange")
 
     # Title — amber accent
     ui_image("pause_icon", px + 16, py + 14, 22, 22, "fi_65")
     ui_label("pause_title", "PAUSED", px + 44, py + 14, 1, 0.84, 0.31, 1)
     ui_set("pause_title", "scale", 1.3)
-
-    # Divider
-    ui_panel("pause_div", px + 16, py + 44, 228, 2, "panel_hud_wide")
 
     # Menu items — icon + text, consistent gap
     let ix = px + 56
