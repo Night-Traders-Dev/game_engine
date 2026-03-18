@@ -1,0 +1,22 @@
+Grass Patch|0|0|32|32|tree
+Flower Patch|64|0|32|32|tree
+Dark Grass|96|0|32|32|tree
+Dirt Path|128|0|32|32|misc
+Gravel|192|0|32|32|misc
+Mud Puddle|224|0|32|32|misc
+Cobblestone|0|32|32|32|building
+Light Stone|32|32|32|32|building
+Cracked Stone|64|32|32|32|building
+Mossy Stone|96|32|32|32|building
+Water|128|32|32|32|misc
+Deep Water|160|32|32|32|misc
+Shallow Water|192|32|32|32|misc
+Sand|0|64|32|32|misc
+Dark Sand|32|64|32|32|misc
+Cave Floor|64|64|32|32|misc
+Cave Rock|96|64|32|32|misc
+Crystal|128|64|32|32|misc
+Road H|192|64|32|32|building
+Road V|224|64|32|32|building
+Crossroad|0|96|32|32|building
+Sidewalk|32|96|32|32|building

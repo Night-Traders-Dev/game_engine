@@ -258,6 +258,46 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
                     game.tile_map.set_tileset(game.tileset_atlas.get());
                     game.tileset_desc = game.renderer->get_texture_descriptor(*tex);
                     std::printf("[Map] Loaded tileset: %s (%dx%d, %d tiles)\n", new_ts.c_str(), tw, th, cols * rows);
+
+                    // Reload stamps matching the new tileset name
+                    game.object_stamps.clear();
+                    std::string stamps_path = new_ts;
+                    auto dot2 = stamps_path.rfind('.');
+                    if (dot2 != std::string::npos) stamps_path = stamps_path.substr(0, dot2) + "_stamps.txt";
+                    auto stamps_data = eb::FileIO::read_file(stamps_path);
+                    // Fallback to cf_stamps.txt in same directory
+                    if (stamps_data.empty()) {
+                        std::string dir2 = new_ts.substr(0, new_ts.rfind('/') + 1);
+                        stamps_data = eb::FileIO::read_file(dir2 + "cf_stamps.txt");
+                    }
+                    if (!stamps_data.empty()) {
+                        std::string stamps_str(stamps_data.begin(), stamps_data.end());
+                        size_t spos = 0;
+                        while (spos < stamps_str.size()) {
+                            size_t seol = stamps_str.find('\n', spos);
+                            if (seol == std::string::npos) seol = stamps_str.size();
+                            std::string sline = stamps_str.substr(spos, seol - spos);
+                            spos = seol + 1;
+                            if (sline.empty()) continue;
+                            std::vector<std::string> sparts;
+                            size_t sp = 0;
+                            while (sp < sline.size()) {
+                                size_t sd = sline.find('|', sp);
+                                if (sd == std::string::npos) sd = sline.size();
+                                sparts.push_back(sline.substr(sp, sd - sp));
+                                sp = sd + 1;
+                            }
+                            if (sparts.size() >= 6) {
+                                int sx = std::stoi(sparts[1]), sy = std::stoi(sparts[2]);
+                                int sw_s = std::stoi(sparts[3]), sh_s = std::stoi(sparts[4]);
+                                int ridx = game.tileset_atlas->region_count();
+                                game.tileset_atlas->add_region(sx, sy, sw_s, sh_s);
+                                game.object_stamps.push_back({sparts[0], ridx,
+                                    (float)sw_s, (float)sh_s, (float)sw_s, (float)sh_s, sparts[5]});
+                            }
+                        }
+                        std::printf("[Map] Loaded %d stamps from %s\n", (int)game.object_stamps.size(), stamps_path.c_str());
+                    }
                 }
             }
         } catch (...) {
@@ -270,7 +310,7 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
     game.object_defs.clear();
     game.object_regions.clear();
 
-    // Re-populate object defs/regions from stamps (they persist across map loads)
+    // Re-populate object defs/regions from stamps
     if (game.tileset_atlas) {
         for (auto& stamp : game.object_stamps) {
             if (stamp.region_id >= 0 && stamp.region_id < game.tileset_atlas->region_count()) {

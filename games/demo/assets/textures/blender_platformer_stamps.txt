@@ -1,0 +1,16 @@
+Grass Block|0|0|32|32|building
+Dirt Block|32|0|32|32|building
+Stone Block|64|0|32|32|building
+Underground|96|0|32|32|building
+Grass Platform|128|0|32|32|building
+Wood Platform|160|0|32|32|building
+Sky|192|0|32|32|misc
+Dark Sky|224|0|32|32|misc
+Sand Block|0|32|32|32|building
+Ice Block|32|32|32|32|building
+Lava Rock|64|32|32|32|building
+Metal Block|96|32|32|32|building
+Cloud|128|32|32|32|tree
+Bush|160|32|32|32|tree
+Tree Trunk|192|32|32|32|tree
+Leaves|224|32|32|32|tree

@@ -324,6 +324,10 @@ int main(int argc, char* argv[]) {
 
 #ifndef EB_ANDROID
             if (editor.is_active()) {
+                // Sync editor tileset with game (may change after map load)
+                if (game.tileset_atlas)
+                    editor.set_tileset(game.tileset_atlas.get(), game.tileset_desc);
+
                 // Editor overlays (grid, collision, cursor)
                 batch.set_texture(engine.renderer().default_texture_descriptor());
                 editor.render(batch, game.camera, game.tileset_desc, (int)sw, (int)sh);
