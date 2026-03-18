@@ -1,0 +1,56 @@
+# Twilight Engine — AI Asset Generation Prompts
+# Run: python3 tools/ai_generate_assets.py --batch tools/ai_asset_prompts.txt --outdir games/demo/assets/textures/ai/ --size 512 --seed 42
+
+# Buildings
+wooden cabin cottage, top-down view, pixel art, game asset
+stone castle tower, top-down view, pixel art, game asset
+medieval shop building, top-down view, pixel art, game asset
+wooden bridge over water, top-down view, pixel art, game asset
+stone fountain with water, top-down view, pixel art, game asset
+church with steeple, top-down view, pixel art, game asset
+blacksmith forge, top-down view, pixel art, game asset
+windmill, top-down view, pixel art, game asset
+
+# Trees and Vegetation
+large oak tree with green canopy, top-down view, pixel art
+pine tree, top-down view, pixel art, game asset
+cherry blossom tree pink flowers, top-down view, pixel art
+dead bare tree, top-down view, pixel art, game asset
+round green bush, top-down view, pixel art, game asset
+palm tree tropical, top-down view, pixel art, game asset
+cactus desert, top-down view, pixel art, game asset
+mushroom red cap, top-down view, pixel art, game asset
+
+# Furniture
+wooden table, top-down view, pixel art, game asset
+wooden chair, top-down view, pixel art, game asset
+bed with pillow, top-down view, pixel art, game asset
+treasure chest gold, pixel art, game asset
+bookshelf with books, pixel art, game asset
+cauldron with green potion, pixel art, game asset
+lit torch on wall, pixel art, game asset
+fireplace with flames, pixel art, game asset
+
+# Characters
+knight warrior with sword, pixel art character sprite
+wizard mage with staff and hat, pixel art character sprite
+skeleton undead, pixel art character sprite
+green slime blob monster, pixel art character sprite
+dragon small, pixel art character sprite
+goblin with club, pixel art character sprite
+merchant trader with cape, pixel art character sprite
+princess with crown, pixel art character sprite
+
+# Items and Props
+wooden barrel, pixel art, game asset
+wooden crate box, pixel art, game asset
+grey stone rock boulder, pixel art, game asset
+wooden sign post, pixel art, game asset
+gravestone tombstone, pixel art, game asset
+lamp post with light, pixel art, game asset
+red health potion bottle, pixel art, game asset
+gold coin pile, pixel art, game asset
+iron sword weapon, pixel art, game asset
+wooden shield, pixel art, game asset
+magic scroll, pixel art, game asset
+golden key, pixel art, game asset
