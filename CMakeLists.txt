@@ -142,6 +142,7 @@ set(SAGELANG_SOURCES
     ${SAGELANG_DIR}/src/c/formatter.c
     ${SAGELANG_DIR}/src/c/linter.c
     ${SAGELANG_DIR}/src/c/sage_thread.c
+    ${SAGELANG_DIR}/src/c/graphics.c
     ${SAGELANG_DIR}/src/vm/vm.c
     ${SAGELANG_DIR}/src/vm/bytecode.c
     ${SAGELANG_DIR}/src/vm/program.c

@@ -93,6 +93,7 @@ set(ENGINE_SOURCES
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/formatter.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/linter.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/c/sage_thread.c
+    ${ENGINE_ROOT}/src/third_party/sagelang/src/c/graphics.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/vm.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/bytecode.c
     ${ENGINE_ROOT}/src/third_party/sagelang/src/vm/program.c
