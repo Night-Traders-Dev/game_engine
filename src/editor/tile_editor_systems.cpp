@@ -594,6 +594,60 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                     ImGui::TextDisabled("Output: 3-column x 3-row grid (down/up/right, idle/walk0/walk1)");
                 }
 
+                if (ImGui::CollapsingHeader("Unreal Engine Import")) {
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Import UE5 Assets (.glb/.fbx/.gltf)");
+                    static char ue_input[256] = "";
+                    ImGui::InputText("Input File/Dir##ue", ue_input, sizeof(ue_input));
+                    static char ue_output[256] = "assets/textures/ue_import.png";
+                    ImGui::InputText("Output##ue", ue_output, sizeof(ue_output));
+                    static int ue_size = 64;
+                    ImGui::SliderInt("Size##ue", &ue_size, 16, 256);
+                    static int ue_mode = 0;
+                    const char* ue_modes[] = {"Top-Down", "Side View"};
+                    ImGui::Combo("Mode##ue", &ue_mode, ue_modes, 2);
+
+                    static char ue_status[256] = "";
+                    if (ImGui::Button("Import Asset##ue")) {
+                        char cmd[1024];
+                        std::snprintf(cmd, sizeof(cmd),
+                            "python3 tools/import_unreal_assets.py -i \"%s\" -o \"%s\" --size %d --mode %s 2>&1",
+                            ue_input, ue_output, ue_size, ue_mode == 0 ? "topdown" : "side");
+                        std::FILE* pipe = popen(cmd, "r");
+                        if (pipe) {
+                            char buf[512]; std::string result;
+                            while (std::fgets(buf, sizeof(buf), pipe)) result += buf;
+                            int ret = pclose(pipe);
+                            if (ret == 0) {
+                                std::snprintf(ue_status, sizeof(ue_status), "OK: %s", ue_output);
+                                set_status("UE import complete");
+                                // Auto-load into atlas cache
+                                if (game.resource_manager && game.renderer) {
+                                    try {
+                                        auto* tex = game.resource_manager->load_texture(ue_output);
+                                        if (tex) {
+                                            std::string key = std::string(ue_output);
+                                            char kb[32]; std::snprintf(kb, sizeof(kb), "@%dx%d", ue_size, ue_size);
+                                            key += kb;
+                                            game.atlas_cache[key] = std::make_shared<eb::TextureAtlas>(tex, ue_size, ue_size);
+                                            game.atlas_descs[key] = game.renderer->get_texture_descriptor(*tex);
+                                        }
+                                    } catch (...) {}
+                                }
+                            } else {
+                                std::snprintf(ue_status, sizeof(ue_status), "FAILED (exit %d)", ret);
+                            }
+                        }
+                    }
+                    if (ue_status[0]) {
+                        ImGui::TextColored(
+                            ue_status[0] == 'O' ? ImVec4(0.4f,0.9f,0.4f,1) : ImVec4(0.9f,0.3f,0.3f,1),
+                            "%s", ue_status);
+                    }
+                    ImGui::Separator();
+                    ImGui::TextDisabled("Supported: .glb .gltf .fbx .obj .blend .png .jpg");
+                    ImGui::TextDisabled("Pipeline: UE5 glTF Export -> Blender -> Sprite Sheet");
+                }
+
                 if (ImGui::CollapsingHeader("Parallax Backgrounds")) {
                     ImGui::Text("Layers: %d", (int)game.parallax_layers.size());
 
