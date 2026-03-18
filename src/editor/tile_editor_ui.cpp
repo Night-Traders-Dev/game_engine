@@ -311,8 +311,8 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 sync_to_hud_config(game, ui_selected_id_);
                 // Find final position and generate SageLang for both X and Y
                 auto gen_move = [&](const std::string& id, float x, float y) {
-                    append_map_script("ui_set(\"" + id + "\", \"x\", " + std::to_string((int)x) + ")");
-                    append_map_script("ui_set(\"" + id + "\", \"y\", " + std::to_string((int)y) + ")");
+                    upsert_map_script(id, "x", "ui_set(\"" + id + "\", \"x\", " + std::to_string((int)x) + ")");
+                    upsert_map_script(id, "y", "ui_set(\"" + id + "\", \"y\", " + std::to_string((int)y) + ")");
                 };
                 for (auto& p : game.script_ui.panels) { if (p.id == ui_selected_id_) { gen_move(p.id, p.position.x, p.position.y); break; } }
                 for (auto& b : game.script_ui.bars) { if (b.id == ui_selected_id_) { gen_move(b.id, b.position.x, b.position.y); break; } }
@@ -387,25 +387,25 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
         if (resizing && !ImGui::IsMouseDown(1)) {
             resizing = false;
             sync_to_hud_config(game, ui_selected_id_);
-            // Generate resize script
+            // Generate resize script (upsert — replaces existing w/h values)
             for (auto& p : game.script_ui.panels) {
                 if (p.id == ui_selected_id_) {
-                    append_map_script("ui_set(\"" + p.id + "\", \"w\", " + std::to_string((int)p.width) + ")");
-                    append_map_script("ui_set(\"" + p.id + "\", \"h\", " + std::to_string((int)p.height) + ")");
+                    upsert_map_script(p.id, "w", "ui_set(\"" + p.id + "\", \"w\", " + std::to_string((int)p.width) + ")");
+                    upsert_map_script(p.id, "h", "ui_set(\"" + p.id + "\", \"h\", " + std::to_string((int)p.height) + ")");
                     break;
                 }
             }
             for (auto& b : game.script_ui.bars) {
                 if (b.id == ui_selected_id_) {
-                    append_map_script("ui_set(\"" + b.id + "\", \"w\", " + std::to_string((int)b.width) + ")");
-                    append_map_script("ui_set(\"" + b.id + "\", \"h\", " + std::to_string((int)b.height) + ")");
+                    upsert_map_script(b.id, "w", "ui_set(\"" + b.id + "\", \"w\", " + std::to_string((int)b.width) + ")");
+                    upsert_map_script(b.id, "h", "ui_set(\"" + b.id + "\", \"h\", " + std::to_string((int)b.height) + ")");
                     break;
                 }
             }
             for (auto& img : game.script_ui.images) {
                 if (img.id == ui_selected_id_) {
-                    append_map_script("ui_set(\"" + img.id + "\", \"w\", " + std::to_string((int)img.width) + ")");
-                    append_map_script("ui_set(\"" + img.id + "\", \"h\", " + std::to_string((int)img.height) + ")");
+                    upsert_map_script(img.id, "w", "ui_set(\"" + img.id + "\", \"w\", " + std::to_string((int)img.width) + ")");
+                    upsert_map_script(img.id, "h", "ui_set(\"" + img.id + "\", \"h\", " + std::to_string((int)img.height) + ")");
                     break;
                 }
             }
@@ -459,43 +459,47 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             ImGui::Combo("Panel Style", &new_style_idx, new_panel_styles, IM_ARRAYSIZE(new_panel_styles));
 
             if (ImGui::Button("+ Label")) {
-                game.script_ui.labels.push_back({new_id, "New Label", {new_x, new_y}, {1,1,1,1}, 0.8f});
-                append_map_script(std::string("ui_label(\"") + new_id + "\", \"New Label\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 1, 1, 1, 1)");
-                append_map_script(std::string("ui_set(\"") + new_id + "\", \"scale\", 0.800)");
-                ui_selected_id_ = new_id; ui_editor_type_ = "label";
-                set_status("Created label: " + std::string(new_id));
+                std::string id(new_id);
+                game.script_ui.labels.push_back({id, "New Label", {new_x, new_y}, {1,1,1,1}, 0.8f});
+                append_map_script("ui_label(\"" + id + "\", \"New Label\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 1, 1, 1, 1)", id, "_create");
+                append_map_script("ui_set(\"" + id + "\", \"scale\", 0.800)", id, "scale");
+                ui_selected_id_ = id; ui_editor_type_ = "label";
+                set_status("Created label: " + id);
             }
             ImGui::SameLine();
             if (ImGui::Button("+ Panel")) {
+                std::string id(new_id);
                 std::string style = new_panel_styles[new_style_idx];
-                game.script_ui.panels.push_back({new_id, {new_x, new_y}, 200, 100, style});
-                append_map_script(std::string("ui_panel(\"") + new_id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 200, 100, \"" + style + "\")");
-                ui_selected_id_ = new_id; ui_editor_type_ = "panel";
-                set_status("Created panel: " + std::string(new_id));
+                game.script_ui.panels.push_back({id, {new_x, new_y}, 200, 100, style});
+                append_map_script("ui_panel(\"" + id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 200, 100, \"" + style + "\")", id, "_create");
+                ui_selected_id_ = id; ui_editor_type_ = "panel";
+                set_status("Created panel: " + id);
             }
             ImGui::SameLine();
             if (ImGui::Button("+ Bar")) {
-                game.script_ui.bars.push_back({new_id, 75, 100, {new_x, new_y}, 120, 14, {0.2f,0.8f,0.2f,1}});
-                append_map_script(std::string("ui_bar(\"") + new_id + "\", 75, 100, " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 120, 14, 0.2, 0.8, 0.2, 1)");
-                ui_selected_id_ = new_id; ui_editor_type_ = "bar";
-                set_status("Created bar: " + std::string(new_id));
+                std::string id(new_id);
+                game.script_ui.bars.push_back({id, 75, 100, {new_x, new_y}, 120, 14, {0.2f,0.8f,0.2f,1}});
+                append_map_script("ui_bar(\"" + id + "\", 75, 100, " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 120, 14, 0.2, 0.8, 0.2, 1)", id, "_create");
+                ui_selected_id_ = id; ui_editor_type_ = "bar";
+                set_status("Created bar: " + id);
             }
             // Icon for new images
             static const char* new_icon_presets[] = {
-                "fi_0", "icon_sword", "icon_shield", "icon_potion", "icon_heart_red",
-                "icon_gem_blue", "icon_gem_green", "icon_ring", "icon_star", "icon_coin",
-                "icon_book", "icon_scroll", "icon_heart_orange"
+                "fi_0", "fi_4", "fi_8", "fi_12", "fi_16", "fi_20", "fi_24", "fi_28",
+                "fi_32", "fi_36", "fi_40", "fi_44", "fi_48", "fi_52", "fi_56", "fi_60",
+                "fi_64", "fi_68", "fi_72", "fi_119", "fi_132", "fi_280", "fi_281"
             };
             static int new_icon_idx = 0;
             ImGui::Combo("Image Icon", &new_icon_idx, new_icon_presets, IM_ARRAYSIZE(new_icon_presets));
 
             ImGui::SameLine();
             if (ImGui::Button("+ Image")) {
+                std::string id(new_id);
                 std::string icon = new_icon_presets[new_icon_idx];
-                game.script_ui.images.push_back({new_id, {new_x, new_y}, 32, 32, icon});
-                append_map_script(std::string("ui_image(\"") + new_id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 32, 32, \"" + icon + "\")");
-                ui_selected_id_ = new_id; ui_editor_type_ = "image";
-                set_status("Created image: " + std::string(new_id));
+                game.script_ui.images.push_back({id, {new_x, new_y}, 32, 32, icon});
+                append_map_script("ui_image(\"" + id + "\", " + std::to_string((int)new_x) + ", " + std::to_string((int)new_y) + ", 32, 32, \"" + icon + "\")", id, "_create");
+                ui_selected_id_ = id; ui_editor_type_ = "image";
+                set_status("Created image: " + id);
             }
         }
 
@@ -508,19 +512,23 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
             ImGui::TextColored(ImVec4(1,0.9f,0.4f,1), "Selected: %s [%s]", ui_selected_id_.c_str(), ui_editor_type_.c_str());
             ImGui::Separator();
 
-            // Script generation helpers — emit ui_set() on widget commit
+            // Script generation helpers — upsert ui_set() lines (update existing or append new)
             auto fmt_f = [](float v) -> std::string { char b[32]; std::snprintf(b, sizeof(b), "%.3f", v); return b; };
             auto emit_f = [&](const std::string& prop, float val) {
-                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + fmt_f(val) + ")");
+                upsert_map_script(ui_selected_id_, prop,
+                    "ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + fmt_f(val) + ")");
             };
             auto emit_i = [&](const std::string& prop, int val) {
-                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + std::to_string(val) + ")");
+                upsert_map_script(ui_selected_id_, prop,
+                    "ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + std::to_string(val) + ")");
             };
             auto emit_s = [&](const std::string& prop, const std::string& val) {
-                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", \"" + val + "\")");
+                upsert_map_script(ui_selected_id_, prop,
+                    "ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", \"" + val + "\")");
             };
             auto emit_b = [&](const std::string& prop, bool val) {
-                append_map_script("ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + std::string(val ? "true" : "false") + ")");
+                upsert_map_script(ui_selected_id_, prop,
+                    "ui_set(\"" + ui_selected_id_ + "\", \"" + prop + "\", " + std::string(val ? "true" : "false") + ")");
             };
             auto emit_pos = [&](float x, float y) { emit_i("x", (int)x); emit_i("y", (int)y); };
             auto emit_color = [&](const char* prefix, float r, float g, float b, float a) {
@@ -554,7 +562,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (ImGui::InputText("On Click", cb, sizeof(cb))) l.on_click = cb;
                 EMIT_ON_COMMIT(emit_s("on_click", l.on_click));
                 if (ImGui::Button("Delete")) {
-                    append_map_script("ui_remove(\"" + l.id + "\")");
+                    remove_component_script(l.id);
                     game.script_ui.labels.erase(std::find_if(game.script_ui.labels.begin(), game.script_ui.labels.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
                     ui_selected_id_.clear();
                 }
@@ -620,7 +628,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (ImGui::InputText("On Click", cb, sizeof(cb))) p.on_click = cb;
                 EMIT_ON_COMMIT(emit_s("on_click", p.on_click));
                 if (ImGui::Button("Delete")) {
-                    append_map_script("ui_remove(\"" + p.id + "\")");
+                    remove_component_script(p.id);
                     game.script_ui.panels.erase(std::find_if(game.script_ui.panels.begin(), game.script_ui.panels.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
                     ui_selected_id_.clear();
                 }
@@ -651,7 +659,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (ImGui::Checkbox("Show Text", &b.show_text)) emit_b("show_text", b.show_text);
                 if (ImGui::Checkbox("Visible", &b.visible)) emit_b("visible", b.visible);
                 if (ImGui::Button("Delete")) {
-                    append_map_script("ui_remove(\"" + b.id + "\")");
+                    remove_component_script(b.id);
                     game.script_ui.bars.erase(std::find_if(game.script_ui.bars.begin(), game.script_ui.bars.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
                     ui_selected_id_.clear();
                 }
@@ -720,7 +728,7 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 if (ImGui::InputText("On Click", cb, sizeof(cb))) img.on_click = cb;
                 EMIT_ON_COMMIT(emit_s("on_click", img.on_click));
                 if (ImGui::Button("Delete")) {
-                    append_map_script("ui_remove(\"" + img.id + "\")");
+                    remove_component_script(img.id);
                     game.script_ui.images.erase(std::find_if(game.script_ui.images.begin(), game.script_ui.images.end(), [&](auto& x) { return x.id == ui_selected_id_; }));
                     ui_selected_id_.clear();
                 }
@@ -1081,13 +1089,13 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 game.script_ui.panels.push_back({"inv_bg", {ix, iy}, 320, 280, "panel_window_lg"});
                 game.script_ui.labels.push_back({"inv_title", "Inventory", {ix + 14, iy + 10}, {1,0.95f,0.6f,1}, 0.8f});
                 game.script_ui.labels.push_back({"inv_gold", "Gold: 1250", {ix + 200, iy + 12}, {1,0.85f,0.2f,1}, 0.6f});
-                game.script_ui.images.push_back({"inv_coin", {ix + 182, iy + 10}, 16, 16, "icon_coin"});
+                game.script_ui.images.push_back({"inv_coin", {ix + 182, iy + 10}, 16, 16, "fi_132"});
                 append_map_script("ui_panel(\"inv_bg\", " + si((int)ix) + ", " + si((int)iy) + ", 320, 280, \"panel_window_lg\")");
                 append_map_script("ui_label(\"inv_title\", \"Inventory\", " + si((int)(ix+14)) + ", " + si((int)(iy+10)) + ", 1, 0.95, 0.6, 1)");
                 append_map_script("ui_set(\"inv_title\", \"scale\", 0.800)");
                 append_map_script("ui_label(\"inv_gold\", \"Gold: 1250\", " + si((int)(ix+200)) + ", " + si((int)(iy+12)) + ", 1, 0.85, 0.2, 1)");
                 append_map_script("ui_set(\"inv_gold\", \"scale\", 0.600)");
-                append_map_script("ui_image(\"inv_coin\", " + si((int)(ix+182)) + ", " + si((int)(iy+10)) + ", 16, 16, \"icon_coin\")");
+                append_map_script("ui_image(\"inv_coin\", " + si((int)(ix+182)) + ", " + si((int)(iy+10)) + ", 16, 16, \"fi_132\")");
                 // 4x5 grid of item slots
                 for (int r = 0; r < 5; r++) {
                     for (int c = 0; c < 4; c++) {
@@ -1268,12 +1276,12 @@ void TileEditor::render_imgui_ui_editor(GameState& game) {
                 float wx = (sw - 380) * 0.5f, wy = (sh - 320) * 0.5f;
                 game.script_ui.panels.push_back({"shop_bg", {wx, wy}, 380, 320, "panel_window_lg"});
                 game.script_ui.labels.push_back({"shop_title", "General Store", {wx + 120, wy + 12}, {1,0.95f,0.6f,1}, 0.85f});
-                game.script_ui.images.push_back({"shop_coin", {wx + 290, wy + 12}, 16, 16, "icon_coin"});
+                game.script_ui.images.push_back({"shop_coin", {wx + 290, wy + 12}, 16, 16, "fi_132"});
                 game.script_ui.labels.push_back({"shop_gold", "1250", {wx + 310, wy + 12}, {1,0.85f,0.2f,1}, 0.65f});
                 append_map_script("ui_panel(\"shop_bg\", " + si((int)wx) + ", " + si((int)wy) + ", 380, 320, \"panel_window_lg\")");
                 append_map_script("ui_label(\"shop_title\", \"General Store\", " + si((int)(wx+120)) + ", " + si((int)(wy+12)) + ", 1, 0.95, 0.6, 1)");
                 append_map_script("ui_set(\"shop_title\", \"scale\", 0.850)");
-                append_map_script("ui_image(\"shop_coin\", " + si((int)(wx+290)) + ", " + si((int)(wy+12)) + ", 16, 16, \"icon_coin\")");
+                append_map_script("ui_image(\"shop_coin\", " + si((int)(wx+290)) + ", " + si((int)(wy+12)) + ", 16, 16, \"fi_132\")");
                 append_map_script("ui_label(\"shop_gold\", \"1250\", " + si((int)(wx+310)) + ", " + si((int)(wy+12)) + ", 1, 0.85, 0.2, 1)");
                 append_map_script("ui_set(\"shop_gold\", \"scale\", 0.650)");
                 // Item rows

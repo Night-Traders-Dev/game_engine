@@ -2,10 +2,7 @@
 # House center, dense tree border, dirt paths, small pond
 
 proc forest_init():
-    ui_set("hud_player_bg", "sprite", "flat_blue")
-    ui_set("hud_time_bg", "sprite", "flat_blue")
-    ui_set("pause_bg", "sprite", "flat_orange")
-    ui_remove("pause_div")
+    log("=== Forest loaded ===")
 # Called EVERY time the player enters this level
 proc forest_enter():
     set_clouds(true, 0.35, 12, 60)

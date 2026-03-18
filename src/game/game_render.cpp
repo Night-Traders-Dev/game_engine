@@ -307,7 +307,7 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
 
         // HP bar with heart icon
         float icon_sz = 18 * S;
-        draw_ui_icon(batch, game, "icon_heart_red", hx + 12*S, hy + 34*S, icon_sz);
+        draw_ui_icon(batch, game, "fi_6", hx + 12*S, hy + 34*S, icon_sz);
         float hp_pct = game.player_hp_max > 0 ? std::max(0.0f, (float)game.player_hp / game.player_hp_max) : 0.0f;
         float bx = hx + 14*S + icon_sz + 4*S, by = hy + 36*S;
         float bw = H.hp_bar_w * S, bh = H.hp_bar_h * S;
@@ -320,7 +320,7 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
         text.draw_text(batch, game.font_desc, hs, {bx + bw + 8*S, by - 1}, col_text_sec, 0.65f * S);
 
         // Gold with coin icon
-        draw_ui_icon(batch, game, "icon_coin", hx + hw - 70*S, hy + 10*S, icon_sz);
+        draw_ui_icon(batch, game, "fi_132", hx + hw - 70*S, hy + 10*S, icon_sz);
         char gs[32]; std::snprintf(gs, sizeof(gs), "%d", game.gold);
         text.draw_text(batch, game.font_desc, gs, {hx + hw - 48*S, hy + 12*S}, col_text_gold, 0.7f * S);
 
@@ -440,13 +440,13 @@ static void render_hud(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
             batch.draw_quad({sx, iy_base}, {slot_w, 1.0f}, {0,0}, {1,1}, col_border_lite);
 
             // Item icon
-            const char* icon_name = "icon_gem_blue";
-            if (item.damage > 0) icon_name = "icon_sword";
-            else if (item.heal_hp > 0) icon_name = "icon_potion";
-            else if (item.element == "fire") icon_name = "icon_heart_red";
-            else if (item.element == "holy") icon_name = "icon_star";
-            else if (item.element == "ice") icon_name = "icon_gem_green";
-            else if (item.element == "lightning") icon_name = "icon_ring";
+            const char* icon_name = "fi_48";   // Default: gem/misc
+            if (item.damage > 0) icon_name = "fi_8";          // Sword
+            else if (item.heal_hp > 0) icon_name = "fi_24";   // Potion
+            else if (item.element == "fire") icon_name = "fi_64";     // Fire
+            else if (item.element == "holy") icon_name = "fi_72";     // Holy star
+            else if (item.element == "ice") icon_name = "fi_52";      // Ice crystal
+            else if (item.element == "lightning") icon_name = "fi_56"; // Lightning
             float icon_sz = slot_w * 0.55f;
             draw_ui_icon(batch, game, icon_name, sx + (slot_w - icon_sz) * 0.5f, iy_base + 4*S, icon_sz);
 
@@ -783,16 +783,18 @@ void render_game_world(GameState& game, eb::SpriteBatch& batch, eb::TextRenderer
                          game.white_desc, {1.0f, 0.9f, 0.3f, glow * 0.3f});
 
         // Item icon
-        const char* icon = "icon_gem_blue";
-        if (drop.damage > 0) icon = "icon_sword";
-        else if (drop.heal_hp > 0) icon = "icon_potion";
-        else if (drop.element == "fire") icon = "icon_heart_red";
-        else if (drop.element == "holy") icon = "icon_star";
-        if (game.ui_atlas) {
-            auto* r = game.ui_atlas->find_region(icon);
-            if (r) {
-                batch.draw_sorted(dp, {drop_sz, drop_sz}, r->uv_min, r->uv_max,
-                                 drop.position.y, game.ui_desc);
+        const char* icon = "fi_48";
+        if (drop.damage > 0) icon = "fi_8";
+        else if (drop.heal_hp > 0) icon = "fi_24";
+        else if (drop.element == "fire") icon = "fi_64";
+        else if (drop.element == "holy") icon = "fi_72";
+        // Fantasy icons: fi_N → index into fantasy_icons_atlas
+        if (game.fantasy_icons_atlas && icon[0] == 'f' && icon[1] == 'i' && icon[2] == '_') {
+            int idx = std::atoi(icon + 3);
+            if (idx >= 0 && idx < game.fantasy_icons_atlas->region_count()) {
+                auto r = game.fantasy_icons_atlas->region(idx);
+                batch.draw_sorted(dp, {drop_sz, drop_sz}, r.uv_min, r.uv_max,
+                                 drop.position.y, game.fantasy_icons_desc);
             }
         }
     }

@@ -50,8 +50,47 @@ void TileEditor::set_map(TileMap* map) {
 // ── Map Script Generation (Visual Basic style) ──
 
 void TileEditor::append_map_script(const std::string& line) {
-    map_script_body_ += "    " + line + "\n";
+    script_lines_.push_back({line, "", ""});
+    rebuild_script_body();
     map_script_dirty_ = true;
+}
+
+void TileEditor::append_map_script(const std::string& line, const std::string& component_id, const std::string& property) {
+    script_lines_.push_back({line, component_id, property});
+    rebuild_script_body();
+    map_script_dirty_ = true;
+}
+
+void TileEditor::upsert_map_script(const std::string& component_id, const std::string& property, const std::string& line) {
+    // Look for existing line with same component_id + property
+    for (auto& sl : script_lines_) {
+        if (sl.component_id == component_id && sl.property == property && !property.empty()) {
+            sl.code = line;
+            rebuild_script_body();
+            map_script_dirty_ = true;
+            return;
+        }
+    }
+    // Not found — append new
+    script_lines_.push_back({line, component_id, property});
+    rebuild_script_body();
+    map_script_dirty_ = true;
+}
+
+void TileEditor::remove_component_script(const std::string& component_id) {
+    script_lines_.erase(
+        std::remove_if(script_lines_.begin(), script_lines_.end(),
+            [&](const ScriptLine& sl) { return sl.component_id == component_id; }),
+        script_lines_.end());
+    rebuild_script_body();
+    map_script_dirty_ = true;
+}
+
+void TileEditor::rebuild_script_body() {
+    map_script_body_.clear();
+    for (auto& sl : script_lines_) {
+        map_script_body_ += "    " + sl.code + "\n";
+    }
 }
 
 void TileEditor::save_map_script() {
@@ -120,6 +159,7 @@ void TileEditor::load_map_script(const std::string& map_path) {
 
     // Try to load existing script body
     map_script_body_.clear();
+    script_lines_.clear();
     auto data = eb::FileIO::read_file(map_script_path_);
     if (!data.empty()) {
         std::string src(data.begin(), data.end());
@@ -140,7 +180,60 @@ void TileEditor::load_map_script(const std::string& map_path) {
                     if (eol == std::string::npos) eol = src.size();
                     std::string line = src.substr(pos, eol - pos);
                     if (!line.empty() && (line[0] == ' ' || line[0] == '\t')) {
-                        map_script_body_ += line + "\n";
+                        // Strip leading whitespace for the code
+                        std::string trimmed = line;
+                        size_t first = trimmed.find_first_not_of(" \t");
+                        if (first != std::string::npos) trimmed = trimmed.substr(first);
+
+                        // Parse component ID and property from ui_* calls
+                        ScriptLine sl;
+                        sl.code = trimmed;
+
+                        // Extract component ID from ui_label("id",...), ui_panel("id",...), etc.
+                        auto extract_id = [](const std::string& code, const char* prefix) -> std::string {
+                            auto p = code.find(prefix);
+                            if (p == std::string::npos) return "";
+                            p += std::strlen(prefix);
+                            auto q = code.find('"', p);
+                            if (q == std::string::npos) return "";
+                            auto q2 = code.find('"', q + 1);
+                            if (q2 == std::string::npos) return "";
+                            return code.substr(q + 1, q2 - q - 1);
+                        };
+
+                        if (trimmed.find("ui_set(\"") == 0) {
+                            sl.component_id = extract_id(trimmed, "ui_set(\"");
+                            // Extract property: second quoted string
+                            auto first_q = trimmed.find('"');
+                            if (first_q != std::string::npos) {
+                                auto second_q = trimmed.find('"', first_q + 1);
+                                if (second_q != std::string::npos) {
+                                    auto third_q = trimmed.find('"', second_q + 1);
+                                    if (third_q != std::string::npos) {
+                                        auto fourth_q = trimmed.find('"', third_q + 1);
+                                        if (fourth_q != std::string::npos)
+                                            sl.property = trimmed.substr(third_q + 1, fourth_q - third_q - 1);
+                                    }
+                                }
+                            }
+                        } else if (trimmed.find("ui_label(\"") == 0) {
+                            sl.component_id = extract_id(trimmed, "ui_label(\"");
+                            sl.property = "_create";
+                        } else if (trimmed.find("ui_panel(\"") == 0) {
+                            sl.component_id = extract_id(trimmed, "ui_panel(\"");
+                            sl.property = "_create";
+                        } else if (trimmed.find("ui_bar(\"") == 0) {
+                            sl.component_id = extract_id(trimmed, "ui_bar(\"");
+                            sl.property = "_create";
+                        } else if (trimmed.find("ui_image(\"") == 0) {
+                            sl.component_id = extract_id(trimmed, "ui_image(\"");
+                            sl.property = "_create";
+                        } else if (trimmed.find("ui_remove(\"") == 0) {
+                            sl.component_id = extract_id(trimmed, "ui_remove(\"");
+                            sl.property = "_remove";
+                        }
+
+                        script_lines_.push_back(sl);
                     } else if (!line.empty()) {
                         break;
                     }
@@ -149,6 +242,7 @@ void TileEditor::load_map_script(const std::string& map_path) {
             }
         }
     }
+    rebuild_script_body();
     map_script_dirty_ = false;
 }
 
@@ -2163,6 +2257,7 @@ void TileEditor::create_empty_map(int width, int height, int tile_size, bool pla
 
     // Clear map script
     map_script_body_.clear();
+    script_lines_.clear();
     map_script_dirty_ = false;
 
     std::string mode_str = platformer ? "Platformer" : "TopDown";

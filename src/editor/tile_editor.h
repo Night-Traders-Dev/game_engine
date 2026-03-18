@@ -292,9 +292,27 @@ private:
     // Map script generation (Visual Basic-style)
     std::string map_script_path_;
     std::string map_script_init_func_ = "map_init"; // e.g. "forest_init" or "map_init"
-    std::string map_script_body_;   // Lines inside the init function
+    std::string map_script_body_;   // Lines inside the init function (rebuilt from script_lines_)
     bool map_script_dirty_ = false;
+
+    // Structured script line storage — enables update-in-place and removal
+    struct ScriptLine {
+        std::string code;         // The actual SageLang line (without indentation)
+        std::string component_id; // UI component this line belongs to (empty = general/non-UI)
+        std::string property;     // Property key for ui_set lines (empty = creation line)
+    };
+    std::vector<ScriptLine> script_lines_;
+
+    // Append a line (legacy — for non-UI lines like spawn_npc, place_object)
     void append_map_script(const std::string& line);
+    // Append a line associated with a UI component
+    void append_map_script(const std::string& line, const std::string& component_id, const std::string& property = "");
+    // Update or append a ui_set line for a component+property. Replaces existing if found.
+    void upsert_map_script(const std::string& component_id, const std::string& property, const std::string& line);
+    // Remove all script lines for a component (called on delete)
+    void remove_component_script(const std::string& component_id);
+    // Rebuild map_script_body_ from script_lines_
+    void rebuild_script_body();
 
     void update_autotile_neighbors(int tx, int ty);
 
