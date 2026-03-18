@@ -534,14 +534,15 @@ bool init_game_from_manifest(GameState& game, eb::Renderer& renderer, eb::Resour
             game.tileset_desc = renderer.get_texture_descriptor(*tileset_tex);
             std::printf("[Game] Tileset: %s (%dx%d, %d tiles)\n", manifest.tileset_path.c_str(), tw, th, cols*rows);
 
-            // Load object stamps from stamps file (if exists alongside tileset)
-            std::string stamps_path = manifest.tileset_path;
-            auto dot = stamps_path.rfind('.');
-            if (dot != std::string::npos) stamps_path = stamps_path.substr(0, dot);
-            stamps_path = stamps_path.substr(0, stamps_path.rfind('/') + 1);
-            // Try cf_stamps.txt in same directory as tileset
+            // Load object stamps from stamps file matching tileset name
             std::string stamps_dir = manifest.tileset_path.substr(0, manifest.tileset_path.rfind('/') + 1);
-            auto stamps_data = eb::FileIO::read_file(stamps_dir + "cf_stamps.txt");
+            // Try <tileset_name>_stamps.txt first (e.g. blender_topdown_tileset_stamps.txt)
+            std::string stamps_path = manifest.tileset_path;
+            { auto dot = stamps_path.rfind('.'); if (dot != std::string::npos) stamps_path = stamps_path.substr(0, dot); }
+            stamps_path += "_stamps.txt";
+            auto stamps_data = eb::FileIO::read_file(stamps_path);
+            // Fallback to cf_stamps.txt
+            if (stamps_data.empty()) stamps_data = eb::FileIO::read_file(stamps_dir + "cf_stamps.txt");
             if (stamps_data.empty()) stamps_data = eb::FileIO::read_file("assets/textures/cf_stamps.txt");
             if (!stamps_data.empty()) {
                 std::string stamps_str(stamps_data.begin(), stamps_data.end());

@@ -255,6 +255,68 @@ void TileEditor::render_imgui_game_systems(GameState& game) {
                     }
 
                     ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "AI Character Presets");
+                    {
+                        static const char* char_presets[] = {
+                            "assets/textures/ai/knight_sheet.png",
+                            "assets/textures/ai/wizard_sheet.png",
+                            "assets/textures/ai/skeleton_sheet.png",
+                            "assets/textures/ai/slime_sheet.png",
+                            "assets/textures/ai/goblin_sheet.png",
+                            "assets/textures/ai/merchant_sheet.png",
+                            "assets/textures/ai/princess_sheet.png",
+                            "assets/textures/ai/dragon_sheet.png",
+                            "assets/textures/blender_character.png",
+                            "assets/textures/mage_player.png",
+                        };
+                        static const char* char_names[] = {
+                            "Knight (AI)", "Wizard (AI)", "Skeleton (AI)", "Slime (AI)",
+                            "Goblin (AI)", "Merchant (AI)", "Princess (AI)", "Dragon (AI)",
+                            "Blender Sample", "Default Mage"
+                        };
+                        static int char_preset_idx = 0;
+                        ImGui::Combo("Character##preset", &char_preset_idx, char_names, IM_ARRAYSIZE(char_names));
+                        if (ImGui::Button("Set as Player Sprite")) {
+                            std::strncpy(player_sprite_path, char_presets[char_preset_idx], sizeof(player_sprite_path)-1);
+                            player_grid_w = 64; player_grid_h = 64;
+                            // Trigger load
+                            if (game.resource_manager && game.renderer) {
+                                try {
+                                    auto* tex = game.resource_manager->load_texture(player_sprite_path);
+                                    if (tex) {
+                                        game.dean_atlas = std::make_unique<eb::TextureAtlas>(tex, player_grid_w, player_grid_h);
+                                        int cw = player_grid_w, ch = player_grid_h;
+                                        game.dean_atlas->define_region("idle_down",     0,      0, cw, ch);
+                                        game.dean_atlas->define_region("walk_down_0",  cw,      0, cw, ch);
+                                        game.dean_atlas->define_region("walk_down_1",  cw*2,    0, cw, ch);
+                                        game.dean_atlas->define_region("idle_up",       0,     ch, cw, ch);
+                                        game.dean_atlas->define_region("walk_up_0",    cw,     ch, cw, ch);
+                                        game.dean_atlas->define_region("walk_up_1",    cw*2,   ch, cw, ch);
+                                        game.dean_atlas->define_region("idle_right",    0,   ch*2, cw, ch);
+                                        game.dean_atlas->define_region("walk_right_0", cw,   ch*2, cw, ch);
+                                        game.dean_atlas->define_region("walk_right_1", cw*2, ch*2, cw, ch);
+                                        game.dean_desc = game.renderer->get_texture_descriptor(*tex);
+                                        set_status("Player sprite: " + std::string(char_names[char_preset_idx]));
+                                    }
+                                } catch (...) { set_status("Failed to load character preset"); }
+                            }
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Spawn as NPC")) {
+                            if (game.script_engine) {
+                                char cmd[512];
+                                std::snprintf(cmd, sizeof(cmd),
+                                    "spawn_npc(\"%s\", %.0f, %.0f, 0, false, \"%s\", 0, 0, 50, 0, 64, 64)",
+                                    char_names[char_preset_idx],
+                                    game.player_pos.x + 64, game.player_pos.y,
+                                    char_presets[char_preset_idx]);
+                                game.script_engine->execute(cmd);
+                                set_status("Spawned NPC: " + std::string(char_names[char_preset_idx]));
+                            }
+                        }
+                    }
+
+                    ImGui::Separator();
                     ImGui::TextColored(ImVec4(0.6f,0.9f,1,1), "Character Stats (S.P.E.C.I.A.L.)");
                     ImGui::SliderInt("Vitality", &game.player_stats.vitality, 1, 10);
                     ImGui::SliderInt("Arcana", &game.player_stats.arcana, 1, 10);
