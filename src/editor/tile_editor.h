@@ -303,16 +303,28 @@ private:
     };
     std::vector<ScriptLine> script_lines_;
 
+    // Default script (default.sage) — separate tracker for HUD/pause components
+    std::string default_script_path_;
+    std::string default_script_init_func_ = "map_init";
+    std::vector<ScriptLine> default_script_lines_;
+    bool default_script_dirty_ = false;
+
+    // Check if a component ID belongs to default.sage (hud_* or pause_*)
+    bool is_default_script_component(const std::string& id) const;
+
     // Append a line (legacy — for non-UI lines like spawn_npc, place_object)
     void append_map_script(const std::string& line);
     // Append a line associated with a UI component
     void append_map_script(const std::string& line, const std::string& component_id, const std::string& property = "");
     // Update or append a ui_set line for a component+property. Replaces existing if found.
+    // Routes to default.sage for hud_*/pause_* components.
     void upsert_map_script(const std::string& component_id, const std::string& property, const std::string& line);
     // Remove all script lines for a component (called on delete)
     void remove_component_script(const std::string& component_id);
     // Rebuild map_script_body_ from script_lines_
     void rebuild_script_body();
+    // Save default.sage with updated lines
+    void save_default_script();
 
     void update_autotile_neighbors(int tx, int ty);
 

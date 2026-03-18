@@ -49,6 +49,11 @@ void TileEditor::set_map(TileMap* map) {
 
 // ── Map Script Generation (Visual Basic style) ──
 
+bool TileEditor::is_default_script_component(const std::string& id) const {
+    return id.compare(0, 4, "hud_") == 0 ||
+           id.compare(0, 6, "pause_") == 0;
+}
+
 void TileEditor::append_map_script(const std::string& line) {
     script_lines_.push_back({line, "", ""});
     rebuild_script_body();
@@ -56,40 +61,93 @@ void TileEditor::append_map_script(const std::string& line) {
 }
 
 void TileEditor::append_map_script(const std::string& line, const std::string& component_id, const std::string& property) {
-    script_lines_.push_back({line, component_id, property});
-    rebuild_script_body();
-    map_script_dirty_ = true;
+    if (is_default_script_component(component_id)) {
+        default_script_lines_.push_back({line, component_id, property});
+        default_script_dirty_ = true;
+    } else {
+        script_lines_.push_back({line, component_id, property});
+        rebuild_script_body();
+        map_script_dirty_ = true;
+    }
 }
 
 void TileEditor::upsert_map_script(const std::string& component_id, const std::string& property, const std::string& line) {
-    // Look for existing line with same component_id + property
-    for (auto& sl : script_lines_) {
+    // Route to correct script based on component ID
+    auto& lines = is_default_script_component(component_id) ? default_script_lines_ : script_lines_;
+    bool& dirty = is_default_script_component(component_id) ? default_script_dirty_ : map_script_dirty_;
+
+    for (auto& sl : lines) {
         if (sl.component_id == component_id && sl.property == property && !property.empty()) {
             sl.code = line;
-            rebuild_script_body();
-            map_script_dirty_ = true;
+            if (&lines == &script_lines_) rebuild_script_body();
+            dirty = true;
             return;
         }
     }
     // Not found — append new
-    script_lines_.push_back({line, component_id, property});
-    rebuild_script_body();
-    map_script_dirty_ = true;
+    lines.push_back({line, component_id, property});
+    if (&lines == &script_lines_) rebuild_script_body();
+    dirty = true;
 }
 
 void TileEditor::remove_component_script(const std::string& component_id) {
-    script_lines_.erase(
-        std::remove_if(script_lines_.begin(), script_lines_.end(),
+    auto& lines = is_default_script_component(component_id) ? default_script_lines_ : script_lines_;
+    bool& dirty = is_default_script_component(component_id) ? default_script_dirty_ : map_script_dirty_;
+
+    lines.erase(
+        std::remove_if(lines.begin(), lines.end(),
             [&](const ScriptLine& sl) { return sl.component_id == component_id; }),
-        script_lines_.end());
-    rebuild_script_body();
-    map_script_dirty_ = true;
+        lines.end());
+    if (&lines == &script_lines_) rebuild_script_body();
+    dirty = true;
 }
 
 void TileEditor::rebuild_script_body() {
     map_script_body_.clear();
     for (auto& sl : script_lines_) {
         map_script_body_ += "    " + sl.code + "\n";
+    }
+}
+
+void TileEditor::save_default_script() {
+    if (default_script_path_.empty() || !default_script_dirty_) return;
+
+    // Read existing file
+    std::string existing;
+    auto data = eb::FileIO::read_file(default_script_path_);
+    if (!data.empty()) existing.assign(data.begin(), data.end());
+
+    std::string proc_header = "proc " + default_script_init_func_ + "():";
+    auto pos = existing.find(proc_header);
+    if (pos != std::string::npos) {
+        auto body_start = existing.find('\n', pos);
+        if (body_start != std::string::npos) {
+            body_start++;
+            auto body_end = body_start;
+            while (body_end < existing.size()) {
+                auto eol = existing.find('\n', body_end);
+                if (eol == std::string::npos) eol = existing.size();
+                std::string ln = existing.substr(body_end, eol - body_end);
+                if (!ln.empty() && ln[0] != ' ' && ln[0] != '\t') break;
+                body_end = eol + 1;
+            }
+
+            // Rebuild the body from default_script_lines_
+            std::string new_body;
+            for (auto& sl : default_script_lines_) {
+                new_body += "    " + sl.code + "\n";
+            }
+            if (new_body.empty()) new_body = "    log(\"Map loaded\")\n";
+            existing = existing.substr(0, body_start) + new_body + existing.substr(body_end);
+        }
+    }
+
+    std::ofstream f(default_script_path_);
+    if (f.is_open()) {
+        f << existing;
+        f.close();
+        default_script_dirty_ = false;
+        set_status("Default script saved: " + default_script_path_);
     }
 }
 
@@ -244,6 +302,68 @@ void TileEditor::load_map_script(const std::string& map_path) {
     }
     rebuild_script_body();
     map_script_dirty_ = false;
+
+    // Also load default.sage for HUD/pause component tracking
+    default_script_path_ = "assets/scripts/maps/default.sage";
+    default_script_lines_.clear();
+    default_script_dirty_ = false;
+    auto ddata = eb::FileIO::read_file(default_script_path_);
+    if (!ddata.empty()) {
+        std::string dsrc(ddata.begin(), ddata.end());
+        // Find map_init proc in default.sage
+        std::string dproc = "proc map_init():";
+        auto dpos = dsrc.find(dproc);
+        if (dpos != std::string::npos) {
+            default_script_init_func_ = "map_init";
+            dpos = dsrc.find('\n', dpos);
+            if (dpos != std::string::npos) {
+                dpos++;
+                while (dpos < dsrc.size()) {
+                    auto deol = dsrc.find('\n', dpos);
+                    if (deol == std::string::npos) deol = dsrc.size();
+                    std::string dline = dsrc.substr(dpos, deol - dpos);
+                    if (!dline.empty() && (dline[0] == ' ' || dline[0] == '\t')) {
+                        std::string dtrimmed = dline;
+                        size_t dfirst = dtrimmed.find_first_not_of(" \t");
+                        if (dfirst != std::string::npos) dtrimmed = dtrimmed.substr(dfirst);
+
+                        ScriptLine dsl;
+                        dsl.code = dtrimmed;
+
+                        auto extract_id = [](const std::string& code, const char* prefix) -> std::string {
+                            auto p = code.find(prefix);
+                            if (p == std::string::npos) return "";
+                            p += std::strlen(prefix);
+                            auto q = code.find('"', p);
+                            if (q == std::string::npos) return "";
+                            auto q2 = code.find('"', q + 1);
+                            if (q2 == std::string::npos) return "";
+                            return code.substr(q + 1, q2 - q - 1);
+                        };
+
+                        if (dtrimmed.find("ui_set(\"") == 0) {
+                            dsl.component_id = extract_id(dtrimmed, "ui_set(\"");
+                            auto fq = dtrimmed.find('"'); if (fq != std::string::npos) {
+                            auto sq = dtrimmed.find('"', fq+1); if (sq != std::string::npos) {
+                            auto tq = dtrimmed.find('"', sq+1); if (tq != std::string::npos) {
+                            auto qq = dtrimmed.find('"', tq+1); if (qq != std::string::npos)
+                                dsl.property = dtrimmed.substr(tq+1, qq-tq-1); }}}
+                        } else if (dtrimmed.find("ui_label(\"") == 0) { dsl.component_id = extract_id(dtrimmed, "ui_label(\""); dsl.property = "_create"; }
+                        else if (dtrimmed.find("ui_panel(\"") == 0) { dsl.component_id = extract_id(dtrimmed, "ui_panel(\""); dsl.property = "_create"; }
+                        else if (dtrimmed.find("ui_bar(\"") == 0) { dsl.component_id = extract_id(dtrimmed, "ui_bar(\""); dsl.property = "_create"; }
+                        else if (dtrimmed.find("ui_image(\"") == 0) { dsl.component_id = extract_id(dtrimmed, "ui_image(\""); dsl.property = "_create"; }
+                        else if (dtrimmed.find("ui_remove(\"") == 0) { dsl.component_id = extract_id(dtrimmed, "ui_remove(\""); dsl.property = "_remove"; }
+
+                        default_script_lines_.push_back(dsl);
+                    } else if (!dline.empty()) {
+                        break;
+                    }
+                    dpos = deol + 1;
+                }
+            }
+        }
+    }
+    std::printf("[Editor] Loaded default.sage: %d lines\n", (int)default_script_lines_.size());
 }
 
 void TileEditor::set_tileset(TextureAtlas* atlas, VkDescriptorSet desc, Texture* tex) {
@@ -548,6 +668,7 @@ void TileEditor::process_pending_dialog() {
         if (action == PendingDialog::Save) {
             if (save_map_file(*game_state_, path.c_str())) {
                 save_map_script(); // Auto-save companion script
+                save_default_script(); // Save HUD/pause changes to default.sage
                 set_status("Saved (map + script)");
             } else {
                 set_status("Failed!");
@@ -740,6 +861,7 @@ void TileEditor::handle_shortcuts(const InputState& input) {
         // Quick save (no dialog, no Vulkan conflict)
         if (game_state_) { save_map_file(*game_state_, "assets/maps/current.json") ? set_status("Saved") : set_status("Failed!"); }
         else { save_map("assets/maps/current.json") ? set_status("Saved") : set_status("Failed!"); }
+        save_default_script();
     }
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_H)) flip_clipboard_h();
     if (input.mods.ctrl && input.key_pressed(GLFW_KEY_J)) flip_clipboard_v();
