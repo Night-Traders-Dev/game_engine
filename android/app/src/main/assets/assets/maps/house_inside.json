@@ -6,7 +6,7 @@
     "width": 10,
     "height": 10,
     "tile_size": 32,
-    "tileset": "assets/textures/cf_tileset.png",
+    "tileset": "assets/textures/blender_topdown_tileset.png",
     "player_start_x": 128,
     "player_start_y": 224
   },

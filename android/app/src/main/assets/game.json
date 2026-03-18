@@ -50,7 +50,7 @@
       }
     }
   ],
-  "tileset": "assets/textures/cf_tileset.png",
+  "tileset": "assets/textures/blender_topdown_tileset.png",
   "default_font": "assets/fonts/default.ttf",
   "npcs": [
     {

@@ -1,0 +1,190 @@
+{
+  "tile_size": 32,
+  "columns": 8,
+  "rows": 4,
+  "total_tiles": 26,
+  "tiles": {
+    "0": {
+      "name": "grass_normal",
+      "x": 0,
+      "y": 0,
+      "col": 0,
+      "row": 0
+    },
+    "1": {
+      "name": "grass_variant",
+      "x": 32,
+      "y": 0,
+      "col": 1,
+      "row": 0
+    },
+    "2": {
+      "name": "grass_flowers",
+      "x": 64,
+      "y": 0,
+      "col": 2,
+      "row": 0
+    },
+    "3": {
+      "name": "grass_dark",
+      "x": 96,
+      "y": 0,
+      "col": 3,
+      "row": 0
+    },
+    "4": {
+      "name": "dirt_normal",
+      "x": 128,
+      "y": 0,
+      "col": 4,
+      "row": 0
+    },
+    "5": {
+      "name": "dirt_light",
+      "x": 160,
+      "y": 0,
+      "col": 5,
+      "row": 0
+    },
+    "6": {
+      "name": "dirt_gravel",
+      "x": 192,
+      "y": 0,
+      "col": 6,
+      "row": 0
+    },
+    "7": {
+      "name": "dirt_mud",
+      "x": 224,
+      "y": 0,
+      "col": 7,
+      "row": 0
+    },
+    "8": {
+      "name": "stone_cobble",
+      "x": 0,
+      "y": 32,
+      "col": 0,
+      "row": 1
+    },
+    "9": {
+      "name": "stone_light",
+      "x": 32,
+      "y": 32,
+      "col": 1,
+      "row": 1
+    },
+    "10": {
+      "name": "stone_cracked",
+      "x": 64,
+      "y": 32,
+      "col": 2,
+      "row": 1
+    },
+    "11": {
+      "name": "stone_mossy",
+      "x": 96,
+      "y": 32,
+      "col": 3,
+      "row": 1
+    },
+    "12": {
+      "name": "water_normal",
+      "x": 128,
+      "y": 32,
+      "col": 4,
+      "row": 1
+    },
+    "13": {
+      "name": "water_deep",
+      "x": 160,
+      "y": 32,
+      "col": 5,
+      "row": 1
+    },
+    "14": {
+      "name": "water_shallow",
+      "x": 192,
+      "y": 32,
+      "col": 6,
+      "row": 1
+    },
+    "15": {
+      "name": "water_shore",
+      "x": 224,
+      "y": 32,
+      "col": 7,
+      "row": 1
+    },
+    "16": {
+      "name": "sand_normal",
+      "x": 0,
+      "y": 64,
+      "col": 0,
+      "row": 2
+    },
+    "17": {
+      "name": "sand_dark",
+      "x": 32,
+      "y": 64,
+      "col": 1,
+      "row": 2
+    },
+    "18": {
+      "name": "cave_dark",
+      "x": 64,
+      "y": 64,
+      "col": 2,
+      "row": 2
+    },
+    "19": {
+      "name": "cave_rock",
+      "x": 96,
+      "y": 64,
+      "col": 3,
+      "row": 2
+    },
+    "20": {
+      "name": "cave_crystal",
+      "x": 128,
+      "y": 64,
+      "col": 4,
+      "row": 2
+    },
+    "21": {
+      "name": "cave_moss",
+      "x": 160,
+      "y": 64,
+      "col": 5,
+      "row": 2
+    },
+    "22": {
+      "name": "road_horizontal",
+      "x": 192,
+      "y": 64,
+      "col": 6,
+      "row": 2
+    },
+    "23": {
+      "name": "road_vertical",
+      "x": 224,
+      "y": 64,
+      "col": 7,
+      "row": 2
+    },
+    "24": {
+      "name": "road_crossroad",
+      "x": 0,
+      "y": 96,
+      "col": 0,
+      "row": 3
+    },
+    "25": {
+      "name": "road_sidewalk",
+      "x": 32,
+      "y": 96,
+      "col": 1,
+      "row": 3
+    }
+  }
+}

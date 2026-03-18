@@ -1,0 +1,120 @@
+{
+  "tile_size": 32,
+  "columns": 8,
+  "rows": 2,
+  "total_tiles": 16,
+  "tiles": {
+    "0": {
+      "name": "ground_grass_top",
+      "x": 0,
+      "y": 0,
+      "col": 0,
+      "row": 0
+    },
+    "1": {
+      "name": "ground_dirt",
+      "x": 32,
+      "y": 0,
+      "col": 1,
+      "row": 0
+    },
+    "2": {
+      "name": "ground_stone",
+      "x": 64,
+      "y": 0,
+      "col": 2,
+      "row": 0
+    },
+    "3": {
+      "name": "ground_underground",
+      "x": 96,
+      "y": 0,
+      "col": 3,
+      "row": 0
+    },
+    "4": {
+      "name": "platform_grass",
+      "x": 128,
+      "y": 0,
+      "col": 4,
+      "row": 0
+    },
+    "5": {
+      "name": "platform_wood",
+      "x": 160,
+      "y": 0,
+      "col": 5,
+      "row": 0
+    },
+    "6": {
+      "name": "bg_sky",
+      "x": 192,
+      "y": 0,
+      "col": 6,
+      "row": 0
+    },
+    "7": {
+      "name": "bg_sky_dark",
+      "x": 224,
+      "y": 0,
+      "col": 7,
+      "row": 0
+    },
+    "8": {
+      "name": "ground_sand",
+      "x": 0,
+      "y": 32,
+      "col": 0,
+      "row": 1
+    },
+    "9": {
+      "name": "ground_ice",
+      "x": 32,
+      "y": 32,
+      "col": 1,
+      "row": 1
+    },
+    "10": {
+      "name": "ground_lava_rock",
+      "x": 64,
+      "y": 32,
+      "col": 2,
+      "row": 1
+    },
+    "11": {
+      "name": "ground_metal",
+      "x": 96,
+      "y": 32,
+      "col": 3,
+      "row": 1
+    },
+    "12": {
+      "name": "deco_cloud",
+      "x": 128,
+      "y": 32,
+      "col": 4,
+      "row": 1
+    },
+    "13": {
+      "name": "deco_bush",
+      "x": 160,
+      "y": 32,
+      "col": 5,
+      "row": 1
+    },
+    "14": {
+      "name": "deco_tree_trunk",
+      "x": 192,
+      "y": 32,
+      "col": 6,
+      "row": 1
+    },
+    "15": {
+      "name": "deco_leaves",
+      "x": 224,
+      "y": 32,
+      "col": 7,
+      "row": 1
+    }
+  }
+}
