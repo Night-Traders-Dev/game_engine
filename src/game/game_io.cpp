@@ -241,6 +241,30 @@ bool load_map_file(GameState& game, eb::Renderer& renderer, const std::string& p
     // Auto-mark water tiles as reflective if no reflection data in map file
     auto_mark_reflective_tiles(game);
 
+    // Reload tileset texture if the map specifies a different one
+    std::string new_ts = game.tile_map.tileset_path();
+    if (!new_ts.empty() && game.resource_manager && game.renderer) {
+        try {
+            auto* tex = game.resource_manager->load_texture(new_ts);
+            if (tex) {
+                int tw = tex->width(), th = tex->height();
+                int tile_sz = game.tile_map.tile_size();
+                if (tile_sz > 0) {
+                    int cols = tw / tile_sz, rows = th / tile_sz;
+                    game.tileset_atlas = std::make_unique<eb::TextureAtlas>(tex);
+                    for (int r = 0; r < rows; r++)
+                        for (int c = 0; c < cols; c++)
+                            game.tileset_atlas->add_region(c * tile_sz, r * tile_sz, tile_sz, tile_sz);
+                    game.tile_map.set_tileset(game.tileset_atlas.get());
+                    game.tileset_desc = game.renderer->get_texture_descriptor(*tex);
+                    std::printf("[Map] Loaded tileset: %s (%dx%d, %d tiles)\n", new_ts.c_str(), tw, th, cols * rows);
+                }
+            }
+        } catch (...) {
+            std::fprintf(stderr, "[Map] Failed to load tileset: %s\n", new_ts.c_str());
+        }
+    }
+
     // Clear existing objects for reload
     game.world_objects.clear();
     game.object_defs.clear();
